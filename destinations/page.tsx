@@ -1,0 +1,1 @@
+export default function Page(){return <main className="page"><h1>Destinations & Ports</h1><p>Country and destination-port information will be connected to production route data.</p><div className="notice">Production data and integrations are being connected. The website will not invent inventory, freight prices, schedules, duties or tracking events.</div></main>}
