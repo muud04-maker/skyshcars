@@ -1,1 +1,0 @@
-export default function Page(){return <main className="page"><h1>Cars</h1><p>Production vehicle inventory will appear here after the central inventory data is connected.</p><div className="notice">Production data and integrations are being connected. The website will not invent inventory, freight prices, schedules, duties or tracking events.</div></main>}

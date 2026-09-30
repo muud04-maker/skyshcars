@@ -1,1 +1,0 @@
-export default function Page(){return <main className="page"><h1>Contact Sky Cars</h1><p>Customer contact and WhatsApp inquiry channels will be connected during production integration.</p><div className="notice">Production data and integrations are being connected. The website will not invent inventory, freight prices, schedules, duties or tracking events.</div></main>}

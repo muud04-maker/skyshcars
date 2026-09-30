@@ -1,1 +1,0 @@
-export default function Page(){return <main className="page"><h1>Motorcycles</h1><p>Motorcycle inventory will be published after its records are reviewed.</p><div className="notice">Production data and integrations are being connected. The website will not invent inventory, freight prices, schedules, duties or tracking events.</div></main>}
