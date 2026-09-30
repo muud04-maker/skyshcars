@@ -1,1 +1,7 @@
-import {getVehicles} from '../../lib/vehicles';export const dynamic='force-dynamic';export default async function Vehicles(){const vs=await getVehicles();return <main className="wrap pageVehicles"><h1>Vehicles</h1><p className="muted">Only approved media is shown. Contact us to verify current availability before payment.</p><div className="grid">{vs.map((v:any)=><a className="card vehicleCard" href={'/vehicles/'+v.id} key={v.id}>{v.cover_url?<img className="vehiclePhoto" src={v.cover_url} alt="Vehicle"/>:<div className="vehiclePhoto"/>}<div className="vehicleBody"><span className="badge">{v.category||'vehicle'}</span><h3>{v.model_year||''} {v.brand||'Brand pending'} {v.model||'Model pending'}</h3><p>{v.transmission||'—'} · {v.mileage_km?Number(v.mileage_km).toLocaleString()+' km':'—'}</p><div className="price">{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</div><p className="muted">{v.stock_no}</p></div></a>)}</div></main>}
+import { getVehicles } from '../../lib/vehicles';
+import VehicleGrid from '../../components/VehicleGrid';
+export const dynamic = 'force-dynamic';
+export default async function Vehicles() {
+  const vs = await getVehicles();
+  return <main className="wrap pageVehicles"><h1>Vehicles</h1><p className="muted">Contact us to confirm current availability before payment.</p><VehicleGrid list={vs} /></main>;
+}

@@ -1,1 +1,7 @@
-import data from '../../../data/inventory.json';export default function Page(){const list=data.inventory.filter((v:any)=>v.category==='motorcycle');return <main className="wrap pageMoto"><h1>Motorcycles</h1><p>{list.length} listings</p><div className="grid">{list.map((v:any)=><a className="card" href={'/vehicles/'+v.id} key={v.id}><h3>{v.year||''} {v.brand||'Details pending'} {v.model||''}</h3>{v.price_usd?<div className="price">${Number(v.price_usd).toLocaleString()}</div>:<b>Price on request</b>}</a>)}</div></main>}
+import { getVehicles } from '../../lib/vehicles';
+import VehicleGrid from '../../components/VehicleGrid';
+export const dynamic = 'force-dynamic';
+export default async function Page() {
+  const list = await getVehicles({ category: 'motorcycle' });
+  return <main className="wrap pageMoto"><h1>Motorcycles</h1><p>{list.length} listings</p><VehicleGrid list={list} emptyTitle="No motorcycles listed right now" /></main>;
+}
