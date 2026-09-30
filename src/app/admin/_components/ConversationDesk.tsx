@@ -1,0 +1,22 @@
+'use client';
+import {useEffect,useState} from 'react';
+type C={id:number;channel:string;external_user_id:string;mode:'ai'|'human'|'paused';full_name?:string;phone?:string;last_message_at?:string;preview?:string};
+type M={id:number;sender:string;direction:string;body?:string;message_type:string;created_at:string};
+export default function ConversationDesk({initial}:{initial:C[]}){
+ const [list,setList]=useState(initial),[active,setActive]=useState<C|null>(initial[0]||null),[msgs,setMsgs]=useState<M[]>([]),[text,setText]=useState(''),[busy,setBusy]=useState(false),[err,setErr]=useState('');
+ async function load(id:number){const r=await fetch('/api/admin/conversations/'+id,{cache:'no-store'});if(r.ok){const j=await r.json();setMsgs(j.messages||[]);setList(j.conversations||list)}}
+ useEffect(()=>{if(active)load(active.id)},[active?.id]);
+ useEffect(()=>{const t=setInterval(()=>active&&load(active.id),5000);return()=>clearInterval(t)},[active?.id]);
+ async function mode(mode:'ai'|'human'|'paused'){if(!active)return;setBusy(true);setErr('');const r=await fetch(`/api/admin/conversations/${active.id}/mode`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mode})});setBusy(false);if(!r.ok){setErr('Could not change mode');return}const n={...active,mode};setActive(n);setList(x=>x.map(c=>c.id===n.id?n:c));await load(n.id)}
+ async function send(e:React.FormEvent){e.preventDefault();if(!active||!text.trim())return;setBusy(true);setErr('');const r=await fetch(`/api/admin/conversations/${active.id}/reply`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text})});setBusy(false);if(!r.ok){const j=await r.json().catch(()=>({}));setErr(j.error||'Message could not be sent');return}setText('');await load(active.id)}
+ return <div className="inbox">
+  <aside className="chatList"><div className="chatListTitle">Live conversations <span>{list.length}</span></div>{list.map(c=><button key={c.id} className={'chatRow '+(active?.id===c.id?'active':'')} onClick={()=>setActive(c)}><b>{c.full_name||c.phone||c.external_user_id}</b><small>{c.channel.toUpperCase()} · {c.mode.toUpperCase()}</small><span>{c.preview||'No message preview'}</span></button>)}</aside>
+  <section className="chatDesk">{!active?<div className="emptyChat">No conversations yet. Real WhatsApp messages will appear here after the Meta webhook is connected.</div>:<>
+   <div className="chatHead"><div><h2>{active.full_name||active.phone||active.external_user_id}</h2><small>{active.channel} · {active.external_user_id}</small></div><div className="modeButtons"><button disabled={busy} className={active.mode==='human'?'selected':''} onClick={()=>mode('human')}>Take Over</button><button disabled={busy} className={active.mode==='ai'?'selected':''} onClick={()=>mode('ai')}>Return to AI</button><button disabled={busy} className={active.mode==='paused'?'selected':''} onClick={()=>mode('paused')}>Pause</button></div></div>
+   <div className="modeNotice">Current mode: <b>{active.mode.toUpperCase()}</b>{active.mode==='human'?' — AI will not reply. You control this conversation.':active.mode==='ai'?' — AI may answer new customer messages using verified database information.':' — messages are stored but no automatic reply is sent.'}</div>
+   <div className="messages">{msgs.map(m=><div key={m.id} className={'bubble '+(m.sender==='customer'?'customer':'agent')}><small>{m.sender.toUpperCase()}</small><div>{m.body||`[${m.message_type}]`}</div><time>{new Date(m.created_at).toLocaleString()}</time></div>)}</div>
+   {err&&<p className="error">{err}</p>}
+   <form className="replyBox" onSubmit={send}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder={active.channel==='whatsapp'?'Type a real WhatsApp reply…':'Type a reply…'} /><button className="btn" disabled={busy||!text.trim()}>Send as Human</button></form>
+  </>}</section>
+ </div>
+}
