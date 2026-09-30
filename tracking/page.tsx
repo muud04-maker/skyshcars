@@ -1,0 +1,1 @@
+export default function Page(){return <main className="page"><h1>Track Your Shipment</h1><p>Tracking will use a secure reference after the production shipment database is connected.</p><div className="notice">Production data and integrations are being connected. The website will not invent inventory, freight prices, schedules, duties or tracking events.</div></main>}
