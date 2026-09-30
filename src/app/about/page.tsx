@@ -1,1 +1,1 @@
-export default function Page(){return <main className="wrap"><h1>About Sky Cars</h1><div className="card"><p>Sky Cars & Motorcycles helps international customers source vehicles in China and arrange export shipping.</p></div></main>}
+export default function Page(){return <main className="wrap pageAbout"><h1>About Sky Cars</h1><div className="card"><p>Sky Cars & Motorcycles helps international customers source vehicles in China and arrange export shipping.</p></div></main>}

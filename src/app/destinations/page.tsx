@@ -7,7 +7,7 @@ export default function Page(){
   <p>{x.landlocked?"Landlocked — gateway port required":x.ports.length?`Reference ports: ${x.ports.join(", ")}`:"Port/gateway confirmation required"}</p>
   <small>Shipping: quote & route confirmation required</small>
  </div>)}</div>;
- return <main className="wrap"><h1>Africa Destinations</h1>
+ return <main className="wrap pageDestinations"><h1>Africa Destinations</h1>
  <p>Sky Cars primarily highlights right-driving markets compatible with typical LHD China-market vehicles. Shipping availability, import eligibility, route, price and transit time are confirmed per quote.</p>
  <h2>Priority LHD Markets</h2><Cards items={priority}/><h2>Other African Markets</h2>
  <p>Kept in the system for enquiries, but steering/import requirements must be checked.</p><Cards items={other}/></main>
