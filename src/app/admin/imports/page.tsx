@@ -1,0 +1,1 @@
+import ResourcePage from '../_components/ResourcePage';export const dynamic='force-dynamic';export default function Page(){return <ResourcePage resource="imports" description="Review inventory-import records and WhatsApp-group drafts before publication."/>}

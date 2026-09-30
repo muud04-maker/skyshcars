@@ -1,0 +1,1 @@
+import ResourcePage from '../_components/ResourcePage';export const dynamic='force-dynamic';export default function Page(){return <ResourcePage resource="leads" description="Website, WhatsApp, Facebook and admin-created sales leads."/>}

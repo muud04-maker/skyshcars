@@ -1,0 +1,1 @@
+import ResourcePage from '../_components/ResourcePage';export const dynamic='force-dynamic';export default function Page(){return <ResourcePage resource="documents" description="Manage shipment documents and whether each file is public to the customer."/>}

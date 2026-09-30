@@ -1,0 +1,1 @@
+import ResourcePage from '../_components/ResourcePage';export const dynamic='force-dynamic';export default function Page(){return <ResourcePage resource="countries" description="Destination markets, steering compatibility and market availability."/>}

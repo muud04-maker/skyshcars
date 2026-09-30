@@ -1,7 +1,8 @@
-'use client';
-import {useRouter} from 'next/navigation';
-export default function AdminShell({children}:{children:React.ReactNode}){
- const r=useRouter();
- async function logout(){await fetch('/api/admin/logout',{method:'POST'});r.push('/admin/login');r.refresh()}
- return <><div className="adminTop"><a href="/admin"><b>SKY CARS ADMIN</b></a><nav><a href="/admin/vehicles">Vehicles</a><a href="/admin/customers">Customers</a><a href="/admin/quotes">Quotes</a><a href="/admin/shipments">Tracking</a><a href="/admin/whatsapp">WhatsApp</a><a href="/admin/settings">Settings</a><button onClick={logout}>Log out</button></nav></div>{children}</>
-}
+'use client';import {useState} from 'react';import {useRouter} from 'next/navigation';
+const groups=[
+ {name:'Sales',links:[['/admin/vehicles','Vehicles'],['/admin/media','Vehicle Photos'],['/admin/imports','Inventory Review'],['/admin/customers','Customers'],['/admin/leads','Leads'],['/admin/quotes','Quotes']]},
+ {name:'Shipping',links:[['/admin/shipments','Shipments'],['/admin/documents','Documents'],['/admin/countries','Countries'],['/admin/ports','Ports'],['/admin/routes','Routes'],['/admin/rates','Rates']]},
+ {name:'Communications',links:[['/admin/whatsapp','Inbox / AI']]},
+ {name:'System',links:[['/admin/settings','Settings'],['/admin/admins','Admin Users'],['/admin/audit','Audit Logs'],['/admin/dev','Dev Center']]}
+];
+export default function AdminShell({children}:{children:React.ReactNode}){const r=useRouter(),[open,setOpen]=useState(false);async function logout(){await fetch('/api/admin/logout',{method:'POST'});r.push('/admin/login');r.refresh()}return <div className="adminLayout"><aside className={'adminSidebar '+(open?'open':'')}><a className="adminBrand" href="/admin"><b>SKY CARS</b><span>CONTROL CENTER</span></a><nav>{groups.map(g=><div className="adminNavGroup" key={g.name}><small>{g.name}</small>{g.links.map(([href,label])=><a href={href} key={href}>{label}</a>)}</div>)}</nav><a className="adminSiteLink" href="/" target="_blank">↗ Open website</a><button className="adminLogout" onClick={logout}>Log out</button></aside><div className="adminMain"><div className="adminMobileBar"><button onClick={()=>setOpen(!open)}>☰</button><b>SKY CARS ADMIN</b><a href="/">Website ↗</a></div>{children}</div>{open&&<button className="adminBackdrop" onClick={()=>setOpen(false)} aria-label="Close menu"/>}</div>}

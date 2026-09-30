@@ -1,2 +1,19 @@
-import {NextResponse} from 'next/server';import {token} from '../../../../lib/admin';
-export async function POST(req:Request){const b=await req.json();if(!process.env.ADMIN_PASSWORD||b.password!==process.env.ADMIN_PASSWORD)return NextResponse.json({error:'Invalid password'},{status:401});const r=NextResponse.json({ok:true});r.cookies.set('sky_admin',token(),{httpOnly:true,secure:true,sameSite:'strict',path:'/',maxAge:60*60*12});return r}
+import {NextResponse} from 'next/server';
+import {timingSafeEqual} from 'crypto';
+import {db,one} from '../../../../lib/db';
+import {hashPassword,makeAdminSession,verifyPassword} from '../../../../lib/admin';
+function same(a:string,b:string){try{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)}catch{return false}}
+async function setSession(admin:{id:number;email:string;role:'owner'|'admin'|'staff'}){const r=NextResponse.json({ok:true,role:admin.role});r.cookies.set('sky_admin',makeAdminSession(admin),{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',path:'/',maxAge:60*60*12});return r}
+export async function POST(req:Request){
+ const b=await req.json().catch(()=>({}));const email=String(b.email||'').trim().toLowerCase();const password=String(b.password||'');if(!email||!password)return NextResponse.json({error:'Email and password are required'},{status:400});
+ const configuredEmail=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();const configuredPassword=String(process.env.ADMIN_PASSWORD||'');
+ if(configuredEmail&&configuredPassword&&same(email,configuredEmail)&&same(password,configuredPassword)){
+  let owner=await one<any>('SELECT id,email,role,is_active FROM admins WHERE email=? LIMIT 1',[configuredEmail]).catch(()=>null);
+  if(!owner){const [x]:any=await db().execute("INSERT INTO admins(email,password_hash,role,is_active) VALUES(?,?,'owner',1)",[configuredEmail,hashPassword(configuredPassword)]);owner={id:x.insertId,email:configuredEmail,role:'owner',is_active:1}}
+  else if(owner.role!=='owner'||!owner.is_active){await db().execute("UPDATE admins SET role='owner',is_active=1 WHERE id=?",[owner.id]);owner.role='owner';owner.is_active=1}
+  return setSession({id:Number(owner.id),email:configuredEmail,role:'owner'});
+ }
+ const admin=await one<any>('SELECT id,email,password_hash,role,is_active FROM admins WHERE email=? LIMIT 1',[email]).catch(()=>null);
+ if(!admin||!admin.is_active||!admin.password_hash||!verifyPassword(password,admin.password_hash))return NextResponse.json({error:'Invalid email or password'},{status:401});
+ return setSession({id:Number(admin.id),email:String(admin.email),role:admin.role});
+}

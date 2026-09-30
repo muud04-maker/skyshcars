@@ -1,51 +1,55 @@
-# Sky Cars V10
+# Sky Cars V10 — Unified Admin Control Center
 
-One system. The **database is the only inventory**. The website and the WhatsApp AI both read it.
+Production domain: `https://skyshcars.com`
 
-```
-You (admin)  →  skyshcars.com/admin/vehicles  →  MySQL database
-                                                   ↑          ↑
-                        Website (/cars, /vehicles) ┘          └ WhatsApp AI (Cloud API + DeepSeek)
-```
+The website uses MySQL as the source of truth for inventory and operational data. This package extends the existing admin into a unified control center without replacing the working public website design.
 
-Add a car in the admin → it appears on the website → the AI can answer about it.
-Mark it Sold → it disappears from the website → the AI says it's sold.
+## Admin
+Open `/admin/login` and sign in with both `ADMIN_EMAIL` and `ADMIN_PASSWORD` from Hostinger Environment Variables.
 
-## What changed from V9
-- Removed the WhatsApp group reader (`services/whatsapp`, whatsapp-web.js). No Chrome, no QR sessions.
-- `/cars` and `/motorcycles` now read the database (they used to read the old inventory.json file).
-- The site no longer silently falls back to the old JSON file when the database has an error,
-  so a sold car can never reappear as available.
-- WhatsApp AI now: understands "RAV4?" / "SC127" / "toyota 2021"; remembers the conversation;
-  looks up shipping ports + confirmed rates by country/port; looks up tracking references;
-  includes links to the vehicle page; never quotes unconfirmed shipping prices.
-- Webhook security: Meta signature checked with META_APP_SECRET; Meta retries are not processed twice.
-- Photos/voice notes are stored in the inbox (AI acknowledges them; staff can follow up).
-- New WhatsApp contacts are automatically added to Customers with their WhatsApp name.
-- Admin vehicles: one-click status dropdown (Available / Reserved / Sold / Pending / Hidden) and a status filter.
+The control center includes inventory, media, import review, customers, leads, quotes, shipments, documents, countries, ports, routes, rates, conversations/AI takeover, admin users, audit logs, settings and a Developer & Operations Center.
 
-## First-time database setup (Hostinger → Databases → phpMyAdmin)
-Only if these tables don't exist yet. Import in this order:
-1. `database/Sky_Cars_Hostinger_MySQL_Master_Schema.sql`
-2. `database/Sky_Cars_Import_198_Vehicles_Africa_Markets.sql`
+See `docs/ADMIN_CONTROL_CENTER.md` for the admin feature map and security model.
 
-Both are safe to re-run (they skip what already exists).
+## Developer Center
+`/admin/dev` includes a VS Code-style read-only project explorer plus safe production diagnostics. It does **not** expose an arbitrary browser shell or secret files.
+
+## Database setup
+Do not re-import a working production database blindly. For a brand-new database only, the schema files are under `database/`.
 
 ## Environment variables
-See `.env.example` for the key names. Set values in Hostinger, never in GitHub.
+See `.env.example`. Keep all real secret values in Hostinger, never GitHub.
+
+## Build
+The Hostinger-compatible build command remains:
+
+```bash
+npm run build
+```
+
+which maps to:
+
+```bash
+next build --webpack
+```
+
+Do not remove `--webpack` unless Hostinger's runtime compatibility is re-tested.
 
 ## Deploy
-```
+From the extracted package on the user's Windows machine:
+
+```powershell
 powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
 ```
-It will not push if the build fails.
 
-## After deploy, check
-- `/api/health` → `"database":"connected"`
-- `/cars` → shows the number of cars in the database
-- `/admin/login` → log in, change a car to Sold, confirm it disappears from `/cars`
+The deployment script installs dependencies and builds before it commits/pushes.
 
-## WhatsApp Cloud API webhook (in Meta developer dashboard)
-- Callback URL: `https://skyshcars.com/api/whatsapp/webhook`
-- Verify token: the same value as `WHATSAPP_VERIFY_TOKEN`
-- Subscribe to: `messages`
+## Post-deploy checks
+- `/api/health`
+- `/admin/login`
+- `/admin`
+- `/admin/dev`
+- `/api/vehicles`
+- `/admin/whatsapp`
+
+No feature should be considered production-verified until the Hostinger deployment and runtime checks pass.
