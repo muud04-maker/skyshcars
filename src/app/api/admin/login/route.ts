@@ -1,0 +1,2 @@
+import {NextResponse} from 'next/server';import {token} from '../../../../lib/admin';
+export async function POST(req:Request){const b=await req.json();if(!process.env.ADMIN_PASSWORD||b.password!==process.env.ADMIN_PASSWORD)return NextResponse.json({error:'Invalid password'},{status:401});const r=NextResponse.json({ok:true});r.cookies.set('sky_admin',token(),{httpOnly:true,secure:true,sameSite:'strict',path:'/',maxAge:60*60*12});return r}

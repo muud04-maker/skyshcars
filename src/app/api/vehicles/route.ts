@@ -1,1 +1,1 @@
-import data from '../../../../data/inventory.json';export async function GET(){return Response.json(data)}
+import {getVehicles} from '../../../lib/vehicles';export async function GET(){return Response.json({inventory:await getVehicles()})}

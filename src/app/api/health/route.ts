@@ -1,1 +1,1 @@
-export async function GET(){return Response.json({ok:true,service:'skyshcars-web',time:new Date().toISOString()})}
+import {ping} from '../../../lib/db';export async function GET(){let database='connected';try{await ping()}catch(e:any){database='error: '+e.code}return Response.json({ok:database==='connected',service:'skyshcars-web',database,time:new Date().toISOString()})}

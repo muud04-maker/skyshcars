@@ -1,13 +1,3 @@
-const VERIFY=process.env.META_VERIFY_TOKEN;
-export async function GET(req:Request){
- const u=new URL(req.url),mode=u.searchParams.get("hub.mode"),token=u.searchParams.get("hub.verify_token"),challenge=u.searchParams.get("hub.challenge");
- if(mode==="subscribe"&&token&&token===VERIFY)return new Response(challenge||"",{status:200});
- return new Response("Forbidden",{status:403});
-}
-export async function POST(req:Request){
- const body=await req.json();
- // Production step: verify Meta signature, normalize events, persist conversation/message,
- // then route through the same AI/human conversation controller as WhatsApp.
- console.log("FACEBOOK_WEBHOOK",JSON.stringify(body));
- return new Response("EVENT_RECEIVED",{status:200});
-}
+import {createHmac,timingSafeEqual} from 'crypto';import axios from 'axios';import {inbound,outbound} from '../../../../lib/conversations';import {salesReply} from '../../../../lib/ai';
+const VERIFY=process.env.META_VERIFY_TOKEN;export async function GET(req:Request){const u=new URL(req.url);if(u.searchParams.get('hub.mode')==='subscribe'&&u.searchParams.get('hub.verify_token')===VERIFY)return new Response(u.searchParams.get('hub.challenge')||'');return new Response('Forbidden',{status:403})}
+export async function POST(req:Request){const raw=await req.text();const sig=req.headers.get('x-hub-signature-256');if(process.env.META_APP_SECRET&&sig){const expected='sha256='+createHmac('sha256',process.env.META_APP_SECRET).update(raw).digest('hex');try{if(!timingSafeEqual(Buffer.from(sig),Buffer.from(expected)))return new Response('Bad signature',{status:401})}catch{return new Response('Bad signature',{status:401})}}try{const b=JSON.parse(raw);for(const e of b.entry||[])for(const m of e.messaging||[]){const id=m.sender?.id,text=m.message?.text;if(!id||!text)continue;const c:any=await inbound('facebook',id,text,m.message?.mid);if(c.mode!=='ai')continue;const reply=await salesReply(text);if(process.env.META_PAGE_ACCESS_TOKEN){await axios.post(`https://graph.facebook.com/v23.0/me/messages?access_token=${encodeURIComponent(process.env.META_PAGE_ACCESS_TOKEN)}`,{recipient:{id},message:{text:reply}});await outbound(c.id,'ai',reply,'deepseek-chat')}}return new Response('EVENT_RECEIVED')}catch(e){console.error('FB_WEBHOOK',e);return new Response('EVENT_RECEIVED')}}
