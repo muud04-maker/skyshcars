@@ -16,3 +16,5 @@ body{background:#eaf6ff}.pageHome{background:linear-gradient(180deg,#eaf6ff,#f7f
 /* Vehicle media control center */
 .mediaGrid{max-width:1450px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}.mediaCard{background:#fff;border:1px solid #d8e6f0;border-radius:14px;overflow:hidden;box-shadow:0 5px 20px #0b2d4610}.mediaCard img{width:100%;height:180px;object-fit:cover;background:#edf3f7;display:block}.mediaCard>div{padding:13px}.mediaCard b,.mediaCard span,.mediaCard small{display:block}.mediaCard span{margin-top:3px}.mediaCard small{margin-top:5px;color:#6d8090}.mediaActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .vehicleImageWrap{position:relative}.illustrationBadge{position:absolute;left:10px;bottom:10px;background:#071b2de8;color:#fff;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:850;letter-spacing:.2px}
+
+.kpi{transition:transform .15s ease,box-shadow .15s ease;cursor:pointer}.kpi:hover{transform:translateY(-3px);box-shadow:0 10px 30px #071d3222}.kpi:hover b{color:#d88b00}

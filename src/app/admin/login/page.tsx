@@ -1,1 +1,18 @@
-'use client';import {useState} from 'react';import {useRouter} from 'next/navigation';export default function Login(){const[email,setEmail]=useState(''),[p,setP]=useState(''),[e,setE]=useState('');const r=useRouter();async function go(x:any){x.preventDefault();setE('');const q=await fetch('/api/admin/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password:p})});const j=await q.json().catch(()=>({}));if(q.ok){r.push('/admin');r.refresh()}else setE(j.error||'Sign in failed')}return <main className="adminLogin"><div className="adminLoginCard"><div className="adminLoginBrand">SKY CARS <span>CONTROL</span></div><h1>Admin sign in</h1><p>Use the credentials stored in Hostinger environment variables.</p><form onSubmit={go}><label>Email<input type="email" placeholder="ADMIN_EMAIL" value={email} onChange={x=>setEmail(x.target.value)} required autoComplete="username"/></label><label>Password<input type="password" placeholder="ADMIN_PASSWORD" value={p} onChange={x=>setP(x.target.value)} required autoComplete="current-password"/></label><button className="btn">Sign in</button>{e&&<p className="error">{e}</p>}</form></div></main>}
+'use client';
+import {useState} from 'react';
+import {useRouter} from 'next/navigation';
+
+export default function Login(){
+ const[email,setEmail]=useState('');
+ const[p,setP]=useState('');
+ const[showPassword,setShowPassword]=useState(false);
+ const[e,setE]=useState('');
+ const r=useRouter();
+ async function go(x:any){
+  x.preventDefault();setE('');
+  const q=await fetch('/api/admin/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password:p})});
+  const j=await q.json().catch(()=>({}));
+  if(q.ok){r.push('/admin');r.refresh()}else setE(j.error||'Sign in failed');
+ }
+ return <main className="adminLogin"><div className="adminLoginCard"><div className="adminLoginBrand">SKY CARS <span>CONTROL</span></div><h1>Admin sign in</h1><p>Use the credentials stored in Hostinger environment variables.</p><form onSubmit={go}><label>Email<input type="email" placeholder="ADMIN_EMAIL" value={email} onChange={x=>setEmail(x.target.value)} required autoComplete="username"/></label><label>Password<input type={showPassword?'text':'password'} placeholder="ADMIN_PASSWORD" value={p} onChange={x=>setP(x.target.value)} required autoComplete="current-password"/></label><label style={{display:'flex',alignItems:'center',gap:8,fontWeight:600,cursor:'pointer'}}><input type="checkbox" checked={showPassword} onChange={x=>setShowPassword(x.target.checked)} style={{width:18,height:18}}/>Show password</label><button className="btn">Sign in</button>{e&&<p className="error">{e}</p>}</form></div></main>;
+}

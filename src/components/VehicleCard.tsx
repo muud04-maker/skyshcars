@@ -1,10 +1,12 @@
-function placeholder(category?:string){return category==='motorcycle'?'/vehicle-placeholder-motorcycle.svg':category==='car'?'/vehicle-placeholder-car.svg':'/vehicle-placeholder-other.svg'}
+import {demoImageFor,isDemoVehicle} from '../lib/demo-inventory';
 export default function VehicleCard({ v }: { v: any }) {
   const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.trim() || 'Vehicle';
-  const image=v.cover_url||placeholder(v.category);
+  const image=demoImageFor(v);
+  const demo=isDemoVehicle(v);
+  const generated=!v.cover_url && !demo;
   return (
     <a className="card vehicleCard" href={'/vehicles/' + v.id}>
-      <div className="vehicleImageWrap"><img className="vehiclePhoto" src={image} alt={title} />{!v.cover_url&&<span className="illustrationBadge">Illustrative image</span>}</div>
+      <div className="vehicleImageWrap"><img className="vehiclePhoto" src={image} alt={title} />{demo&&<span className="illustrationBadge">Demo / test listing</span>}{generated&&<span className="illustrationBadge">AI demo image — real photo pending</span>}</div>
       <div className="vehicleBody">
         <span className={'badge ' + (v.status === 'reserved' ? 'pending' : '')}>{String(v.status || 'available').replaceAll('_', ' ')}</span>
         <h3>{title}</h3>

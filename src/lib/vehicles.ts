@@ -1,5 +1,6 @@
 import fallback from '../../data/inventory.json';
 import { rows, one, dbConfigured, lim } from './db';
+import { demoMotorcycles } from './demo-inventory';
 
 /*
   SINGLE SOURCE OF TRUTH: the `vehicles` table.
@@ -37,9 +38,13 @@ export async function getVehicles(q: VehicleQuery | number = {}) {
     const args: any[] = [];
     let where = `v.status IN ('available','reserved')`;
     if (opts.category) { where += ' AND v.category=?'; args.push(opts.category); }
-    return await rows<any>(
+    const result = await rows<any>(
       `SELECT v.*, ${COVER} FROM vehicles v WHERE ${where}
        ORDER BY v.status='available' DESC, v.updated_at DESC LIMIT ${limit}`, args);
+    // During the current testing phase, keep the motorcycle page useful without
+    // changing the real inventory database. These are clearly-labelled demo records.
+    if (opts.category === 'motorcycle' && result.length === 0) return demoMotorcycles.slice(0, limit);
+    return result;
   } catch (e) {
     console.error('GET_VEHICLES_DB_ERROR', e);
     return [];
@@ -47,6 +52,8 @@ export async function getVehicles(q: VehicleQuery | number = {}) {
 }
 
 export async function getVehicle(id: string) {
+  const demo = demoMotorcycles.find(v => String(v.id) === String(id));
+  if (demo) return demo;
   if (!dbConfigured()) return legacy((fallback as any).inventory.find((x: any) => String(x.id) === id));
   try {
     // Publicly visible statuses only; hidden / pending vehicles return 404.
