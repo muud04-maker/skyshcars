@@ -1,0 +1,1 @@
+export default function Page(){return <main className="wrap"><h1>Terms & Conditions</h1><div className="card"><p>Terms placeholder. Replace with the final company-approved commercial and legal terms before public launch.</p></div></main>}

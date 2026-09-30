@@ -1,0 +1,1 @@
+export async function GET(){return Response.json({web:'ready',database:'configuration_required',whatsapp:'separate_service',admin:'authentication_required'})}

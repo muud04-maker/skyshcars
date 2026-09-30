@@ -1,0 +1,1 @@
+export default function Account(){return <main className="wrap"><h1>Customer Account</h1><div className="grid">{['My Vehicles','My Quotes','My Shipments','Tracking','Documents','Profile'].map(x=><div className="card" key={x}><h2>{x}</h2><p>Activates after authentication/database configuration.</p></div>)}</div></main>}

@@ -1,0 +1,1 @@
+export default function Page(){return <main className="wrap"><h1>WhatsApp AI Control</h1><div className="card"><p>This module is included in the complete architecture and is ready to connect to the production database and authentication layer.</p></div></main>}

@@ -1,0 +1,1 @@
+import data from '../../../../data/inventory.json';export async function GET(){return Response.json(data)}

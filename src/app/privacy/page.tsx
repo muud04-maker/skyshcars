@@ -1,0 +1,1 @@
+export default function Page(){return <main className="wrap"><h1>Privacy</h1><div className="card"><p>Privacy policy placeholder. Replace with the final company-approved policy before public launch.</p></div></main>}

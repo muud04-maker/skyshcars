@@ -1,0 +1,1 @@
+export async function GET(_:Request,{params}:{params:Promise<{ref:string}>}){const {ref}=await params;return Response.json({reference:ref,status:'Tracking reference not found',events:[]},{status:404})}

@@ -1,0 +1,748 @@
+[
+  {
+    "id": 1,
+    "country": "Algeria",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Algiers",
+      "Oran"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 2,
+    "country": "Angola",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Luanda",
+      "Lobito"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 3,
+    "country": "Benin",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Cotonou"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 4,
+    "country": "Botswana",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 5,
+    "country": "Burkina Faso",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 6,
+    "country": "Burundi",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 7,
+    "country": "Cabo Verde",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Praia"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 8,
+    "country": "Cameroon",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Douala",
+      "Kribi"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 9,
+    "country": "Central African Republic",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 10,
+    "country": "Chad",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 11,
+    "country": "Comoros",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Moroni"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 12,
+    "country": "Republic of the Congo",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Pointe-Noire"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 13,
+    "country": "DR Congo",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Matadi",
+      "Boma"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 14,
+    "country": "Côte d'Ivoire",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Abidjan",
+      "San Pedro"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 15,
+    "country": "Djibouti",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Djibouti"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 16,
+    "country": "Egypt",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Alexandria",
+      "Damietta",
+      "Port Said"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 17,
+    "country": "Equatorial Guinea",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Bata",
+      "Malabo"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 18,
+    "country": "Eritrea",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Massawa"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 19,
+    "country": "Eswatini",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 20,
+    "country": "Ethiopia",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 21,
+    "country": "Gabon",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Libreville",
+      "Port-Gentil"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 22,
+    "country": "Gambia",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Banjul"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 23,
+    "country": "Ghana",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Tema",
+      "Takoradi"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 24,
+    "country": "Guinea",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Conakry"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 25,
+    "country": "Guinea-Bissau",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Bissau"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 26,
+    "country": "Kenya",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": false,
+    "ports": [
+      "Mombasa"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 27,
+    "country": "Lesotho",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 28,
+    "country": "Liberia",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Monrovia"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 29,
+    "country": "Libya",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Misrata",
+      "Tripoli"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 30,
+    "country": "Madagascar",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Toamasina"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 31,
+    "country": "Malawi",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 32,
+    "country": "Mali",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 33,
+    "country": "Mauritania",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Nouakchott"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 34,
+    "country": "Mauritius",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": false,
+    "ports": [
+      "Port Louis"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 35,
+    "country": "Morocco",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Tanger Med",
+      "Casablanca"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 36,
+    "country": "Mozambique",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": false,
+    "ports": [
+      "Maputo",
+      "Beira",
+      "Nacala"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 37,
+    "country": "Namibia",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": false,
+    "ports": [
+      "Walvis Bay"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 38,
+    "country": "Niger",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 39,
+    "country": "Nigeria",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Lagos",
+      "Tin Can",
+      "Apapa",
+      "Onne"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 40,
+    "country": "Rwanda",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 41,
+    "country": "São Tomé and Príncipe",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "São Tomé"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 42,
+    "country": "Senegal",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Dakar"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 43,
+    "country": "Seychelles",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": false,
+    "ports": [
+      "Victoria"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 44,
+    "country": "Sierra Leone",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Freetown"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 45,
+    "country": "Somalia",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Mogadishu",
+      "Berbera"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 46,
+    "country": "South Africa",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": false,
+    "ports": [
+      "Durban",
+      "Cape Town",
+      "Port Elizabeth"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 47,
+    "country": "South Sudan",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 48,
+    "country": "Sudan",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Port Sudan"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 49,
+    "country": "Tanzania",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": false,
+    "ports": [
+      "Dar es Salaam",
+      "Zanzibar"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 50,
+    "country": "Togo",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Lomé"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 51,
+    "country": "Tunisia",
+    "traffic_side": "right",
+    "preferred_steering": "LHD",
+    "priority_market": true,
+    "landlocked": false,
+    "ports": [
+      "Radès",
+      "Tunis"
+    ],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 52,
+    "country": "Uganda",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 53,
+    "country": "Zambia",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  },
+  {
+    "id": 54,
+    "country": "Zimbabwe",
+    "traffic_side": "left",
+    "preferred_steering": "RHD",
+    "priority_market": false,
+    "landlocked": true,
+    "ports": [],
+    "shipping_status": "quote_required",
+    "transit_days": null,
+    "note": "Ports are reference gateways; route, eligibility, price and transit time require confirmation."
+  }
+]

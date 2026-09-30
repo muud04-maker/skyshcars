@@ -1,0 +1,3301 @@
+{
+  "inventory": [
+    {
+      "id": 1,
+      "category": "car",
+      "brand": "Dongfeng Nissan",
+      "model": "Nissan Sunshine",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "Dongfeng Nissan",
+        "manufacturing_date": "June 2015",
+        "engine": "1.5L",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "color": "Silver",
+        "actual_mileage": "43,000 km"
+      },
+      "price_usd": 1842,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 2,
+      "category": "car",
+      "brand": "SAIC-GM Chevrolet",
+      "model": "Chevrolet Sail 3",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "SAIC-GM Chevrolet",
+        "manufacturing_date": "November 2015",
+        "engine": "1.3L",
+        "transmission": "AMT",
+        "displacement": "1.3L",
+        "color": "White",
+        "actual_mileage": "127,000 km"
+      },
+      "price_usd": 1842,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 3,
+      "category": "car",
+      "brand": "Jetour",
+      "model": "Jetour X70 PLUS",
+      "year": 2023,
+      "specifications": {
+        "manufacturer": "Jetour",
+        "manufacturing_date": "November 2022",
+        "engine": "1.6T",
+        "transmission": "DCT",
+        "displacement": "1.6L",
+        "color": "Black",
+        "actual_mileage": "68,000 km"
+      },
+      "price_usd": 2800,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 4,
+      "category": "car",
+      "brand": "BYD",
+      "model": "BYD S7",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "BYD",
+        "manufacturing_date": "November 2018",
+        "engine": "2.0T",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "color": "White",
+        "actual_mileage": "149,200 km"
+      },
+      "price_usd": 2506,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 5,
+      "category": "car",
+      "brand": "Dongfeng Peugeot",
+      "model": "Peugeot 408",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "Dongfeng Peugeot",
+        "manufacturing_date": "December 2011",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "color": "White",
+        "actual_mileage": "77,000 km"
+      },
+      "price_usd": 2874,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 6,
+      "category": "car",
+      "brand": "Kia",
+      "model": "Kia Sorento",
+      "year": 2012,
+      "specifications": {
+        "manufacturer": "Kia",
+        "manufacturing_date": "2012",
+        "engine": "2.2T diesel",
+        "transmission": "Automatic",
+        "displacement": "2.2L",
+        "actual_mileage": "160,000 km"
+      },
+      "price_usd": 2359,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 7,
+      "category": "car",
+      "brand": "Hyundai",
+      "model": "Hyundai Grand Santa Fe",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Hyundai",
+        "manufacturing_date": "May 2014",
+        "engine": "2.2T diesel",
+        "transmission": "Automatic",
+        "displacement": "2.2L",
+        "actual_mileage": "130,000 km"
+      },
+      "price_usd": 2065,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 8,
+      "category": "car",
+      "brand": "Hyundai",
+      "model": "Hyundai Santa Fe",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Hyundai",
+        "manufacturing_date": "2016",
+        "engine": "2.2T diesel",
+        "transmission": "Automatic",
+        "displacement": "2.2L",
+        "actual_mileage": "150,000 km"
+      },
+      "price_usd": 2359,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 9,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 7 pickup",
+      "year": 2019,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2019",
+        "engine": "2.0T diesel",
+        "transmission": "6-speed",
+        "displacement": "2.0L"
+      },
+      "price_usd": 8106,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 10,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 5 pickup",
+      "year": 2021,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2021",
+        "engine": "2.0T diesel",
+        "transmission": "6-speed",
+        "displacement": "2.0L"
+      },
+      "price_usd": 8695,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 11,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 5",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2016",
+        "engine": "Diesel"
+      },
+      "price_usd": 5129,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 12,
+      "category": "car",
+      "brand": "Jiangling Motors",
+      "model": "JMC Baodian",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Jiangling Motors",
+        "manufacturing_date": "2018",
+        "engine": "Diesel"
+      },
+      "price_usd": 6042,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 13,
+      "category": "car",
+      "brand": "Jeep",
+      "model": "Jeep Grand Cherokee",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Jeep",
+        "manufacturing_date": "2018",
+        "engine": "3.0L V6",
+        "displacement": "3.0L"
+      },
+      "price_usd": 17000,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 14,
+      "category": "car",
+      "brand": "Dongfeng Nissan",
+      "model": "Nissan Tiida",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "Dongfeng Nissan",
+        "manufacturing_date": "2011",
+        "engine": "1.6L",
+        "displacement": "1.6L"
+      },
+      "price_usd": 2506,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 15,
+      "category": "car",
+      "brand": "SAIC Volkswagen",
+      "model": "Volkswagen Polo",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "SAIC Volkswagen",
+        "manufacturing_date": "2015",
+        "engine": "1.4L",
+        "transmission": "Manual",
+        "displacement": "1.4L",
+        "actual_mileage": "90,000+ km"
+      },
+      "price_usd": 3391,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 16,
+      "category": "car",
+      "brand": "Changan Ford",
+      "model": "Ford Focus",
+      "year": 2012,
+      "specifications": {
+        "manufacturer": "Changan Ford",
+        "manufacturing_date": "2012",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "actual_mileage": "130,000+ km"
+      },
+      "price_usd": 2211,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 17,
+      "category": "car",
+      "brand": "Geely Automobile",
+      "model": "Geely Emgrand",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "Geely Automobile",
+        "manufacturing_date": "2017",
+        "actual_mileage": "100,000+ km"
+      },
+      "price_usd": 2948,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 18,
+      "category": "car",
+      "brand": "SAIC-GM Buick",
+      "model": "Buick Encore",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "SAIC-GM Buick",
+        "manufacturing_date": "2014",
+        "actual_mileage": "80,000+ km"
+      },
+      "price_usd": 2727,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 19,
+      "category": "car",
+      "brand": "SAIC-GM Buick",
+      "model": "Buick Envision Plus",
+      "year": 2019,
+      "specifications": {
+        "manufacturer": "SAIC-GM Buick",
+        "manufacturing_date": "2019",
+        "engine": "2.0T",
+        "displacement": "2.0L",
+        "actual_mileage": "65,000 km"
+      },
+      "price_usd": 9143,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 20,
+      "category": "car",
+      "brand": "Guangqi Honda",
+      "model": "Honda Fit",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Guangqi Honda",
+        "manufacturing_date": "2016",
+        "engine": "1.5L",
+        "transmission": "CVT",
+        "displacement": "1.5L",
+        "actual_mileage": "157,000 km"
+      },
+      "price_usd": 4717,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 21,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 5",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2014",
+        "engine": "Diesel"
+      },
+      "price_usd": 4421,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 22,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Haval M6",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2018",
+        "engine": "1.5T",
+        "transmission": "Automatic",
+        "displacement": "1.5L"
+      },
+      "price_usd": 6337,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 23,
+      "category": "car",
+      "brand": "FAW Toyota",
+      "model": "Toyota RAV4",
+      "year": 2012,
+      "specifications": {
+        "manufacturer": "FAW Toyota",
+        "manufacturing_date": "2012",
+        "engine": "2.0L",
+        "displacement": "2.0L"
+      },
+      "price_usd": 10610,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 24,
+      "category": "car",
+      "brand": "Dongfeng Sokon",
+      "model": "DFSK Blue Electric E5",
+      "year": 2024,
+      "specifications": {
+        "manufacturer": "Dongfeng Sokon",
+        "manufacturing_date": "2024",
+        "engine": "1.5L hybrid",
+        "displacement": "1.5L"
+      },
+      "price_usd": 8106,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 25,
+      "category": "car",
+      "brand": "Chery Automobile",
+      "model": "Chery Tiggo 7",
+      "year": 2021,
+      "specifications": {
+        "manufacturer": "Chery Automobile",
+        "manufacturing_date": "2021",
+        "engine": "1.5T",
+        "transmission": "Automatic",
+        "displacement": "1.5L"
+      },
+      "price_usd": 3000,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 26,
+      "category": "car",
+      "brand": "Lynk & Co",
+      "model": "Lynk & Co 02",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Lynk & Co",
+        "manufacturing_date": "August 2018",
+        "engine": "1.5T",
+        "displacement": "1.5L",
+        "inspection": "September 2026"
+      },
+      "price_usd": 6337,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 27,
+      "category": "car",
+      "brand": "Dongfeng Nissan",
+      "model": "Nissan Sylphy",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Dongfeng Nissan",
+        "manufacturing_date": "2014",
+        "engine": "1.8L",
+        "transmission": "Automatic",
+        "displacement": "1.8L"
+      },
+      "price_usd": 4863,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 28,
+      "category": "car",
+      "brand": "Dongfeng Nissan",
+      "model": "Nissan Sylphy",
+      "year": 2022,
+      "specifications": {
+        "manufacturer": "Dongfeng Nissan",
+        "manufacturing_date": "2022",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L"
+      },
+      "price_usd": 6337,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 29,
+      "category": "car",
+      "brand": "SAIC-GM Buick",
+      "model": "Buick Verano Pro",
+      "year": 2024,
+      "specifications": {
+        "manufacturer": "SAIC-GM Buick",
+        "manufacturing_date": "2024",
+        "engine": "1.5T",
+        "transmission": "Automatic",
+        "displacement": "1.5L"
+      },
+      "price_usd": 7958,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 30,
+      "category": "car",
+      "brand": "Dongfeng Honda",
+      "model": "Honda XR-V",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "Dongfeng Honda",
+        "manufacturing_date": "2017",
+        "engine": "1.8L",
+        "transmission": "Automatic",
+        "displacement": "1.8L",
+        "inspection": "2027"
+      },
+      "price_usd": 7074,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 31,
+      "category": "car",
+      "brand": "Beijing Benz",
+      "model": "Mercedes-Benz E300L",
+      "year": 2022,
+      "specifications": {
+        "manufacturer": "Beijing Benz",
+        "manufacturing_date": "2022",
+        "engine": "2.0T",
+        "transmission": "Automatic",
+        "displacement": "2.0L"
+      },
+      "price_usd": 36861,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 32,
+      "category": "car",
+      "brand": "FAW Mazda",
+      "model": "Mazda Atenza",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "FAW Mazda",
+        "manufacturing_date": "2017",
+        "engine": "2.5L",
+        "transmission": "Automatic",
+        "displacement": "2.5L"
+      },
+      "price_usd": 11052,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 33,
+      "category": "car",
+      "brand": "Great Wall Motor",
+      "model": "Tank 300 Cyber Edition",
+      "year": 2022,
+      "specifications": {
+        "manufacturer": "Great Wall Motor",
+        "manufacturing_date": "2022",
+        "engine": "2.0T",
+        "displacement": "2.0L",
+        "actual_mileage": "70,000 km"
+      },
+      "price_usd": 25000,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 34,
+      "category": "car",
+      "brand": "BYD",
+      "model": "BYD Qin Plus DM-i",
+      "year": 2024,
+      "specifications": {
+        "manufacturer": "BYD",
+        "manufacturing_date": "April 2024",
+        "actual_mileage": "30,000 km"
+      },
+      "price_usd": 9143,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 35,
+      "category": "car",
+      "brand": "SAIC Volkswagen",
+      "model": "Volkswagen Passat",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "SAIC Volkswagen",
+        "manufacturing_date": "July 2011",
+        "actual_mileage": "186,000 km"
+      },
+      "price_usd": 3508,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 36,
+      "category": "car",
+      "brand": "FAW-Volkswagen Audi",
+      "model": "Audi A3",
+      "year": 2020,
+      "specifications": {
+        "manufacturer": "FAW-Volkswagen Audi",
+        "manufacturing_date": "August 2020",
+        "engine": "1.4T",
+        "displacement": "1.4L"
+      },
+      "price_usd": 10095,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 37,
+      "category": "car",
+      "brand": "Audi AG",
+      "model": "Audi Q7",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Audi AG",
+        "manufacturing_date": "November 2016",
+        "actual_mileage": "140,000+ km"
+      },
+      "price_usd": 20000,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 38,
+      "category": "car",
+      "brand": "Toyota",
+      "model": "Toyota Crown Kluger",
+      "year": 2022,
+      "specifications": {
+        "manufacturer": "Toyota",
+        "manufacturing_date": "October 2022",
+        "engine": "2.5L hybrid",
+        "displacement": "2.5L"
+      },
+      "price_usd": 23539,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 39,
+      "category": "car",
+      "brand": "Land Rover",
+      "model": "Land Rover Range Rover Vogue",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Land Rover",
+        "inspection": "January 2027",
+        "engine": "3.0T diesel",
+        "displacement": "3.0L",
+        "actual_mileage": "100,000 km",
+        "price_when_new": "$220,800 USD",
+        "today's_price": "$66,000 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 40,
+      "category": "car",
+      "brand": "Land Rover",
+      "model": "Land Rover Range Rover Vogue",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Land Rover",
+        "inspection": "June 2027",
+        "engine": "3.0T diesel",
+        "displacement": "3.0L",
+        "actual_mileage": "100,000 km",
+        "price_when_new": "$220,800 USD",
+        "today's_price": "$44,000 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 41,
+      "category": "car",
+      "brand": "Land Rover",
+      "model": "Land Rover Range Rover Vogue",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Land Rover",
+        "inspection": "June 2026",
+        "engine": "3.0T diesel",
+        "displacement": "3.0L",
+        "actual_mileage": "156,000 km",
+        "price_when_new": "$220,800 USD",
+        "today's_price": "$36,000 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 42,
+      "category": "car",
+      "brand": "BYD",
+      "model": "BYD Qin Plus DM-i",
+      "year": 2024,
+      "specifications": {
+        "manufacturer": "BYD",
+        "manufacturing_date": "April 2024",
+        "actual_mileage": "30,000 km"
+      },
+      "price_usd": 9143,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 43,
+      "category": "car",
+      "brand": "Dongfeng Peugeot",
+      "model": "Peugeot 308",
+      "year": 2013,
+      "specifications": {
+        "manufacturer": "Dongfeng Peugeot",
+        "manufacturing_date": "2013",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "color": "White"
+      },
+      "price_usd": 1990,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 44,
+      "category": "car",
+      "brand": "SAIC-GM Chevrolet",
+      "model": "Chevrolet Sail",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "SAIC-GM Chevrolet",
+        "manufacturing_date": "July 2014",
+        "engine": "1.4L",
+        "transmission": "Manual",
+        "displacement": "1.4L",
+        "actual_mileage": "70,000 km",
+        "color": "White",
+        "inspection": "February 2027"
+      },
+      "price_usd": 1852,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 45,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,287 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 46,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$2,918 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 47,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,214 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 48,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,214 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 49,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,656 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 50,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,214 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 51,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,392 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 52,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$2,035 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 53,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,834 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 54,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$7,046 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 55,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$2,918 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 56,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,981 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 57,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$2,771 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 58,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,508 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 59,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,508 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 60,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,097 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 61,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,981 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 62,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,361 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 63,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,508 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 64,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$6,455 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 65,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,950 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 66,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$2,624 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 67,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,687 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 68,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,392 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 69,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$1,900 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 70,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,541 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 71,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$6,308 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 72,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$6,455 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 73,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,835 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 74,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$4,687 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 75,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,507 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 76,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Baojun 510",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "manufacturing_date": "2018",
+        "engine": "1.5L",
+        "transmission": "Automatic",
+        "displacement": "1.5L"
+      },
+      "price_usd": 2211,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 77,
+      "category": "car",
+      "brand": "BYD",
+      "model": "BYD Dolphin",
+      "year": 2021,
+      "specifications": {
+        "manufacturer": "BYD",
+        "first_registration": "October 2021",
+        "engine": "Electric 95 hp",
+        "transmission": "Single-speed automatic",
+        "displacement": "Electric",
+        "battery_life": "405 km",
+        "color": "Grey",
+        "actual_mileage": "114,900 km"
+      },
+      "price_usd": 8076,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 78,
+      "category": "car",
+      "brand": "BYD",
+      "model": "BYD Qin Pro",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "BYD",
+        "manufacturing_date": "September 2018",
+        "engine": "1.5T 154 hp L4",
+        "transmission": "6-speed",
+        "displacement": "1,497 cc",
+        "color": "White",
+        "actual_mileage": "150,000 km",
+        "fuel_consumption": "6.5 L/100km"
+      },
+      "price_usd": 4126,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 79,
+      "category": "car",
+      "brand": "Dongfeng Citroën",
+      "model": "Citroën C-Quatre",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Dongfeng Citroën",
+        "manufacturing_date": "January 2016",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "color": "Brown",
+        "actual_mileage": "130,000 km",
+        "fuel_consumption": "7.3 L/100km"
+      },
+      "price_usd": 2771,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 80,
+      "category": "car",
+      "brand": "Leapmotor",
+      "model": "Leapmotor C16",
+      "year": 2024,
+      "specifications": {
+        "manufacturer": "Leapmotor",
+        "manufacturing_date": "November 2024",
+        "engine": "Electric 292 hp",
+        "transmission": "Single-speed automatic",
+        "displacement": "Electric",
+        "color": "Purple",
+        "actual_mileage": "52,000 km",
+        "fuel_consumption": "14.8 kWh/100km"
+      },
+      "price_usd": 17066,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 81,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "ORA White Cat",
+      "year": 2020,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2020",
+        "engine": "Electric",
+        "transmission": "Single-speed automatic",
+        "displacement": "Electric",
+        "battery_life": "360 km"
+      },
+      "price_usd": 5895,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 82,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 7 pickup",
+      "year": 2019,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2019",
+        "engine": "2.0T diesel",
+        "transmission": "6-speed manual",
+        "displacement": "2.0L"
+      },
+      "price_usd": 8106,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 83,
+      "category": "car",
+      "brand": "Jinbei",
+      "model": "Jinbei 4WD",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Jinbei",
+        "manufacturing_date": "2014"
+      },
+      "price_usd": 3206,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 84,
+      "category": "car",
+      "brand": "Kia",
+      "model": "Kia K3",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Kia",
+        "manufacturing_date": "January 2018",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L"
+      },
+      "price_usd": 5305,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 85,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 5 pickup",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2016",
+        "engine": "2.8T diesel",
+        "displacement": "2.8L"
+      },
+      "price_usd": 8549,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 86,
+      "category": "car",
+      "brand": "Toyota",
+      "model": "Toyota Highlander",
+      "year": 2022,
+      "specifications": {
+        "manufacturer": "Toyota",
+        "manufacturing_date": "November 2022",
+        "engine": "2.5L hybrid",
+        "transmission": "CVT",
+        "displacement": "2.5L",
+        "color": "White",
+        "actual_mileage": "39,000 km"
+      },
+      "price_usd": 22844,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 87,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 5 pickup",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "March 2016",
+        "engine": "Diesel"
+      },
+      "price_usd": 5129,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 88,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 5 pickup",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2018",
+        "engine": "Diesel"
+      },
+      "price_usd": 6337,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 89,
+      "category": "car",
+      "brand": "Jiangling Motors",
+      "model": "JMC Yuhu pickup",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Jiangling Motors",
+        "manufacturing_date": "2018",
+        "engine": "Diesel"
+      },
+      "price_usd": 6042,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 90,
+      "category": "car",
+      "brand": "BYD",
+      "model": "BYD S6",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "BYD",
+        "manufacturing_date": "2015",
+        "engine": "2.4L",
+        "displacement": "2.4L",
+        "actual_mileage": "80,000+ km"
+      },
+      "price_usd": 2182,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 91,
+      "category": "car",
+      "brand": "FAW Mazda",
+      "model": "Mazda Ryuga",
+      "year": 2012,
+      "specifications": {
+        "manufacturer": "FAW Mazda",
+        "manufacturing_date": "2012",
+        "engine": "2.0L",
+        "displacement": "2.0L",
+        "actual_mileage": "150,000 km"
+      },
+      "price_usd": 3096,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 92,
+      "category": "car",
+      "brand": "FAW Mazda",
+      "model": "Mazda 6",
+      "year": 2012,
+      "specifications": {
+        "manufacturer": "FAW Mazda",
+        "manufacturing_date": "2012",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "actual_mileage": "110,000 km"
+      },
+      "price_usd": 2506,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 93,
+      "category": "car",
+      "brand": "SAIC-GM Chevrolet",
+      "model": "Chevrolet Sail",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "SAIC-GM Chevrolet",
+        "manufacturing_date": "July 2014",
+        "engine": "1.4L",
+        "transmission": "Manual",
+        "displacement": "1.4L",
+        "actual_mileage": "40,000 km",
+        "color": "White",
+        "inspection": "February 2027"
+      },
+      "price_usd": 1600,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 94,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 5 pickup",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2014",
+        "engine": "2.8T diesel",
+        "transmission": "Manual",
+        "displacement": "2.8L"
+      },
+      "price_usd": 3508,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 95,
+      "category": "car",
+      "brand": "MG",
+      "model": "MG GS",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "MG",
+        "manufacturing_date": "2017",
+        "engine": "2.0T",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "actual_mileage": "90,000+ km"
+      },
+      "price_usd": 3096,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 96,
+      "category": "car",
+      "brand": "Toyota",
+      "model": "Toyota RAV4",
+      "year": 2010,
+      "specifications": {
+        "manufacturer": "Toyota",
+        "manufacturing_date": "2010",
+        "engine": "2.4L",
+        "displacement": "2.4L"
+      },
+      "price_usd": 3214,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 97,
+      "category": "car",
+      "brand": "Lexus",
+      "model": "Lexus RX",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "Lexus",
+        "manufacturing_date": "2011",
+        "displacement": "2.7L",
+        "transmission": "6-speed automatic"
+      },
+      "price_usd": 7071,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 98,
+      "category": "car",
+      "brand": "GAC Aion",
+      "model": "GAC Aion Y Star Edition electric",
+      "year": null,
+      "specifications": {
+        "manufacturer": "GAC Aion",
+        "engine": "Electric",
+        "displacement": "Electric",
+        "actual_mileage": "50,000 km"
+      },
+      "price_usd": 10906,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 99,
+      "category": "car",
+      "brand": "Kaiyi Auto",
+      "model": "Kaiyi Kunlun",
+      "year": 2026,
+      "specifications": {
+        "manufacturer": "Kaiyi Auto",
+        "manufacturing_date": "2026",
+        "engine": "1.5T",
+        "displacement": "1.5L"
+      },
+      "price_usd": 11900,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 100,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Baojun 530",
+      "year": 2019,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "manufacturing_date": "2019",
+        "engine": "1.5T",
+        "displacement": "1.5L",
+        "actual_mileage": "92,200 km"
+      },
+      "price_usd": 5129,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 101,
+      "category": "car",
+      "brand": "SAIC Volkswagen",
+      "model": "Volkswagen Lamando",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "SAIC Volkswagen",
+        "manufacturing_date": "2017",
+        "engine": "1.4T",
+        "displacement": "1.4L",
+        "actual_mileage": "78,000 km"
+      },
+      "price_usd": 6602,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 102,
+      "category": "car",
+      "brand": "BYD",
+      "model": "BYD Qin Plus DM-i",
+      "year": 2021,
+      "specifications": {
+        "manufacturer": "BYD",
+        "manufacturing_date": "2021",
+        "engine": "1.5L hybrid",
+        "displacement": "1.5L",
+        "actual_mileage": "31,800 km"
+      },
+      "price_usd": 6898,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 103,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Baojun E100",
+      "year": 2019,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "manufacturing_date": "August 2021",
+        "engine": "Electric",
+        "transmission": "Single-speed automatic",
+        "displacement": "Electric",
+        "battery_life": "265 km",
+        "color": "White",
+        "actual_mileage": "22,000 km"
+      },
+      "price_usd": 3949,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 104,
+      "category": "car",
+      "brand": "FAW-Volkswagen Jetta",
+      "model": "Jetta VS7",
+      "year": 2026,
+      "specifications": {
+        "manufacturer": "FAW-Volkswagen Jetta",
+        "manufacturing_date": "2026",
+        "engine": "1.4T 150 hp L4",
+        "transmission": "6-speed automatic",
+        "displacement": "1.4L"
+      },
+      "price_usd": 13391,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 105,
+      "category": "car",
+      "brand": "Zotye Auto",
+      "model": "Zotye Z300",
+      "year": 2013,
+      "specifications": {
+        "manufacturer": "Zotye Auto",
+        "manufacturing_date": "2013",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "actual_mileage": "130,000 km"
+      },
+      "price_usd": 1621,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 106,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Haval H2",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2016",
+        "engine": "1.5T",
+        "transmission": "Automatic",
+        "displacement": "1.5L"
+      },
+      "price_usd": 1916,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 107,
+      "category": "car",
+      "brand": "Hanteng Auto",
+      "model": "Hanteng X5",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Hanteng Auto",
+        "manufacturing_date": "2018",
+        "engine": "1.5T",
+        "transmission": "CVT",
+        "displacement": "1.5L",
+        "actual_mileage": "100,000 km"
+      },
+      "price_usd": 2133,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 108,
+      "category": "car",
+      "brand": "Soueast Motor",
+      "model": "Soueast Lingyue V3",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "Soueast Motor",
+        "manufacturing_date": "2015",
+        "engine": "1.5L",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "actual_mileage": "77,000 km"
+      },
+      "price_usd": 1738,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 109,
+      "category": "car",
+      "brand": "Zotye Auto",
+      "model": "Zotye T700",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "Zotye Auto",
+        "manufacturing_date": "2017",
+        "engine": "1.8T",
+        "transmission": "Automatic",
+        "displacement": "1.8L",
+        "actual_mileage": "83,000 km"
+      },
+      "price_usd": 4863,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 110,
+      "category": "car",
+      "brand": "Land Wind",
+      "model": "Land Wind X7",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Land Wind",
+        "manufacturing_date": "2016",
+        "engine": "2.0T",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "actual_mileage": "76,000 km"
+      },
+      "price_usd": 2796,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 111,
+      "category": "car",
+      "brand": "Beijing Automobile Works",
+      "model": "Warrior Pickup",
+      "year": 2021,
+      "specifications": {
+        "manufacturer": "Beijing Automobile Works",
+        "manufacturing_date": "2021",
+        "engine": "Diesel"
+      },
+      "price_usd": 6633,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 112,
+      "category": "car",
+      "brand": "Volvo Cars",
+      "model": "Volvo XC90",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Volvo Cars",
+        "manufacturing_date": "2014",
+        "engine": "2.5T",
+        "displacement": "2.5L"
+      },
+      "price_usd": 6560,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 113,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Haval H6",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "November 2016",
+        "engine": "1.5T",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "actual_mileage": "126,600 km"
+      },
+      "price_usd": 2130,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 114,
+      "category": "car",
+      "brand": "JAC Motors",
+      "model": "JAC Refine S3",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "JAC Motors",
+        "manufacturing_date": "November 2015",
+        "engine": "1.5L",
+        "transmission": "CVT",
+        "displacement": "1.5L",
+        "actual_mileage": "150,000 km"
+      },
+      "price_usd": 1885,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 115,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Baojun 310",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "manufacturing_date": "April 2017",
+        "engine": "1.2L",
+        "transmission": "Manual",
+        "displacement": "1.2L",
+        "actual_mileage": "790,000 km"
+      },
+      "price_usd": 1592,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 116,
+      "category": "car",
+      "brand": "Toyota",
+      "model": "Toyota Vios",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Toyota",
+        "manufacturing_date": "2016",
+        "engine": "1.5L",
+        "transmission": "Automatic",
+        "displacement": "1.5L"
+      },
+      "price_usd": 4099,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 117,
+      "category": "car",
+      "brand": "Mazda",
+      "model": "Mazda 6",
+      "year": 2013,
+      "specifications": {
+        "manufacturer": "Mazda",
+        "manufacturing_date": "2013",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L"
+      },
+      "price_usd": 2768,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 118,
+      "category": "car",
+      "brand": "Nissan",
+      "model": "Nissan Sylphy",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Nissan",
+        "manufacturing_date": "2016",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L"
+      },
+      "price_usd": 2182,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 119,
+      "category": "car",
+      "brand": "SAIC-GM Buick",
+      "model": "Buick LaCrosse",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "SAIC-GM Buick",
+        "manufacturing_date": "2011",
+        "engine": "2.4L",
+        "transmission": "Automatic",
+        "displacement": "2.4L"
+      },
+      "price_usd": 2195,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 120,
+      "category": "car",
+      "brand": "Mazda",
+      "model": "Mazda 6",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "Mazda",
+        "manufacturing_date": "2011",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "inspection": "March 2027"
+      },
+      "price_usd": 2196,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 121,
+      "category": "car",
+      "brand": "Kia",
+      "model": "Kia K5",
+      "year": 2012,
+      "specifications": {
+        "manufacturer": "Kia",
+        "manufacturing_date": "2012",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "inspection": "2027"
+      },
+      "price_usd": 3507,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 122,
+      "category": "car",
+      "brand": "Toyota",
+      "model": "Toyota Camry",
+      "year": 2008,
+      "specifications": {
+        "manufacturer": "Toyota",
+        "manufacturing_date": "2008",
+        "engine": "2.4L",
+        "transmission": "Automatic",
+        "displacement": "2.4L"
+      },
+      "price_usd": 2769,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 123,
+      "category": "car",
+      "brand": "FAW Car",
+      "model": "Besturn X80",
+      "year": 2013,
+      "specifications": {
+        "manufacturer": "FAW Car",
+        "manufacturing_date": "2013",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "actual_mileage": "160,000 km"
+      },
+      "price_usd": 1916,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 124,
+      "category": "car",
+      "brand": "Mazda",
+      "model": "Mazda3",
+      "year": 2010,
+      "specifications": {
+        "manufacturer": "Mazda",
+        "manufacturing_date": "2010",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "actual_mileage": "120,000 km"
+      },
+      "price_usd": 1739,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 125,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall King Kong",
+      "year": 2025,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2025",
+        "engine": "2.0T diesel",
+        "transmission": "Manual",
+        "displacement": "2.0L"
+      },
+      "price_usd": 11936,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 126,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Wuling Starlight",
+      "year": 2024,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "registration_date": "February 2025",
+        "engine": "1.5L plug-in hybrid",
+        "transmission": "Single-speed automatic",
+        "displacement": "1.5L",
+        "color": "Black",
+        "actual_mileage": "27,000 km",
+        "ev_range": "150 km"
+      },
+      "price_usd": 10435,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 127,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Wuling Bingo S",
+      "year": 2025,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "registration_date": "September 2025",
+        "electric_motor": "102 hp",
+        "transmission": "Single-speed automatic",
+        "displacement": "Electric",
+        "color": "Khaki",
+        "actual_mileage": "8,000 km",
+        "ev_range": "325 km"
+      },
+      "price_usd": 9989,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 128,
+      "category": "car",
+      "brand": "SAIC-GM Chevrolet",
+      "model": "Chevrolet Trax",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "SAIC-GM Chevrolet",
+        "manufacturing_date": "2014",
+        "engine": "1.4T",
+        "transmission": "Automatic",
+        "displacement": "1.4L"
+      },
+      "price_usd": 2210,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 129,
+      "category": "car",
+      "brand": "SAIC-GM Chevrolet",
+      "model": "Chevrolet Trax",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "SAIC-GM Chevrolet",
+        "manufacturing_date": "2014",
+        "engine": "1.4T",
+        "transmission": "Automatic",
+        "displacement": "1.4L",
+        "inspection": "December 2026",
+        "insurance": "December 2026"
+      },
+      "price_usd": 1858,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 130,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Baojun 730",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "manufacturing_date": "2014",
+        "engine": "1.5L",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "inspection": "December 2026",
+        "insurance": "December 2026"
+      },
+      "price_usd": 1858,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 131,
+      "category": "car",
+      "brand": "Nissan",
+      "model": "Nissan Qashqai",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Nissan",
+        "manufacturing_date": "March 2014",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "inspection": "March 2027",
+        "insurance": "March 2027"
+      },
+      "price_usd": 3655,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 132,
+      "category": "car",
+      "brand": "Beijing Hyundai",
+      "model": "Hyundai Sonata",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "Beijing Hyundai",
+        "manufacturing_date": "2015",
+        "engine": "1.6T GDI",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "actual_mileage": "117,000 km"
+      },
+      "price_usd": 3687,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 133,
+      "category": "car",
+      "brand": "Dongfeng Honda",
+      "model": "Honda XR-V",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Dongfeng Honda",
+        "manufacturing_date": "2018",
+        "engine": "1.5L or 1.8L",
+        "transmission": "CVT",
+        "displacement": "1.5L or 1.8L",
+        "fuel_consumption": "5-6 L/100km"
+      },
+      "price_usd": 7369,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 134,
+      "category": "car",
+      "brand": "Dongfeng Honda",
+      "model": "Honda CR-V",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "Dongfeng Honda",
+        "manufacturing_date": "2011",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "insurance": "February 2027"
+      },
+      "price_usd": 3213,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 135,
+      "category": "car",
+      "brand": "SAIC-GM Chevrolet",
+      "model": "Chevrolet Cruze",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "SAIC-GM Chevrolet",
+        "manufacturing_date": "2014",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "insurance": "May 2027"
+      },
+      "price_usd": 1739,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 136,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Haval H1",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2015",
+        "engine": "1.5L",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "actual_mileage": "80,000 km"
+      },
+      "price_usd": 1710,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 137,
+      "category": "car",
+      "brand": "JAC Motors",
+      "model": "JAC Refine S3",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "JAC Motors",
+        "manufacturing_date": "2014",
+        "engine": "1.5L",
+        "transmission": "CVT",
+        "displacement": "1.5L",
+        "actual_mileage": "85,000 km"
+      },
+      "price_usd": 1739,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 138,
+      "category": "car",
+      "brand": "Changan Ford",
+      "model": "Ford Focus",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Changan Ford",
+        "manufacturing_date": "2014",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "inspection": "June 2027",
+        "insurance": "June 2027"
+      },
+      "price_usd": 1604,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 139,
+      "category": "car",
+      "brand": "Dongfeng Fengxing",
+      "model": "Dongfeng Fengxing Jingyi X5",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Dongfeng Fengxing",
+        "manufacturing_date": "2016",
+        "engine": "1.6L",
+        "transmission": "CVT",
+        "displacement": "1.6L",
+        "actual_mileage": "100,000 km"
+      },
+      "price_usd": 1916,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 140,
+      "category": "car",
+      "brand": "Tesla",
+      "model": "Tesla Model Y",
+      "year": 2022,
+      "specifications": {
+        "manufacturer": "Tesla",
+        "manufacturing_date": "2022",
+        "engine": "Electric 194kW",
+        "transmission": "Single-speed automatic",
+        "displacement": "Electric",
+        "battery_type": "Lithium iron phosphate",
+        "battery_capacity": "60 kWh",
+        "ev_range": "545 km"
+      },
+      "price_usd": 12525,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 141,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Baojun 510",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "manufacturing_date": "December 2017",
+        "engine": "1.5L",
+        "transmission": "Automatic",
+        "displacement": "1.5L",
+        "actual_mileage": "240,000 km"
+      },
+      "price_usd": 2800,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 142,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Baojun 310",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "manufacturing_date": "December 2018",
+        "engine": "1.2L",
+        "transmission": "Manual",
+        "displacement": "1.2L"
+      },
+      "price_usd": 2181,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 143,
+      "category": "car",
+      "brand": "Hyundai",
+      "model": "Hyundai ix35",
+      "year": 2012,
+      "specifications": {
+        "manufacturer": "Hyundai",
+        "manufacturing_date": "2012",
+        "engine": "2.4L",
+        "transmission": "Automatic",
+        "displacement": "2.4L",
+        "actual_mileage": "120,000 km"
+      },
+      "price_usd": 1990,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 144,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Haval H1",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2015",
+        "engine": "1.5L",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "actual_mileage": "80,000 km"
+      },
+      "price_usd": 1710,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 145,
+      "category": "car",
+      "brand": "Tesla",
+      "model": "Tesla Model Y",
+      "year": 2022,
+      "specifications": {
+        "manufacturer": "Tesla",
+        "manufacturing_date": "June 2022",
+        "engine": "Electric",
+        "transmission": "Single-speed automatic",
+        "displacement": "Electric",
+        "battery_life": "545 km",
+        "insurance": "June 2027",
+        "actual_mileage": "93,000 km"
+      },
+      "price_usd": 19158,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 146,
+      "category": "car",
+      "brand": "Dongfeng Nissan",
+      "model": "Nissan Tiida",
+      "year": 2013,
+      "specifications": {
+        "manufacturer": "Dongfeng Nissan",
+        "first_registration": "November 2012",
+        "engine": "1.6L",
+        "transmission": "CVT",
+        "displacement": "1.6L",
+        "color": "Champagne",
+        "actual_mileage": "71,000 km",
+        "fuel_consumption": "6.2 L/100km"
+      },
+      "price_usd": 3655,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 147,
+      "category": "car",
+      "brand": "SAIC-GM Buick",
+      "model": "Buick Excelle",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "SAIC-GM Buick",
+        "first_registration": "November 2018",
+        "engine": "1.0T",
+        "transmission": "Dual-clutch",
+        "displacement": "1.0L",
+        "color": "White",
+        "actual_mileage": "105,000 km",
+        "fuel_consumption": "5.1 L/100km",
+        "emission_standard": "China V"
+      },
+      "price_usd": 3655,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 148,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Baojun 310",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "first_registration": "December 2018",
+        "engine": "1.2L",
+        "transmission": "Manual",
+        "displacement": "1.2L",
+        "color": "White",
+        "actual_mileage": "50,000 km",
+        "fuel_consumption": "5.3 L/100km"
+      },
+      "price_usd": 2198,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 149,
+      "category": "car",
+      "brand": "Dodge",
+      "model": "Dodge Journey",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Dodge",
+        "manufacturing_date": "2016",
+        "engine": "2.0L diesel",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "inspection": "2027",
+        "insurance": "2027"
+      },
+      "price_usd": 5899,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 150,
+      "category": "car",
+      "brand": "Changan Ford",
+      "model": "Ford Mondeo",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Changan Ford",
+        "manufacturing_date": "June 2016",
+        "engine": "1.5T",
+        "transmission": "Automatic",
+        "displacement": "1.5L",
+        "insurance": "Valid for a full year"
+      },
+      "price_usd": 4236,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 151,
+      "category": "car",
+      "brand": "Changan Ford",
+      "model": "Ford Focus",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "Changan Ford",
+        "manufacturing_date": "2011",
+        "engine": "1.8L",
+        "transmission": "Automatic",
+        "displacement": "1.8L",
+        "inspection": "August 2027",
+        "insurance": "August 2027"
+      },
+      "price_usd": 1739,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 152,
+      "category": "car",
+      "brand": "Toyota",
+      "model": "Toyota Highlander",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Toyota",
+        "manufacturing_date": "2016",
+        "engine": "2.0T",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "actual_mileage": "130,000 km"
+      },
+      "price_usd": 12496,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 153,
+      "category": "car",
+      "brand": "Dongfeng Infiniti",
+      "model": "Infiniti QX50",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Dongfeng Infiniti",
+        "manufacturing_date": "October 2018",
+        "engine": "2.0T",
+        "transmission": "CVT",
+        "displacement": "2.0L",
+        "actual_mileage": "130,000 km"
+      },
+      "price_usd": 12350,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 154,
+      "category": "car",
+      "brand": "JAC Motors",
+      "model": "JAC Refine S3",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "JAC Motors",
+        "first_registration": "November 2015",
+        "engine": "1.5L",
+        "transmission": "CVT",
+        "displacement": "1.5L",
+        "actual_mileage": "150,000 km"
+      },
+      "price_usd": 1887,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 155,
+      "category": "car",
+      "brand": "Qoros Auto",
+      "model": "Qoros 5",
+      "year": 2021,
+      "specifications": {
+        "manufacturer": "Qoros Auto",
+        "first_registration": "June 2021",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "actual_mileage": "30,000 km"
+      },
+      "price_usd": 2003,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 156,
+      "category": "car",
+      "brand": "FAW Toyota",
+      "model": "Toyota Corolla",
+      "year": 2013,
+      "specifications": {
+        "manufacturer": "FAW Toyota",
+        "manufacturing_date": "June 2013",
+        "engine": "1.8L",
+        "transmission": "Automatic",
+        "displacement": "1.8L",
+        "actual_mileage": "100,000+ km",
+        "inspection": "Valid for a full year",
+        "insurance": "Valid for a full year"
+      },
+      "price_usd": 4028,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 157,
+      "category": "car",
+      "brand": "FAW Toyota",
+      "model": "Toyota Corolla",
+      "year": 2007,
+      "specifications": {
+        "manufacturer": "FAW Toyota",
+        "first_registration": "November 2007",
+        "engine": "1.8L",
+        "transmission": "Automatic",
+        "displacement": "1.8L",
+        "actual_mileage": "130,000 km"
+      },
+      "price_usd": 2181,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 158,
+      "category": "car",
+      "brand": "SAIC-GM Chevrolet",
+      "model": "Chevrolet Sail",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "SAIC-GM Chevrolet",
+        "manufacturing_date": "July 2014",
+        "engine": "1.4L",
+        "transmission": "Manual",
+        "displacement": "1.4L",
+        "actual_mileage": "70,000 km",
+        "inspection": "February 2027",
+        "insurance": "February 2027"
+      },
+      "price_usd": 1852,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 159,
+      "category": "car",
+      "brand": "FAW Toyota",
+      "model": "Toyota RAV4",
+      "year": 2009,
+      "specifications": {
+        "manufacturer": "FAW Toyota",
+        "first_registration": "June 2010",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "drive": "Front-wheel drive",
+        "emission_standard": "Euro IV",
+        "actual_mileage": "130,000 km"
+      },
+      "price_usd": 3803,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 160,
+      "category": "car",
+      "brand": "FAW Toyota",
+      "model": "Toyota RAV4",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "FAW Toyota",
+        "first_registration": "April 2012",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "drive": "Front-wheel drive",
+        "emission_standard": "Euro IV",
+        "actual_mileage": "190,000 km"
+      },
+      "price_usd": 4981,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 161,
+      "category": "car",
+      "brand": "FAW Toyota",
+      "model": "Toyota RAV4 Rongfang",
+      "year": 2022,
+      "specifications": {
+        "manufacturer": "FAW Toyota",
+        "first_registration": "December 2022",
+        "engine": "2.5L hybrid",
+        "transmission": "CVT",
+        "displacement": "2.5L",
+        "actual_mileage": "53,000 km"
+      },
+      "price_usd": 22255,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 162,
+      "category": "car",
+      "brand": "FAW Toyota",
+      "model": "Toyota RAV4 Rongfang",
+      "year": 2021,
+      "specifications": {
+        "manufacturer": "FAW Toyota",
+        "engine": "2.5L hybrid",
+        "transmission": "CVT",
+        "displacement": "2.5L",
+        "actual_mileage": "140,000 km"
+      },
+      "price_usd": 13706,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 163,
+      "category": "car",
+      "brand": "Land Rover",
+      "model": "Land Rover Range Rover Vogue",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Land Rover",
+        "manufacturing_date": "November 2018",
+        "engine": "3.0L diesel V6",
+        "transmission": "Automatic",
+        "displacement": "3.0L"
+      },
+      "price_usd": 66000,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 164,
+      "category": "car",
+      "brand": "Land Rover",
+      "model": "Land Rover Range Rover Vogue",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Land Rover",
+        "manufacturing_date": "November 2018",
+        "engine": "3.0L diesel V6",
+        "transmission": "Automatic",
+        "displacement": "3.0L"
+      },
+      "price_usd": 7369,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 165,
+      "category": "car",
+      "brand": "Changan Ford",
+      "model": "Ford Mondeo Zhisheng",
+      "year": 2010,
+      "specifications": {
+        "manufacturer": "Changan Ford",
+        "manufacturing_date": "2010",
+        "engine": "2.3L",
+        "transmission": "Automatic",
+        "displacement": "2.3L",
+        "features": "Sunroof"
+      },
+      "price_usd": 2034,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 166,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Haval H6",
+      "year": 2013,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2013",
+        "engine": "1.5T",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "actual_mileage": "100,000 km"
+      },
+      "price_usd": 2004,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 167,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Haval H7",
+      "year": 2018,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2018",
+        "engine": "2.0T",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "actual_mileage": "48,000 km"
+      },
+      "price_usd": 4274,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 168,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Haval H6 Coupe",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2016",
+        "engine": "1.5T",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "actual_mileage": "80,000 km"
+      },
+      "price_usd": 2358,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 169,
+      "category": "car",
+      "brand": "SAIC-GM Chevrolet",
+      "model": "Chevrolet Sail",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "SAIC-GM Chevrolet",
+        "manufacturing_date": "December 2015",
+        "engine": "1.3L",
+        "displacement": "1.3L"
+      },
+      "price_usd": 2211,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 170,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$5,130 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 171,
+      "category": "car",
+      "brand": "Dongfeng Honda",
+      "model": "Honda Civic",
+      "year": 2020,
+      "specifications": {
+        "manufacturer": "Dongfeng Honda",
+        "manufacturing_date": "December 2020",
+        "engine": "1.5T",
+        "displacement": "1.5L",
+        "actual_mileage": "70,000 km",
+        "inspection": "December 2026",
+        "insurance": "December 2026"
+      },
+      "price_usd": 8399,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 172,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$2,182 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 173,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,655 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 174,
+      "category": "car",
+      "brand": "FAW-Volkswagen Audi",
+      "model": "Audi A4L",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "FAW-Volkswagen Audi",
+        "first_registration": "June 2015",
+        "engine": "2.0T",
+        "displacement": "2.0L"
+      },
+      "price_usd": 14740,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 175,
+      "category": "car",
+      "brand": "Land Rover",
+      "model": "Land Rover Range Rover Sport",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Land Rover",
+        "manufacturing_date": "December 2014",
+        "engine": "3.0T",
+        "displacement": "3.0L"
+      },
+      "price_usd": 13706,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 176,
+      "category": "car",
+      "brand": "Land Rover",
+      "model": "Land Rover Range Rover Sport",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Land Rover",
+        "manufacturing_date": "December 2014",
+        "engine": "3.0T",
+        "displacement": "3.0L"
+      },
+      "price_usd": 8106,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 177,
+      "category": "car",
+      "brand": "Land Rover",
+      "model": "Land Rover Range Rover Sport",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Land Rover",
+        "manufacturing_date": "December 2014",
+        "engine": "3.0T",
+        "displacement": "3.0L"
+      },
+      "price_usd": 14001,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 178,
+      "category": "car",
+      "brand": "Dongfeng Nissan",
+      "model": "Nissan Qashqai",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Dongfeng Nissan",
+        "manufacturing_date": "November 2016",
+        "engine": "2.0L",
+        "transmission": "Automatic",
+        "displacement": "2.0L"
+      },
+      "price_usd": 5895,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 179,
+      "category": "car",
+      "brand": "Toyota",
+      "model": "Toyota Camry",
+      "year": 2007,
+      "specifications": {
+        "manufacturer": "Toyota",
+        "manufacturing_date": "2007",
+        "engine": "2.4L",
+        "transmission": "Automatic",
+        "displacement": "2.4L",
+        "inspection": "2027",
+        "insurance": "2027"
+      },
+      "price_usd": 2329,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 180,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$6,160 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 181,
+      "category": "car",
+      "brand": "ZX Auto",
+      "model": "ZX Auto Grand Lord",
+      "year": 2019,
+      "specifications": {
+        "manufacturer": "ZX Auto",
+        "manufacturing_date": "2019",
+        "engine": "2.5T diesel high power",
+        "transmission": "Manual 6-speed",
+        "displacement": "2.5L"
+      },
+      "price_usd": 7810,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 182,
+      "category": "car",
+      "brand": "Geely Automobile",
+      "model": "Geely Haoqing SUV",
+      "year": 2014,
+      "specifications": {
+        "manufacturer": "Geely Automobile",
+        "manufacturing_date": "2014",
+        "first_registration": "July 2016",
+        "engine": "2.4L 162 hp L4",
+        "transmission": "Manual",
+        "displacement": "2.4L",
+        "actual_mileage": "120,000 km",
+        "seats": "7"
+      },
+      "price_usd": 2284,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 183,
+      "category": "car",
+      "brand": "GAC Trumpchi",
+      "model": "GAC Trumpchi GS8",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "GAC Trumpchi",
+        "manufacturing_date": "April 2017",
+        "engine": "2.0T 201 hp L4",
+        "transmission": "Automatic",
+        "displacement": "2.0L",
+        "seats": "7",
+        "color": "Black",
+        "actual_mileage": "113,000 km"
+      },
+      "price_usd": 6608,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 184,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$5,130 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 185,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$6,160 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 186,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,214 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 187,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,508 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 188,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,065 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 189,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,213 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 190,
+      "category": "motorcycle",
+      "brand": "",
+      "model": "",
+      "year": null,
+      "specifications": {
+        "·_price": "$3,213 USD"
+      },
+      "price_usd": null,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 191,
+      "category": "car",
+      "brand": "ZX Auto",
+      "model": "ZX Auto Grand Lord",
+      "year": 2019,
+      "specifications": {
+        "manufacturer": "ZX Auto",
+        "manufacturing_date": "2019",
+        "engine": "2.5T diesel high power",
+        "transmission": "Manual 6-speed",
+        "displacement": "2.5L"
+      },
+      "price_usd": 7811,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 192,
+      "category": "car",
+      "brand": "Great Wall Motors",
+      "model": "Great Wall Fengjun 5 pickup",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "Great Wall Motors",
+        "manufacturing_date": "2017",
+        "engine": "2.0T diesel high power",
+        "transmission": "Manual 6-speed",
+        "displacement": "2.0L"
+      },
+      "price_usd": 5895,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 193,
+      "category": "car",
+      "brand": "Changan Automobile",
+      "model": "Changan CS35",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Changan Automobile",
+        "manufacturing_date": "2016",
+        "engine": "1.6L",
+        "transmission": "Manual",
+        "displacement": "1.6L",
+        "actual_mileage": "86,000 km"
+      },
+      "price_usd": 1842,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 194,
+      "category": "car",
+      "brand": "Jinbei",
+      "model": "Jinbei 750",
+      "year": 2016,
+      "specifications": {
+        "manufacturer": "Jinbei",
+        "manufacturing_date": "2016",
+        "engine": "1.5L",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "actual_mileage": "110,000 km"
+      },
+      "price_usd": 1739,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 195,
+      "category": "car",
+      "brand": "Geely Automobile",
+      "model": "Geely Emgrand",
+      "year": 2015,
+      "specifications": {
+        "manufacturer": "Geely Automobile",
+        "manufacturing_date": "2015",
+        "engine": "1.3T",
+        "transmission": "CVT",
+        "displacement": "1.3L",
+        "actual_mileage": "100,000 km"
+      },
+      "price_usd": 2181,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 196,
+      "category": "car",
+      "brand": "Mazda",
+      "model": "Mazda3 Xingcheng",
+      "year": 2011,
+      "specifications": {
+        "manufacturer": "Mazda",
+        "manufacturing_date": "2011",
+        "engine": "1.6L",
+        "transmission": "Automatic",
+        "displacement": "1.6L",
+        "actual_mileage": "130,000 km"
+      },
+      "price_usd": 2358,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 197,
+      "category": "car",
+      "brand": "SAIC-GM-Wuling",
+      "model": "Baojun 510",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "SAIC-GM-Wuling",
+        "manufacturing_date": "2017",
+        "engine": "1.5L",
+        "transmission": "Manual",
+        "displacement": "1.5L",
+        "actual_mileage": "76,700 km"
+      },
+      "price_usd": 3508,
+      "country": "China",
+      "photos": []
+    },
+    {
+      "id": 198,
+      "category": "car",
+      "brand": "Changan Ford",
+      "model": "Ford Focus",
+      "year": 2017,
+      "specifications": {
+        "manufacturer": "Changan Ford",
+        "manufacturing_date": "2016",
+        "engine": "1.6L",
+        "transmission": "Manual",
+        "displacement": "1.6L",
+        "actual_mileage": "57,700 km"
+      },
+      "price_usd": 3655,
+      "country": "China",
+      "photos": []
+    }
+  ]
+}

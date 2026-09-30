@@ -1,0 +1,1 @@
+export async function POST(req:Request){try{const body=await req.json();if(!body.name||!body.message)return Response.json({error:'Missing required fields'},{status:400});console.log('CONTACT_LEAD',JSON.stringify(body));return Response.json({ok:true});}catch{return Response.json({error:'Invalid request'},{status:400})}}

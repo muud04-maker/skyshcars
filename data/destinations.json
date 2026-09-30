@@ -1,0 +1,81 @@
+[
+  {
+    "country": "Somalia",
+    "ports": [
+      "Mogadishu"
+    ]
+  },
+  {
+    "country": "Somaliland",
+    "ports": [
+      "Berbera"
+    ]
+  },
+  {
+    "country": "Djibouti",
+    "ports": [
+      "Djibouti"
+    ]
+  },
+  {
+    "country": "Kenya",
+    "ports": [
+      "Mombasa"
+    ]
+  },
+  {
+    "country": "Tanzania",
+    "ports": [
+      "Zanzibar"
+    ]
+  },
+  {
+    "country": "Ghana",
+    "ports": [
+      "Tema",
+      "Takoradi"
+    ]
+  },
+  {
+    "country": "Nigeria",
+    "ports": [
+      "Lagos",
+      "Tin Can",
+      "Apapa",
+      "Onne"
+    ]
+  },
+  {
+    "country": "Senegal",
+    "ports": [
+      "Dakar"
+    ]
+  },
+  {
+    "country": "Cameroon",
+    "ports": [
+      "Douala",
+      "Kribi"
+    ]
+  },
+  {
+    "country": "Côte d'Ivoire",
+    "ports": [
+      "Abidjan",
+      "San Pedro"
+    ]
+  },
+  {
+    "country": "DR Congo",
+    "ports": [
+      "Matadi",
+      "Boma"
+    ]
+  },
+  {
+    "country": "Republic Congo",
+    "ports": [
+      "Pointe-Noire"
+    ]
+  }
+]

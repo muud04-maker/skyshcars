@@ -1,0 +1,1 @@
+const d=require('../data/inventory.json').inventory;console.log('Inventory ready for migration:',d.length);console.log('Incomplete or ambiguous records must remain pending_verification.');

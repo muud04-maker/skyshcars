@@ -1,0 +1,1 @@
+export default function Page(){return <main className="wrap"><h1>Frequently Asked Questions</h1><div className="card"><p>Vehicle availability, shipping methods, destination routes, transit times and final costs must be confirmed for each order.</p></div></main>}

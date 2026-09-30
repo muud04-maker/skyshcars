@@ -1,0 +1,1 @@
+export default function VehicleImage({src,alt}:{src?:string|null,alt:string}){return <img src={src||"/vehicle-placeholder.svg"} alt={alt} style={{width:"100%",aspectRatio:"16/9",objectFit:"cover",borderRadius:14}}/>}
