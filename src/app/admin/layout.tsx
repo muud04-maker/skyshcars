@@ -1,12 +1,5 @@
-import {redirect} from 'next/navigation';
-import {isAdmin} from '../../lib/admin';
-
-export default async function AdminLayout({children}:{children:React.ReactNode}){
-  // Login must remain reachable even when no admin session exists.
+export default function AdminLayout({children}:{children:React.ReactNode}){
   // Authentication is enforced by each protected admin page/API.
+  // /admin/login must stay publicly reachable so unauthenticated admins can sign in.
   return <>{children}</>;
-}
-
-export async function requireAdmin(){
-  if(!(await isAdmin())) redirect('/admin/login');
 }
