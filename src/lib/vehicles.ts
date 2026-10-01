@@ -1,6 +1,7 @@
 import fallback from '../../data/inventory.json';
 import { rows, one, dbConfigured, lim } from './db';
 import { demoMotorcycles } from './demo-inventory';
+import { ensureLast50Vehicles } from './inventory-seed';
 
 /*
   SINGLE SOURCE OF TRUTH: the `vehicles` table.
@@ -35,6 +36,7 @@ export async function getVehicles(q: VehicleQuery | number = {}) {
     return list.slice(0, limit);
   }
   try {
+    await ensureLast50Vehicles();
     const args: any[] = [];
     let where = `v.status IN ('available','reserved')`;
     if (opts.category) { where += ' AND v.category=?'; args.push(opts.category); }
@@ -58,6 +60,7 @@ export async function getVehicle(id: string) {
   if (demo) return demo;
   if (!dbConfigured()) return legacy((fallback as any).inventory.find((x: any) => String(x.id) === id));
   try {
+    await ensureLast50Vehicles();
     // Publicly visible statuses only; hidden / pending vehicles return 404.
     return await one<any>(
       `SELECT v.*, ${COVER} FROM vehicles v
@@ -71,6 +74,6 @@ export async function getVehicle(id: string) {
 
 export async function getVehicleMedia(vehicleId:number|string){
   if(!dbConfigured()) return [];
-  try{return await rows<any>(`SELECT id,url,caption,is_cover,sort_order FROM vehicle_media WHERE vehicle_id=? AND media_type='image' AND review_status='approved' ORDER BY is_cover DESC,sort_order,id LIMIT 12`,[vehicleId]);}
+  try{return await rows<any>(`SELECT id,url,caption,source,is_cover,sort_order FROM vehicle_media WHERE vehicle_id=? AND media_type='image' AND review_status='approved' ORDER BY is_cover DESC,sort_order,id LIMIT 12`,[vehicleId]);}
   catch(e){console.error('GET_VEHICLE_MEDIA_DB_ERROR',e);return []}
 }

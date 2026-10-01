@@ -1,12 +1,9 @@
-import {demoImageFor,isDemoVehicle} from '../lib/demo-inventory';
 export default function VehicleCard({ v }: { v: any }) {
   const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.trim() || 'Vehicle';
-  const image=demoImageFor(v);
-  const reference=!v.cover_url;
-  const sample=isDemoVehicle(v);
+  const image=v.cover_url || `/api/vehicle-art/${encodeURIComponent(String(v.id))}`;
   return (
     <a className="card vehicleCard" href={'/vehicles/' + v.id}>
-      <div className="vehicleImageWrap"><img className="vehiclePhoto" src={image} alt={title} />{reference&&<span className="referenceBadge">Reference image</span>}{sample&&<span className="sampleBadge">Sample listing</span>}</div>
+      <div className="vehicleImageWrap"><img className="vehiclePhoto" src={image} alt={title} loading="lazy" /></div>
       <div className="vehicleBody">
         <span className={'badge ' + (v.status === 'reserved' ? 'pending' : '')}>{String(v.status || 'available').replaceAll('_', ' ')}</span>
         <h3>{title}</h3>

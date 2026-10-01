@@ -1,17 +1,18 @@
 import {notFound} from 'next/navigation';
 import {getVehicle,getVehicleMedia} from '../../../lib/vehicles';
-import {demoImageFor,isDemoVehicle} from '../../../lib/demo-inventory';
+import {isDemoVehicle} from '../../../lib/demo-inventory';
 export const dynamic='force-dynamic';
 export default async function Detail({params}:{params:Promise<{id:string}>}){
  const {id}=await params;const v:any=await getVehicle(id);if(!v)notFound();
- const media=await getVehicleMedia(v.id);const fallback=demoImageFor(v);const demo=isDemoVehicle(v);
- const images=media.length?media.map((m:any)=>m.url):[fallback];
+ const media=await getVehicleMedia(v.id);const demo=isDemoVehicle(v);
+ const images=media.length?media.map((m:any)=>m.url):[`/api/vehicle-art/${encodeURIComponent(String(v.id))}`];
+ const modelPhotos=media.some((m:any)=>String(m.caption||'').startsWith('MODEL PHOTO'));
  return <main className="wrap vehicleDetailPage">
   <div className="vehicleDetailGrid">
    <section className="vehicleGallery card">
-    <div className="galleryMain"><img src={images[0]} alt={`${v.brand||''} ${v.model||''}`}/>{!media.length&&<span className="referenceBadge">Photo pending</span>}</div>
+    <div className="galleryMain"><img src={images[0]} alt={`${v.brand||''} ${v.model||''}`}/></div>
     <div className="galleryThumbs">{images.slice(0,8).map((src:string,i:number)=><a href={src} target="_blank" rel="noreferrer" key={src+i}><img src={src} alt={`Vehicle photo ${i+1}`}/></a>)}</div>
-    <p className="galleryHint">Click any photo to open it full size. Sky Cars aims to publish at least 3 verified photos for each live vehicle.</p>
+    <p className="galleryHint">Click any photo to open it full size.{modelPhotos?' Model photos are shown for vehicle identification; ask our team for the exact stock-unit photos before payment.':' Exact stock-unit photos are shown when supplied.'}</p>
    </section>
    <section className="card vehicleInfoPanel">
     <div className="detailTopline"><span className="badge">{String(v.status||'available').replaceAll('_',' ')}</span><span>{v.stock_no}</span></div>

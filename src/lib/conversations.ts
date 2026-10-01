@@ -43,10 +43,20 @@ export async function outbound(conversationId: number, sender: 'ai' | 'human', t
   await db().execute('UPDATE conversations SET last_message_at=NOW() WHERE id=?', [conversationId]);
 }
 
-/** Recent history (oldest first) for AI context. */
-export async function history(conversationId: number, n = 30) {
-  const r = await rows<any>(
-    `SELECT sender,body FROM messages WHERE conversation_id=? AND sender IN ('customer','ai','human')
-     ORDER BY id DESC LIMIT ${Math.max(1, Math.min(120, n))}`, [conversationId]);
+/** Recent history for the same customer across all of their conversations, oldest first.
+ * This preserves context after human takeover, channel reconnects and old conversation rows.
+ */
+export async function history(conversationId: number, n = 80) {
+  const limit=Math.max(1,Math.min(300,n));
+  const c:any=await one('SELECT customer_id FROM conversations WHERE id=? LIMIT 1',[conversationId]);
+  if(!c?.customer_id){
+    const r=await rows<any>(`SELECT sender,body FROM messages WHERE conversation_id=? AND sender IN ('customer','ai','human') ORDER BY id DESC LIMIT ${limit}`,[conversationId]);
+    return r.reverse();
+  }
+  const r=await rows<any>(`SELECT m.sender,m.body,m.created_at,c.channel,c.id conversation_id
+    FROM messages m JOIN conversations c ON c.id=m.conversation_id
+    WHERE c.customer_id=? AND m.sender IN ('customer','ai','human')
+    ORDER BY m.id DESC LIMIT ${limit}`,[c.customer_id]);
   return r.reverse();
 }
+

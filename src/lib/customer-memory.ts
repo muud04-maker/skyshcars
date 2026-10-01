@@ -29,7 +29,7 @@ export async function refreshCustomerMemory(conversationId:number){
   await ensureCustomerMemorySchema();
   const conv:any = await one(`SELECT customer_id FROM conversations WHERE id=? LIMIT 1`,[conversationId]);
   if(!conv?.customer_id) return null;
-  const msgs = await rows<any>(`SELECT id,sender,body FROM messages WHERE conversation_id=? AND sender IN ('customer','human','ai') ORDER BY id DESC LIMIT 100`,[conversationId]);
+  const msgs = await rows<any>(`SELECT m.id,m.sender,m.body FROM messages m JOIN conversations cx ON cx.id=m.conversation_id WHERE cx.customer_id=? AND m.sender IN ('customer','human','ai') ORDER BY m.id DESC LIMIT 300`,[conv.customer_id]);
   if(!msgs.length) return null;
   const newestId = Number(msgs[0].id||0);
   const current:any = await one(`SELECT * FROM customer_memory WHERE customer_id=?`,[conv.customer_id]);

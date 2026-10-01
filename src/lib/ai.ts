@@ -3,6 +3,7 @@ import { rows } from './db';
 import { history } from './conversations';
 import { activeKnowledge } from './knowledge';
 import { memoryForConversation, refreshCustomerMemory } from './customer-memory';
+import {ensureLast50Vehicles} from './inventory-seed';
 
 /*
   Grounded sales assistant. Every fact the AI may state (vehicles, prices,
@@ -30,6 +31,7 @@ export function extractTerms(text: string) {
 }
 
 async function findVehicles(text: string) {
+  try{await ensureLast50Vehicles()}catch{}
   const { terms, stock, years, category } = extractTerms(text);
   const cols = `id,stock_no,category,brand,model,trim_name,model_year,price_usd,status,transmission,mileage_km,engine,fuel_type,steering,color,location,
     (SELECT url FROM vehicle_media m WHERE m.vehicle_id=vehicles.id AND m.media_type='image' AND m.review_status='approved' ORDER BY m.is_cover DESC,m.sort_order,id LIMIT 1) cover_url`;
@@ -194,13 +196,13 @@ ${JSON.stringify(facts)}`;
 export async function salesReply(text: string, conversationId?: number) {
   if (!process.env.DEEPSEEK_API_KEY) return null;
   let past: any[] = [];
-  if (conversationId) { try { past = await history(conversationId, 80); } catch { } }
+  if (conversationId) { try { past = await history(conversationId, 200); } catch { } }
   // The just-stored inbound message is the last item; exclude it from context duplication.
   if (past.length && past[past.length - 1].sender === 'customer' && past[past.length - 1].body === text) past = past.slice(0, -1);
-  const priorCustomer = past.filter(m => m.sender === 'customer').slice(-20).map(m => m.body).join(' ');
+  const priorCustomer = past.filter(m => m.sender === 'customer').slice(-60).map(m => m.body).join(' ');
   let memory:any = null;
   if (conversationId) { try { memory = await memoryForConversation(conversationId); } catch {} }
-  const humanExamples = past.filter(m => m.sender === 'human').slice(-12).map(m => String(m.body||'')).filter(Boolean);
+  const humanExamples = past.filter(m => m.sender === 'human').slice(-30).map(m => String(m.body||'')).filter(Boolean);
   const [facts, customer, knowledge] = await Promise.all([
     buildFacts(text, priorCustomer + ' ' + String(memory?.summary||'')), customerContext(conversationId), knowledgeContext()
   ]);
