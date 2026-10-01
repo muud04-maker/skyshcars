@@ -1,6 +1,6 @@
 import { inbound, outbound, alreadyProcessed } from '../../../../lib/conversations';
-import { salesReply, AI_MODEL } from '../../../../lib/ai';
-import { signatureOk, sendWhatsApp, whatsappConfigured } from '../../../../lib/meta';
+import { salesReply, AI_MODEL, vehicleMediaForMessage } from '../../../../lib/ai';
+import { signatureOk, sendWhatsApp, sendWhatsAppImage, whatsappConfigured } from '../../../../lib/meta';
 import { db, dbConfigured } from '../../../../lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +24,7 @@ function describe(m: any): Described | null {
       const caption = String(m.image?.caption || '').trim();
       return {
         storedText: caption ? `PHOTO\nCaption: ${caption}` : 'PHOTO\nNo caption supplied — human review may be needed.',
-        aiText: caption ? `The customer sent a photo. You cannot see the image. Respond only to this customer caption and database facts: ${caption}` : undefined,
+        aiText: caption ? `Customer sent a photo with this caption: ${caption}. Continue naturally from the conversation and answer the caption using verified Sky Cars facts. Do not make any claim about unseen visual details.` : undefined,
         type: 'image', mediaId: m.image?.id, needsHuman: !caption,
       };
     }
@@ -37,7 +37,7 @@ function describe(m: any): Described | null {
       const caption = String(m.video?.caption || '').trim();
       return {
         storedText: caption ? `VIDEO\nCaption: ${caption}` : 'VIDEO\nNo caption supplied — human review required.',
-        aiText: caption ? `The customer sent a video. You cannot see the video. Respond only to this caption and database facts: ${caption}` : undefined,
+        aiText: caption ? `Customer sent a video with this caption: ${caption}. Continue naturally and answer the caption using verified Sky Cars facts. Do not make any claim about unseen video details.` : undefined,
         type: 'video', mediaId: m.video?.id, needsHuman: !caption,
       };
     }
@@ -80,6 +80,22 @@ async function handle(m: any, contacts: any[]) {
   if (!reply) return;
   await sendWhatsApp(from, reply);
   await outbound(c.id, 'ai', reply, AI_MODEL);
+
+  // When the customer asks about a specific vehicle or asks to see a photo,
+  // send the matching website image as a separate WhatsApp image message.
+  // Only approved real vehicle photos are sent to customers. Website reference imagery is never sent as exact stock media.
+  try {
+    const wantsImage = /\b(photo|photos|picture|pictures|image|images|show|see|look|send.*pic|car.*pic|vehicle.*pic)\b/i.test(d.aiText)
+      || /\bSC\s?-?\d{1,6}\b/i.test(d.aiText);
+    const media = await vehicleMediaForMessage(d.aiText, c.id);
+    if (media && (wantsImage || /\b(have|available|price|cost|stock|model|toyota|nissan|honda|byd|changan|geely|motorcycle|bike|suv|sedan)\b/i.test(d.aiText))) {
+      const imgs = Array.isArray((media as any).images) ? (media as any).images.slice(0,3) : [media.image];
+      for (let i=0;i<imgs.length;i++) await sendWhatsAppImage(from, imgs[i], i===0 ? media.caption : `${media.title} • photo ${i+1}`);
+      await outbound(c.id, 'ai', `[${imgs.length} vehicle photo${imgs.length>1?'s':''} sent] ${media.caption}`, AI_MODEL);
+    }
+  } catch (err) {
+    console.error('WHATSAPP_SEND_VEHICLE_IMAGE', err);
+  }
 }
 
 export async function POST(req: Request) {

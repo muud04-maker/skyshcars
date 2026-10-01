@@ -11,7 +11,7 @@ export function demoImageFor(v:any){
   if(v?.cover_url) return v.cover_url;
   const s=String(v?.stock_no||v?.id||'1');
   let h=0; for(const c of s) h=(h*31+c.charCodeAt(0))>>>0;
-  const n=(h%6)+1;
+  const n=(h%24)+1;
   if(v?.category==='motorcycle') return `/demo/vehicles/moto-${n}.webp`;
   if(v?.category==='car') return `/demo/vehicles/car-${n}.webp`;
   return '/vehicle-placeholder-other.svg';

@@ -37,3 +37,10 @@ export async function sendWhatsApp(to: string, body: string) {
     { headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' }, timeout: 20000 });
   return r.data?.messages?.[0]?.id || null;
 }
+
+export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: string) {
+  const r = await axios.post(`${GRAPH}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+    { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'image', image: { link: imageUrl, ...(caption ? { caption: caption.slice(0, 1000) } : {}) } },
+    { headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' }, timeout: 20000 });
+  return r.data?.messages?.[0]?.id || null;
+}

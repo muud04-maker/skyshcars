@@ -177,6 +177,16 @@ CREATE TABLE IF NOT EXISTS social_connections (
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+
+CREATE TABLE IF NOT EXISTS social_publish_log (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ vehicle_id BIGINT UNSIGNED NOT NULL,
+ channel VARCHAR(40) NOT NULL, external_id VARCHAR(191) NULL,
+ status ENUM('sent','skipped','failed') NOT NULL, details TEXT NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ INDEX(vehicle_id), INDEX(channel), INDEX(created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS business_settings (
  setting_key VARCHAR(191) PRIMARY KEY, setting_value JSON NOT NULL,
  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -191,6 +201,73 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 INSERT IGNORE INTO business_settings(setting_key,setting_value) VALUES
 ('conversation_defaults', JSON_OBJECT('mode','ai','human_takeover_on_admin_reply',true)),
 ('publishing_rules', JSON_OBJECT('require_photo_review',true,'require_vehicle_review',true)),
+('social_auto_publish', JSON_OBJECT('facebook_auto',false,'whatsapp_active_chats_auto',false,'allow_labeled_demo_images',false)),
 ('market_focus', JSON_OBJECT('primary','Africa right-driving / LHD-compatible markets'));
 
+
+CREATE TABLE IF NOT EXISTS ai_knowledge (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ title VARCHAR(191) NOT NULL, content TEXT NOT NULL, active BOOLEAN DEFAULT TRUE,
+ source VARCHAR(80) DEFAULT 'admin', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ INDEX(active), INDEX(updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS private_suppliers (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ name_internal VARCHAR(191) NOT NULL, slug VARCHAR(100) NOT NULL UNIQUE,
+ enabled BOOLEAN DEFAULT TRUE, notes TEXT NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ INDEX(enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS=1;
+
+-- V16 persistent customer memory and supplier integration
+CREATE TABLE IF NOT EXISTS customer_memory (
+ customer_id BIGINT UNSIGNED PRIMARY KEY,
+ summary TEXT NULL,
+ preferences_json JSON NULL,
+ last_vehicle_id BIGINT UNSIGNED NULL,
+ last_stock_no VARCHAR(60) NULL,
+ message_count INT NOT NULL DEFAULT 0,
+ summarized_through_message_id BIGINT UNSIGNED NULL,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+ INDEX(last_vehicle_id), INDEX(updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS supplier_sources (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ supplier_id BIGINT UNSIGNED NOT NULL,
+ base_url TEXT NULL,
+ feed_url TEXT NULL,
+ feed_format ENUM('json','csv','xml','manual') DEFAULT 'manual',
+ default_markup_usd DECIMAL(12,2) NOT NULL DEFAULT 1000.00,
+ permission_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+ auth_header_name VARCHAR(120) NULL,
+ auth_secret_env VARCHAR(120) NULL,
+ last_sync_at DATETIME NULL,
+ last_sync_status VARCHAR(80) NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY(supplier_id) REFERENCES private_suppliers(id) ON DELETE CASCADE,
+ INDEX(supplier_id), INDEX(permission_confirmed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS supplier_vehicle_map (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ supplier_id BIGINT UNSIGNED NOT NULL,
+ supplier_vehicle_id VARCHAR(191) NOT NULL,
+ vehicle_id BIGINT UNSIGNED NULL,
+ source_url TEXT NULL,
+ supplier_price_usd DECIMAL(12,2) NULL,
+ markup_usd DECIMAL(12,2) NOT NULL DEFAULT 1000.00,
+ raw_payload JSON NULL,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_supplier_vehicle(supplier_id,supplier_vehicle_id),
+ FOREIGN KEY(supplier_id) REFERENCES private_suppliers(id) ON DELETE CASCADE,
+ FOREIGN KEY(vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
+ INDEX(vehicle_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

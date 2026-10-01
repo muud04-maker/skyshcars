@@ -1,0 +1,952 @@
+[
+  {
+    "stock_no": "V16-001",
+    "category": "car",
+    "brand": "Wuling",
+    "model": "Bingo S",
+    "trim_name": "430km Zunxiang Edition electric",
+    "model_year": 2025,
+    "price_usd": 8077,
+    "fuel_type": "electric",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Wuling Bingo S 2025 430km Zunxiang Edition electric",
+    "specs": {
+      "original_title": "Wuling Bingo S 2025 430km Zunxiang Edition electric",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-002",
+    "category": "car",
+    "brand": "BYD",
+    "model": "Seagull",
+    "trim_name": "Honor Edition 305km Free Edition electric",
+    "model_year": 2024,
+    "price_usd": 8077,
+    "fuel_type": "electric",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "BYD Seagull 2024 Honor Edition 305km Free Edition electric",
+    "specs": {
+      "original_title": "BYD Seagull 2024 Honor Edition 305km Free Edition electric",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-003",
+    "category": "car",
+    "brand": "BYD",
+    "model": "Seagull",
+    "trim_name": "Honor Edition 305km Free Edition electric",
+    "model_year": 2024,
+    "price_usd": 8077,
+    "fuel_type": "electric",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "BYD Seagull 2024 Honor Edition 305km Free Edition electric",
+    "specs": {
+      "original_title": "BYD Seagull 2024 Honor Edition 305km Free Edition electric",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-004",
+    "category": "car",
+    "brand": "Chevrolet",
+    "model": "Cavalier",
+    "trim_name": "1.5L Manual petrol",
+    "model_year": 2018,
+    "price_usd": 2476,
+    "fuel_type": "petrol",
+    "transmission": "Manual",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Chevrolet Cavalier 2018 1.5L Manual petrol",
+    "specs": {
+      "original_title": "Chevrolet Cavalier 2018 1.5L Manual petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-005",
+    "category": "car",
+    "brand": "Ford",
+    "model": "Escort",
+    "trim_name": "1.5L Automatic petrol",
+    "model_year": 2016,
+    "price_usd": 3538,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Ford Escort 2016 1.5L Automatic petrol",
+    "specs": {
+      "original_title": "Ford Escort 2016 1.5L Automatic petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-006",
+    "category": "car",
+    "brand": "Kia",
+    "model": "K2",
+    "trim_name": "1.4L Automatic petrol",
+    "model_year": 2017,
+    "price_usd": 3684,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Kia K2 2017 1.4L Automatic petrol",
+    "specs": {
+      "original_title": "Kia K2 2017 1.4L Automatic petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-007",
+    "category": "car",
+    "brand": "MG",
+    "model": "ZS",
+    "trim_name": "1.5 Fashion Edition Manual petrol",
+    "model_year": 2017,
+    "price_usd": 2329,
+    "fuel_type": "petrol",
+    "transmission": "Manual",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "MG ZS 2017 1.5 Fashion Edition Manual petrol",
+    "specs": {
+      "original_title": "MG ZS 2017 1.5 Fashion Edition Manual petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-008",
+    "category": "car",
+    "brand": "Kia",
+    "model": "K2 Sedan",
+    "trim_name": "1.4 GL Automatic petrol",
+    "model_year": 2015,
+    "price_usd": 3065,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Kia K2 Sedan 2015 1.4 GL Automatic petrol",
+    "specs": {
+      "original_title": "Kia K2 Sedan 2015 1.4 GL Automatic petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-009",
+    "category": "car",
+    "brand": "Hyundai",
+    "model": "Santa Fe",
+    "trim_name": "3.0L Automatic 4WD Zunxiang 7-seat petrol",
+    "model_year": 2013,
+    "price_usd": 3684,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Hyundai Santa Fe 2013 3.0L Automatic 4WD Zunxiang 7-seat petrol",
+    "specs": {
+      "original_title": "Hyundai Santa Fe 2013 3.0L Automatic 4WD Zunxiang 7-seat petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-010",
+    "category": "car",
+    "brand": "Hyundai",
+    "model": "Santa Fe",
+    "trim_name": "3.0L 4WD 7-seat petrol",
+    "model_year": 2013,
+    "price_usd": 3687,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Hyundai Santa Fe 2013 3.0L 4WD 7-seat petrol",
+    "specs": {
+      "original_title": "Hyundai Santa Fe 2013 3.0L 4WD 7-seat petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-011",
+    "category": "car",
+    "brand": "BMW",
+    "model": "525Li",
+    "trim_name": "Luxury Design Package petrol",
+    "model_year": 2014,
+    "price_usd": 8106,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "BMW 525Li 2014 Luxury Design Package petrol",
+    "specs": {
+      "original_title": "BMW 525Li 2014 Luxury Design Package petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-012",
+    "category": "car",
+    "brand": "Toyota",
+    "model": "Corolla",
+    "trim_name": "Facelift 1.5L Pioneer Edition CVT petrol",
+    "model_year": 2022,
+    "price_usd": 7634,
+    "fuel_type": "petrol",
+    "transmission": "CVT",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Toyota Corolla 2022 Facelift 1.5L Pioneer Edition CVT petrol",
+    "specs": {
+      "original_title": "Toyota Corolla 2022 Facelift 1.5L Pioneer Edition CVT petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-013",
+    "category": "car",
+    "brand": "Toyota",
+    "model": "Corolla",
+    "trim_name": "Facelift 1.5L Pioneer Edition CVT petrol",
+    "model_year": 2022,
+    "price_usd": 7634,
+    "fuel_type": "petrol",
+    "transmission": "CVT",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Toyota Corolla 2022 Facelift 1.5L Pioneer Edition CVT petrol",
+    "specs": {
+      "original_title": "Toyota Corolla 2022 Facelift 1.5L Pioneer Edition CVT petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-014",
+    "category": "car",
+    "brand": "Baojun",
+    "model": "730",
+    "trim_name": "1.5T Manual 6-speed petrol",
+    "model_year": 2019,
+    "price_usd": 5453,
+    "fuel_type": "petrol",
+    "transmission": "Manual",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Baojun 730 2019 1.5T Manual 6-speed petrol",
+    "specs": {
+      "original_title": "Baojun 730 2019 1.5T Manual 6-speed petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-015",
+    "category": "car",
+    "brand": "Changan",
+    "model": "UNI-V",
+    "trim_name": "1.5T Premium Edition petrol",
+    "model_year": 2023,
+    "price_usd": 9285,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Changan UNI-V 2023 1.5T Premium Edition petrol",
+    "specs": {
+      "original_title": "Changan UNI-V 2023 1.5T Premium Edition petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-016",
+    "category": "car",
+    "brand": "GAC Trumpchi",
+    "model": "GA3",
+    "trim_name": "1.6L Manual petrol",
+    "model_year": 2014,
+    "price_usd": 1592,
+    "fuel_type": "petrol",
+    "transmission": "Manual",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "GAC Trumpchi GA3 2014 1.6L Manual petrol",
+    "specs": {
+      "original_title": "GAC Trumpchi GA3 2014 1.6L Manual petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-017",
+    "category": "car",
+    "brand": "MG",
+    "model": "GS",
+    "trim_name": "1.5T Automatic Elite Edition petrol",
+    "model_year": 2017,
+    "price_usd": 3242,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "MG GS 2017 1.5T Automatic Elite Edition petrol",
+    "specs": {
+      "original_title": "MG GS 2017 1.5T Automatic Elite Edition petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-018",
+    "category": "car",
+    "brand": "Ford",
+    "model": "Focus 180",
+    "trim_name": "1.5T Elite Edition petrol",
+    "model_year": null,
+    "price_usd": 2948,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Ford Focus 180 1.5T Elite Edition petrol",
+    "specs": {
+      "original_title": "Ford Focus 180 1.5T Elite Edition petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-019",
+    "category": "car",
+    "brand": "Nissan",
+    "model": "X-Trail",
+    "trim_name": "2.0L petrol",
+    "model_year": 2016,
+    "price_usd": 9550,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Nissan X-Trail 2016 2.0L petrol",
+    "specs": {
+      "original_title": "Nissan X-Trail 2016 2.0L petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-020",
+    "category": "car",
+    "brand": "Geely",
+    "model": "Emgrand GL",
+    "trim_name": "High Trim petrol",
+    "model_year": 2019,
+    "price_usd": 5895,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Geely Emgrand GL 2019 High Trim petrol",
+    "specs": {
+      "original_title": "Geely Emgrand GL 2019 High Trim petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-021",
+    "category": "car",
+    "brand": "Geely",
+    "model": "Emgrand GL",
+    "trim_name": "High Trim petrol",
+    "model_year": 2019,
+    "price_usd": 2211,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Geely Emgrand GL 2019 High Trim petrol",
+    "specs": {
+      "original_title": "Geely Emgrand GL 2019 High Trim petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-022",
+    "category": "car",
+    "brand": "Volvo",
+    "model": "XC90",
+    "trim_name": "2.5T 4WD 7-seat Nordic Executive petrol",
+    "model_year": 2011,
+    "price_usd": 5158,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Volvo XC90 2011 2.5T 4WD 7-seat Nordic Executive petrol",
+    "specs": {
+      "original_title": "Volvo XC90 2011 2.5T 4WD 7-seat Nordic Executive petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-023",
+    "category": "car",
+    "brand": "Haima",
+    "model": "Knight",
+    "trim_name": "2.0L Manual petrol",
+    "model_year": 2013,
+    "price_usd": 1739,
+    "fuel_type": "petrol",
+    "transmission": "Manual",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Haima Knight 2013 2.0L Manual petrol",
+    "specs": {
+      "original_title": "Haima Knight 2013 2.0L Manual petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-024",
+    "category": "car",
+    "brand": "Tank",
+    "model": "300 Conqueror",
+    "trim_name": "2.0T Automatic petrol",
+    "model_year": 2021,
+    "price_usd": 19748,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Tank 300 Conqueror 2021 2.0T Automatic petrol",
+    "specs": {
+      "original_title": "Tank 300 Conqueror 2021 2.0T Automatic petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-025",
+    "category": "car",
+    "brand": "Toyota",
+    "model": "RAV4",
+    "trim_name": "2.4L 4WD High Trim petrol",
+    "model_year": 2011,
+    "price_usd": 4421,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Toyota RAV4 2011 2.4L 4WD High Trim petrol",
+    "specs": {
+      "original_title": "Toyota RAV4 2011 2.4L 4WD High Trim petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-026",
+    "category": "car",
+    "brand": "Toyota",
+    "model": "RAV4 Rongfang",
+    "trim_name": "2.5L 4WD High Trim petrol",
+    "model_year": 2015,
+    "price_usd": 6927,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Toyota RAV4 Rongfang 2015 2.5L 4WD High Trim petrol",
+    "specs": {
+      "original_title": "Toyota RAV4 Rongfang 2015 2.5L 4WD High Trim petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-027",
+    "category": "car",
+    "brand": "Hyundai",
+    "model": "Mistra",
+    "trim_name": "1.8L Automatic Smart Edition petrol",
+    "model_year": 2016,
+    "price_usd": 4392,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Hyundai Mistra 2016 1.8L Automatic Smart Edition petrol",
+    "specs": {
+      "original_title": "Hyundai Mistra 2016 1.8L Automatic Smart Edition petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-028",
+    "category": "car",
+    "brand": "Toyota",
+    "model": "Corolla",
+    "trim_name": "1.6 CVT GL Automatic petrol",
+    "model_year": 2014,
+    "price_usd": 1739,
+    "fuel_type": "petrol",
+    "transmission": "CVT",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Toyota Corolla 2014 1.6 CVT GL Automatic petrol",
+    "specs": {
+      "original_title": "Toyota Corolla 2014 1.6 CVT GL Automatic petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-029",
+    "category": "car",
+    "brand": "BMW",
+    "model": "X5",
+    "trim_name": "3.0T High Trim petrol",
+    "model_year": 2014,
+    "price_usd": 10140,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "BMW X5 2014 3.0T High Trim petrol",
+    "specs": {
+      "original_title": "BMW X5 2014 3.0T High Trim petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-030",
+    "category": "car",
+    "brand": "Toyota",
+    "model": "Prado",
+    "trim_name": "3.5L Automatic TX-L petrol",
+    "model_year": 2016,
+    "price_usd": 4421,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Toyota Prado 2016 3.5L Automatic TX-L petrol",
+    "specs": {
+      "original_title": "Toyota Prado 2016 3.5L Automatic TX-L petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-031",
+    "category": "car",
+    "brand": "Great Wall",
+    "model": "Fengjun 5",
+    "trim_name": "2.8T European Version 2WD Linghang Long Double Cab diesel",
+    "model_year": 2013,
+    "price_usd": 3686,
+    "fuel_type": "diesel",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Great Wall Fengjun 5 2013 2.8T European Version 2WD Linghang Long Double Cab diesel",
+    "specs": {
+      "original_title": "Great Wall Fengjun 5 2013 2.8T European Version 2WD Linghang Long Double Cab diesel",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-032",
+    "category": "car",
+    "brand": "Great Wall",
+    "model": "Fengjun 5",
+    "trim_name": "2.8T European Version 2WD Linghang Long Double Cab diesel",
+    "model_year": 2013,
+    "price_usd": 3686,
+    "fuel_type": "diesel",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Great Wall Fengjun 5 2013 2.8T European Version 2WD Linghang Long Double Cab diesel",
+    "specs": {
+      "original_title": "Great Wall Fengjun 5 2013 2.8T European Version 2WD Linghang Long Double Cab diesel",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-033",
+    "category": "car",
+    "brand": "Changan",
+    "model": "Eado XT",
+    "trim_name": "1.6 Zhiku Edition petrol",
+    "model_year": 2015,
+    "price_usd": 1739,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Changan Eado XT 2015 1.6 Zhiku Edition petrol",
+    "specs": {
+      "original_title": "Changan Eado XT 2015 1.6 Zhiku Edition petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-034",
+    "category": "car",
+    "brand": "Geely",
+    "model": "Emgrand GL",
+    "trim_name": "1.4T Automatic High Trim petrol",
+    "model_year": 2018,
+    "price_usd": 4127,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Geely Emgrand GL 2018 1.4T Automatic High Trim petrol",
+    "specs": {
+      "original_title": "Geely Emgrand GL 2018 1.4T Automatic High Trim petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-035",
+    "category": "car",
+    "brand": "Toyota",
+    "model": "Corolla",
+    "trim_name": "1.2T Automatic petrol",
+    "model_year": 2019,
+    "price_usd": 5453,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Toyota Corolla 2019 1.2T Automatic petrol",
+    "specs": {
+      "original_title": "Toyota Corolla 2019 1.2T Automatic petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-036",
+    "category": "car",
+    "brand": "Volvo",
+    "model": "XC90 2.5T",
+    "trim_name": "4WD 7-seat petrol",
+    "model_year": null,
+    "price_usd": 5160,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Volvo XC90 2.5T 4WD 7-seat petrol",
+    "specs": {
+      "original_title": "Volvo XC90 2.5T 4WD 7-seat petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-037",
+    "category": "car",
+    "brand": "Changan",
+    "model": "CS75",
+    "trim_name": "1.8T Zungui Edition Automatic petrol",
+    "model_year": 2014,
+    "price_usd": 2196,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Changan CS75 2014 1.8T Zungui Edition Automatic petrol",
+    "specs": {
+      "original_title": "Changan CS75 2014 1.8T Zungui Edition Automatic petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-038",
+    "category": "car",
+    "brand": "Chery",
+    "model": "Tiggo 3",
+    "trim_name": "1.6 Zunshang Anniversary Sport Edition petrol",
+    "model_year": 2015,
+    "price_usd": 2181,
+    "fuel_type": "petrol",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Chery Tiggo 3 2015 1.6 Zunshang Anniversary Sport Edition petrol",
+    "specs": {
+      "original_title": "Chery Tiggo 3 2015 1.6 Zunshang Anniversary Sport Edition petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-039",
+    "category": "car",
+    "brand": "Haval",
+    "model": "H6",
+    "trim_name": "Sport Edition 1.5T 2WD Sport Elite Manual petrol",
+    "model_year": 2013,
+    "price_usd": 2152,
+    "fuel_type": "petrol",
+    "transmission": "Manual",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Haval H6 2013 Sport Edition 1.5T 2WD Sport Elite Manual petrol",
+    "specs": {
+      "original_title": "Haval H6 2013 Sport Edition 1.5T 2WD Sport Elite Manual petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-040",
+    "category": "car",
+    "brand": "Kia",
+    "model": "K2",
+    "trim_name": "1.4L Automatic petrol",
+    "model_year": 2017,
+    "price_usd": 3538,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Kia K2 2017 1.4L Automatic petrol",
+    "specs": {
+      "original_title": "Kia K2 2017 1.4L Automatic petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-041",
+    "category": "car",
+    "brand": "Ford",
+    "model": "Escort",
+    "trim_name": "1.5L Automatic petrol",
+    "model_year": 2016,
+    "price_usd": 3683,
+    "fuel_type": "petrol",
+    "transmission": "Automatic",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Ford Escort 2016 1.5L Automatic petrol",
+    "specs": {
+      "original_title": "Ford Escort 2016 1.5L Automatic petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-042",
+    "category": "car",
+    "brand": "Honda",
+    "model": "Vezel",
+    "trim_name": "1.5L CVT 2WD Comfort Edition petrol",
+    "model_year": 2017,
+    "price_usd": 7665,
+    "fuel_type": "petrol",
+    "transmission": "CVT",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Honda Vezel 2017 1.5L CVT 2WD Comfort Edition petrol",
+    "specs": {
+      "original_title": "Honda Vezel 2017 1.5L CVT 2WD Comfort Edition petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-043",
+    "category": "car",
+    "brand": "Dayun",
+    "model": "Yuehu",
+    "trim_name": "300 Standard Edition electric",
+    "model_year": 2023,
+    "price_usd": 3687,
+    "fuel_type": "electric",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Dayun Yuehu 2023 300 Standard Edition electric",
+    "specs": {
+      "original_title": "Dayun Yuehu 2023 300 Standard Edition electric",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-044",
+    "category": "car",
+    "brand": "Wuling",
+    "model": "Journey",
+    "trim_name": "1.5T Luxury Manual petrol",
+    "model_year": 2021,
+    "price_usd": 7665,
+    "fuel_type": "petrol",
+    "transmission": "Manual",
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Wuling Journey 2021 1.5T Luxury Manual petrol",
+    "specs": {
+      "original_title": "Wuling Journey 2021 1.5T Luxury Manual petrol",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-045",
+    "category": "car",
+    "brand": "BYD",
+    "model": "Yuan PLUS",
+    "trim_name": "510KM Zunrong Edition electric",
+    "model_year": 2022,
+    "price_usd": 10465,
+    "fuel_type": "electric",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "BYD Yuan PLUS 2022 510KM Zunrong Edition electric",
+    "specs": {
+      "original_title": "BYD Yuan PLUS 2022 510KM Zunrong Edition electric",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-046",
+    "category": "car",
+    "brand": "BYD",
+    "model": "Seagull",
+    "trim_name": "Honor Edition 405km Flying Edition electric",
+    "model_year": 2024,
+    "price_usd": 7811,
+    "fuel_type": "electric",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "BYD Seagull 2024 Honor Edition 405km Flying Edition electric",
+    "specs": {
+      "original_title": "BYD Seagull 2024 Honor Edition 405km Flying Edition electric",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-047",
+    "category": "car",
+    "brand": "BYD",
+    "model": "Yuan PLUS",
+    "trim_name": "430KM Luxury Edition electric",
+    "model_year": 2022,
+    "price_usd": 9756,
+    "fuel_type": "electric",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "BYD Yuan PLUS 2022 430KM Luxury Edition electric",
+    "specs": {
+      "original_title": "BYD Yuan PLUS 2022 430KM Luxury Edition electric",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-048",
+    "category": "car",
+    "brand": "Isuzu",
+    "model": "D-MAX",
+    "trim_name": "2.5T High-Passage 2WD Elite Edition diesel",
+    "model_year": 2015,
+    "price_usd": 5424,
+    "fuel_type": "diesel",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Isuzu D-MAX 2015 2.5T High-Passage 2WD Elite Edition diesel",
+    "specs": {
+      "original_title": "Isuzu D-MAX 2015 2.5T High-Passage 2WD Elite Edition diesel",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-049",
+    "category": "car",
+    "brand": "Great Wall",
+    "model": "Fengjun 5",
+    "trim_name": "2.0T European Version 2WD Progressive Long Double Cab diesel",
+    "model_year": 2017,
+    "price_usd": 5424,
+    "fuel_type": "diesel",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Great Wall Fengjun 5 2017 2.0T European Version 2WD Progressive Long Double Cab diesel",
+    "specs": {
+      "original_title": "Great Wall Fengjun 5 2017 2.0T European Version 2WD Progressive Long Double Cab diesel",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  },
+  {
+    "stock_no": "V16-050",
+    "category": "car",
+    "brand": "Dongfeng Nammi",
+    "model": "Box",
+    "trim_name": "331km Standard Edition electric",
+    "model_year": 2022,
+    "price_usd": 5129,
+    "fuel_type": "electric",
+    "transmission": null,
+    "status": "available",
+    "location": "China",
+    "source": "user_v16_last50",
+    "description": "Dongfeng Nammi Box 2022 331km Standard Edition electric",
+    "specs": {
+      "original_title": "Dongfeng Nammi Box 2022 331km Standard Edition electric",
+      "photo_requirement": "Minimum 3 verified real photos before final customer confirmation"
+    }
+  }
+]

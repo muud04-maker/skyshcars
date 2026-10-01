@@ -1,0 +1,2 @@
+import {redirect} from 'next/navigation';import {isAdmin} from '../../../lib/admin';import AdminShell from '../_components/AdminShell';import SuppliersClient from './SuppliersClient';export const dynamic='force-dynamic';
+export default async function P(){if(!(await isAdmin()))redirect('/admin/login');return <AdminShell><main className="adminPage"><div className="adminTitle"><div><h1>Private Suppliers</h1><p>Bring approved partner inventory into Sky Cars without revealing the supplier publicly.</p></div></div><SuppliersClient/></main></AdminShell>}

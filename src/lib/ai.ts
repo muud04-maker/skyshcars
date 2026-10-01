@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { rows } from './db';
 import { history } from './conversations';
+import { activeKnowledge } from './knowledge';
+import { memoryForConversation, refreshCustomerMemory } from './customer-memory';
 
 /*
   Grounded sales assistant. Every fact the AI may state (vehicles, prices,
@@ -29,7 +31,8 @@ export function extractTerms(text: string) {
 
 async function findVehicles(text: string) {
   const { terms, stock, years, category } = extractTerms(text);
-  const cols = 'id,stock_no,category,brand,model,trim_name,model_year,price_usd,status,transmission,mileage_km,engine,fuel_type,steering,color,location';
+  const cols = `id,stock_no,category,brand,model,trim_name,model_year,price_usd,status,transmission,mileage_km,engine,fuel_type,steering,color,location,
+    (SELECT url FROM vehicle_media m WHERE m.vehicle_id=vehicles.id AND m.media_type='image' AND m.review_status='approved' ORDER BY m.is_cover DESC,m.sort_order,id LIMIT 1) cover_url`;
   if (stock.length) {
     const r = await rows<any>(`SELECT ${cols} FROM vehicles WHERE stock_no IN (${stock.map(() => '?').join(',')}) AND status IN ('available','reserved','sold')`, stock);
     if (r.length) return r;
@@ -90,8 +93,31 @@ async function findTracking(text: string) {
 }
 
 function withLinks(vs: any[]) {
-  return vs.map(v => ({ ...v, link: `${SITE}/vehicles/${v.id}` }));
+  return vs.map(v => ({ ...v, link: `${SITE}/vehicles/${v.id}`, image: v.cover_url ? (String(v.cover_url).startsWith('http') ? v.cover_url : SITE + v.cover_url) : null }));
 }
+
+export async function vehicleMediaForMessage(text: string, conversationId?: number) {
+  let priorCustomer = '';
+  if (conversationId) {
+    try {
+      const past = await history(conversationId, 10);
+      priorCustomer = past.filter(m => m.sender === 'customer').slice(-3).map(m => String(m.body || '')).join(' ');
+    } catch {}
+  }
+  let vehicles = await findVehicles(text);
+  if (!vehicles.length && priorCustomer) vehicles = await findVehicles(priorCustomer);
+  const v = vehicles.find((x:any) => x.status === 'available') || vehicles[0];
+  if (!v) return null;
+  const mediaRows = await rows<any>(`SELECT url FROM vehicle_media WHERE vehicle_id=? AND media_type='image' AND review_status='approved' ORDER BY is_cover DESC,sort_order,id LIMIT 3`,[v.id]);
+  const images = mediaRows.map((m:any)=>String(m.url||'')).filter(Boolean).map((u:string)=>u.startsWith('http')?u:SITE+u);
+  if (!images.length) return null; // only send approved real website photos to customers
+  const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.trim();
+  return {
+    vehicleId: v.id, stockNo: v.stock_no, title, image: images[0], images,
+    caption: `${title}${v.stock_no ? ` • ${v.stock_no}` : ''}${v.price_usd ? ` • $${Number(v.price_usd).toLocaleString()}` : ''}\n${SITE}/vehicles/${v.id}`
+  };
+}
+
 
 export async function buildFacts(text: string, priorCustomerText = '') {
   const safe = async <T>(f: () => Promise<T>, d: T) => { try { return await f(); } catch (e) { console.error('AI_FACTS', e); return d; } };
@@ -111,37 +137,84 @@ export async function buildFacts(text: string, priorCustomerText = '') {
   };
 }
 
-const SYSTEM = (facts: any) => `You are the sales assistant for Sky Cars & Motorcycles, a company in China that sells cars and motorcycles and arranges export to the buyer's country.
 
-RULES:
-- Use ONLY the DATABASE FACTS below for anything about vehicles, prices, availability, shipping or tracking. Never invent a vehicle, price, rate, route, transit time, schedule, or tracking status.
-- A vehicle with status "reserved" is NOT available to buy; say it is reserved and offer similar options.
-- If a customer asks about a vehicle that is not in matching_vehicles, say we don't currently list it, suggest similar brands from available_inventory_by_brand, and offer that the team can source it.
-- Shipping: only quote a price from confirmed_rates. If there are none, say the team will prepare a shipping quote, and share the destination ports we serve if listed.
-- For payment, bank details, discounts, inspections, or anything else not in the facts, say a team member will confirm.
-- When you mention a specific vehicle, include its stock number and link.
-- Reply in the customer's language. Be short and friendly: this is WhatsApp. No markdown headers or tables.
+async function customerContext(conversationId?: number) {
+  if (!conversationId) return null;
+  try {
+    const r = await rows<any>(`SELECT cu.full_name,cu.phone,cu.email,cu.country,cu.preferred_language,cu.notes
+      FROM conversations c LEFT JOIN customers cu ON cu.id=c.customer_id WHERE c.id=? LIMIT 1`, [conversationId]);
+    return r[0] || null;
+  } catch { return null; }
+}
+
+async function knowledgeContext() {
+  try {
+    const items = await activeKnowledge(40);
+    return items.map((x:any)=>({title:x.title,content:x.content}));
+  } catch { return []; }
+}
+
+const SYSTEM = (facts: any, customer: any, knowledge: any[], memory: any, humanExamples: string[]) => `You are Sky Cars & Motorcycles' sales assistant. You help customers buy cars and motorcycles from China and arrange export support.
+
+IDENTITY AND TONE:
+- Speak as "Sky Cars" or "our team". Do not volunteer that replies are automated or generated by AI.
+- Never falsely claim to be a specific human employee. If a customer directly asks whether you are AI/automated, answer truthfully and briefly: "I'm Sky Cars' automated sales assistant, and I can connect you with our team anytime."
+- Sound like a capable real sales desk: warm, concise, confident, practical, and natural. Avoid repetitive canned wording.
+- Reply in the customer's language whenever you can infer it from the conversation.
+- Read the conversation history before answering. Continue the same topic instead of starting over.
+- Use known customer context (name, country, language, prior requests, admin notes) when relevant, but do not expose internal notes.
+- If the customer says "it", "that one", "send it", "how much", etc., resolve it from recent conversation history.
+- Ask only one short clarifying question when essential. Do not ask again for facts already provided.
+
+SALES RULES:
+- Use ONLY DATABASE FACTS for vehicles, prices, availability, shipping or tracking. Never invent a vehicle, price, rate, route, transit time, schedule, inspection, discount, condition, or tracking event.
+- A reserved vehicle is not available. Say it is reserved and offer available alternatives.
+- If the exact requested vehicle is not listed, say it is not currently listed and offer sourcing. Ask for model/year/budget/destination only if those details are still missing.
+- Shipping prices may only come from confirmed_rates. Otherwise say the sales team will prepare a quote.
+- For payment details, bank details, discounts, inspections, finance, guarantees, or anything not in the verified facts/knowledge, say the team will confirm.
+- When mentioning a specific vehicle, include its stock number and website link when useful.
+- If a verified real vehicle photo is available, the system may send it separately. Never claim a photo is the exact vehicle unless the verified website listing has that photo.
+- Keep WhatsApp replies short unless the customer clearly needs more detail. No markdown tables or formal report style.
+
+CUSTOMER CONTEXT (internal; never quote as internal notes):
+${JSON.stringify(customer || {})}
+
+PERSISTENT CUSTOMER MEMORY (internal; use for continuity, never expose as internal notes):
+${JSON.stringify(memory || {})}
+
+RECENT HUMAN STAFF REPLY EXAMPLES (learn tone and decisions; do not copy blindly):
+${JSON.stringify(humanExamples || [])}
+
+SKY CARS BUSINESS KNOWLEDGE TAUGHT BY ADMIN:
+${JSON.stringify(knowledge || [])}
 
 DATABASE FACTS:
 ${JSON.stringify(facts)}`;
 
 export async function salesReply(text: string, conversationId?: number) {
-  if (!process.env.DEEPSEEK_API_KEY) return null; // no AI configured: stay silent, staff will reply
+  if (!process.env.DEEPSEEK_API_KEY) return null;
   let past: any[] = [];
-  if (conversationId) { try { past = await history(conversationId, 12); } catch { } }
-  // The just-stored inbound message is the last item; exclude it from context duplication
+  if (conversationId) { try { past = await history(conversationId, 80); } catch { } }
+  // The just-stored inbound message is the last item; exclude it from context duplication.
   if (past.length && past[past.length - 1].sender === 'customer' && past[past.length - 1].body === text) past = past.slice(0, -1);
-  const priorCustomer = past.filter(m => m.sender === 'customer').slice(-3).map(m => m.body).join(' ');
-  const facts = await buildFacts(text, priorCustomer);
+  const priorCustomer = past.filter(m => m.sender === 'customer').slice(-20).map(m => m.body).join(' ');
+  let memory:any = null;
+  if (conversationId) { try { memory = await memoryForConversation(conversationId); } catch {} }
+  const humanExamples = past.filter(m => m.sender === 'human').slice(-12).map(m => String(m.body||'')).filter(Boolean);
+  const [facts, customer, knowledge] = await Promise.all([
+    buildFacts(text, priorCustomer + ' ' + String(memory?.summary||'')), customerContext(conversationId), knowledgeContext()
+  ]);
   const messages = [
-    { role: 'system', content: SYSTEM(facts) },
+    { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) },
     ...past.map(m => ({ role: m.sender === 'customer' ? 'user' : 'assistant', content: String(m.body || '') })),
     { role: 'user', content: text },
   ];
   const r = await axios.post('https://api.deepseek.com/chat/completions',
-    { model: MODEL, temperature: 0.2, max_tokens: 500, messages },
+    { model: MODEL, temperature: 0.35, max_tokens: 650, messages },
     { headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 25000 });
-  return r.data.choices?.[0]?.message?.content?.trim() || null;
+  const answer = r.data.choices?.[0]?.message?.content?.trim() || null;
+  if (conversationId) { try { await refreshCustomerMemory(conversationId); } catch {} }
+  return answer;
 }
 
 export const AI_MODEL = MODEL;

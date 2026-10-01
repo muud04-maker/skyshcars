@@ -44,9 +44,9 @@ export async function outbound(conversationId: number, sender: 'ai' | 'human', t
 }
 
 /** Recent history (oldest first) for AI context. */
-export async function history(conversationId: number, n = 12) {
+export async function history(conversationId: number, n = 30) {
   const r = await rows<any>(
     `SELECT sender,body FROM messages WHERE conversation_id=? AND sender IN ('customer','ai','human')
-     ORDER BY id DESC LIMIT ${Math.max(1, Math.min(40, n))}`, [conversationId]);
+     ORDER BY id DESC LIMIT ${Math.max(1, Math.min(120, n))}`, [conversationId]);
   return r.reverse();
 }
