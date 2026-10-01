@@ -21,16 +21,28 @@ function verifyToken() {
 }
 
 /** Verifies Meta's X-Hub-Signature-256 header. */
+export function whatsappSignatureMode() {
+  const secrets = [process.env.WHATSAPP_APP_SECRET, process.env.META_APP_SECRET]
+    .map(x => String(x || '').trim()).filter(Boolean);
+  if (secrets.length) return 'secure';
+  if (process.env.REQUIRE_WHATSAPP_SIGNATURE === 'true') return 'blocked_missing_secret';
+  return 'compatibility';
+}
+
 export function signatureOk(raw: string, header: string | null) {
   const secrets = [process.env.WHATSAPP_APP_SECRET, process.env.META_APP_SECRET]
     .map(x => String(x || '').trim()).filter(Boolean);
   if (!secrets.length) {
-    if (process.env.ALLOW_UNSIGNED_WEBHOOKS === 'true') {
-      console.warn('WEBHOOK SIGNATURE CHECK DISABLED (ALLOW_UNSIGNED_WEBHOOKS=true)');
-      return true;
+    if (process.env.REQUIRE_WHATSAPP_SIGNATURE === 'true') {
+      console.error('Webhook rejected: app secret missing and REQUIRE_WHATSAPP_SIGNATURE=true.');
+      return false;
     }
-    console.error('Webhook rejected: WHATSAPP_APP_SECRET is missing.');
-    return false;
+    // Compatibility mode keeps the existing production integration working when the
+    // Meta app secret has not yet been added to Hostinger. The webhook route also
+    // validates that the payload is a WhatsApp Business Account event. Add
+    // WHATSAPP_APP_SECRET as soon as possible to switch automatically to secure mode.
+    console.warn('WHATSAPP WEBHOOK COMPATIBILITY MODE: app secret missing; signature verification is not enforced.');
+    return true;
   }
   if (!header) return false;
   for (const secret of secrets) {
@@ -57,6 +69,7 @@ export function whatsappConfigSummary() {
     },
     verifyTokenPresent: !!verifyToken(),
     appSecretPresent: !!String(process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || '').trim(),
+    signatureMode: whatsappSignatureMode(),
   };
 }
 

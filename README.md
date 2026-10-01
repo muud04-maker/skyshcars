@@ -68,3 +68,6 @@ The deployment script installs dependencies and builds before it commits/pushes.
 - `/admin/whatsapp`
 
 No feature should be considered production-verified until the Hostinger deployment and runtime checks pass.
+
+## V24 WhatsApp Full Fix
+V24 restores inbound WhatsApp delivery when WHATSAPP_APP_SECRET has not yet been configured by using a clearly reported compatibility mode, while automatically using strict signature verification once the secret is present. It also adds `/admin/whatsapp-health`, global 3-second inbox polling, a sticky human reply composer, and an **AI Reply Now** recovery button for unanswered messages.

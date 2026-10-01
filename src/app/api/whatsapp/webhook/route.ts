@@ -1,6 +1,6 @@
 import { inbound, outbound, alreadyProcessed } from '../../../../lib/conversations';
 import { salesReply, AI_MODEL, vehicleMediaForMessage } from '../../../../lib/ai';
-import { signatureOk, sendWhatsApp, sendWhatsAppImage, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken } from '../../../../lib/meta';
+import { signatureOk, sendWhatsApp, sendWhatsAppImage, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken, whatsappSignatureMode } from '../../../../lib/meta';
 import { db, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
@@ -171,21 +171,41 @@ async function handle(m: any, contacts: any[]) {
 
 export async function POST(req: Request) {
   const raw = await req.text();
-  if (!signatureOk(raw, req.headers.get('x-hub-signature-256'))) return new Response('Bad signature', { status: 401 });
+  const sigMode = whatsappSignatureMode();
+  if (!signatureOk(raw, req.headers.get('x-hub-signature-256'))) {
+    if (dbConfigured()) await agentEvent(null,null,'webhook_rejected','failed',{reason:'bad_signature',signature_mode:sigMode}).catch(()=>{});
+    return new Response('Bad signature', { status: 401 });
+  }
   if (!dbConfigured()) { console.error('WHATSAPP_WEBHOOK: database not configured'); return new Response('EVENT_RECEIVED'); }
   try {
     const body = JSON.parse(raw);
+    // When the app secret is not configured, only accept the exact object type Meta
+    // sends for WhatsApp Cloud API. This is compatibility mode, not a substitute for
+    // adding WHATSAPP_APP_SECRET.
+    if (sigMode === 'compatibility' && body?.object !== 'whatsapp_business_account') {
+      await agentEvent(null,null,'webhook_rejected','failed',{reason:'unexpected_object',object:body?.object||null,signature_mode:sigMode});
+      return new Response('Bad webhook object', { status: 400 });
+    }
+    let messageCount=0, statusCount=0;
     for (const e of body.entry || []) for (const ch of e.changes || []) {
       const v = ch.value || {};
-      // Delivery/read status updates are stored when possible.
       for(const s of v.statuses||[]){
+        statusCount++;
         if(s.id) await db().execute('UPDATE messages SET delivery_status=? WHERE external_message_id=?',[String(s.status||''),String(s.id)]).catch(()=>{});
       }
       for (const m of v.messages || []) {
+        messageCount++;
         try { await handle(m, v.contacts || []); }
-        catch (err: any) { console.error('WHATSAPP_MESSAGE_ERROR', err?.response?.data || err); }
+        catch (err: any) {
+          await agentEvent(null,m?.id||null,'webhook_message_error','failed',err?.response?.data||err?.message||String(err));
+          console.error('WHATSAPP_MESSAGE_ERROR', err?.response?.data || err);
+        }
       }
     }
-  } catch (err) { console.error('WHATSAPP_WEBHOOK', err); }
+    await agentEvent(null,null,'webhook_received','ok',{messages:messageCount,statuses:statusCount,signature_mode:sigMode});
+  } catch (err:any) {
+    await agentEvent(null,null,'webhook_parse_error','failed',err?.message||String(err));
+    console.error('WHATSAPP_WEBHOOK', err);
+  }
   return new Response('EVENT_RECEIVED');
 }

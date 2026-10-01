@@ -1,0 +1,20 @@
+SKY CARS V24 — WHATSAPP FULL FIX
+
+Root cause fixed:
+The production Hostinger environment shown in the screenshots did not include WHATSAPP_APP_SECRET. V23 treated that as a hard webhook failure (HTTP 401). That means new WhatsApp messages never reached MySQL, so the AI had nothing new to answer.
+
+V24 behavior:
+1. If WHATSAPP_APP_SECRET exists, webhook signatures are verified normally (secure mode).
+2. If it is missing, V24 uses compatibility mode so Meta messages are accepted instead of silently breaking the inbox. The payload must still be a WhatsApp Business Account event.
+3. Add WHATSAPP_APP_SECRET later and V24 automatically switches to secure mode.
+4. New /admin/whatsapp-health shows last webhook, last inbound message, last outbound reply, failures, configuration state, and unanswered conversations.
+5. New AI Reply Now button forces a reply to the newest unanswered customer message.
+6. Human Send now uses both the current and legacy WhatsApp environment variable names.
+7. Inbox polls globally every 3 seconds and refreshes even when a different conversation is selected.
+8. Reply composer is sticky and visible for every conversation.
+
+DEPLOY:
+powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
+
+AFTER HOSTINGER FINISHES:
+Open /admin/whatsapp-health first. Send one new WhatsApp message from a customer phone. The Last webhook and Last customer message timestamps should update within a few seconds. If not, the Meta callback/subscription itself is not delivering to the site and the diagnostics page will make that obvious.
