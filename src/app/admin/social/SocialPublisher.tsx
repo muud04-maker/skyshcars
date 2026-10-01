@@ -9,7 +9,7 @@ export default function SocialPublisher({initial,configured,vehicles,logs}:{init
    <div className="card"><h2>Automatic publishing</h2><p className="muted">Runs once when a vehicle first becomes Available.</p>
     <label className="settingRow"><span>Facebook Page auto-post</span><input type="checkbox" checked={!!s.facebook_auto} onChange={e=>setS({...s,facebook_auto:e.target.checked})}/></label>
     <label className="settingRow"><span>WhatsApp active-chat auto-share</span><input type="checkbox" checked={!!s.whatsapp_active_chats_auto} onChange={e=>setS({...s,whatsapp_active_chats_auto:e.target.checked})}/></label>
-    <p className="muted">Only approved real vehicle photos are used for Facebook/WhatsApp publishing. Reference images are website-only.</p>
+    <p className="muted">Exact uploaded or supplier stock photos are used for Facebook/WhatsApp publishing.</p>
     <button className="btn" onClick={save}>Save settings</button><p>{msg}</p>
    </div>
    <div className="card"><h2>Connection status</h2><div className="settingRow"><span>Facebook Page</span><b className={configured.facebook?'ok':'bad'}>{configured.facebook?'Configured':'Needs META_PAGE_ID + META_PAGE_ACCESS_TOKEN'}</b></div><div className="settingRow"><span>WhatsApp</span><b className={configured.whatsapp?'ok':'bad'}>{configured.whatsapp?'Configured':'Not configured'}</b></div><p className="muted">WhatsApp auto-share only sends to AI-mode customer chats active in the last 24 hours. This does not post to WhatsApp Status.</p></div>

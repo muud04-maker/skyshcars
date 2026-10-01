@@ -5,3 +5,4 @@ node_modules
 services/whatsapp/.wwebjs_auth
 services/whatsapp/.wwebjs_cache
 services/whatsapp/group_images
+tsconfig.tsbuildinfo

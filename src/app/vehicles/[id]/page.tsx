@@ -1,32 +1,46 @@
 import {notFound} from 'next/navigation';
+import type {Metadata} from 'next';
 import {getVehicle,getVehicleMedia} from '../../../lib/vehicles';
-import {isDemoVehicle} from '../../../lib/demo-inventory';
+import VehicleGallery from '../../../components/VehicleGallery';
+import {SITE_URL,waLink} from '../../../lib/site';
 export const dynamic='force-dynamic';
+
+const titleOf=(v:any)=>`${v.model_year||''} ${v.brand||''} ${v.model||''}`.trim()||'Vehicle';
+
+export async function generateMetadata({params}:{params:Promise<{id:string}>}):Promise<Metadata>{
+ const {id}=await params;const v:any=await getVehicle(id).catch(()=>null);
+ if(!v)return {title:'Vehicle not found | Sky Cars'};
+ const t=titleOf(v);const price=v.price_usd?` Price $${Number(v.price_usd).toLocaleString()}.`:'';
+ return {title:`${t} for sale | Sky Cars`,description:`${t} (${v.stock_no}) in ${v.location||'China'}.${price} Export support from Sky Cars.`,alternates:{canonical:`${SITE_URL}/vehicles/${v.id}`},openGraph:{title:`${t} | Sky Cars`,url:`${SITE_URL}/vehicles/${v.id}`,type:'website',images:v.cover_url?[{url:String(v.cover_url).startsWith('/')?SITE_URL+v.cover_url:v.cover_url}]:undefined}};
+}
+
 export default async function Detail({params}:{params:Promise<{id:string}>}){
  const {id}=await params;const v:any=await getVehicle(id);if(!v)notFound();
- const media=await getVehicleMedia(v.id);const demo=isDemoVehicle(v);
- const images=media.length?media.map((m:any)=>m.url):[`/api/vehicle-art/${encodeURIComponent(String(v.id))}`];
- const modelPhotos=media.some((m:any)=>String(m.caption||'').startsWith('MODEL PHOTO'));
+ const media=await getVehicleMedia(v.id);
+ const images:string[]=media.length?media.map((m:any)=>m.url):[0,1,2].map(i=>`/api/model-photo/${encodeURIComponent(String(v.id))}/${i}`);
+ const status=String(v.status||'available');const statusText=status==='pending_verification'?'check availability':status.replaceAll('_',' ');
+ const title=titleOf(v);
+ const jsonLd:any={'@context':'https://schema.org','@type':'Vehicle',name:title,sku:v.stock_no,brand:v.brand?{'@type':'Brand',name:v.brand}:undefined,model:v.model||undefined,vehicleModelDate:v.model_year?String(v.model_year):undefined,mileageFromOdometer:v.mileage_km?{'@type':'QuantitativeValue',value:Number(v.mileage_km),unitCode:'KMT'}:undefined,fuelType:v.fuel_type||undefined,vehicleTransmission:v.transmission||undefined,color:v.color||undefined,url:`${SITE_URL}/vehicles/${v.id}`,image:media.length?media.slice(0,6).map((m:any)=>String(m.url).startsWith('/')?SITE_URL+m.url:m.url):undefined,offers:v.price_usd?{'@type':'Offer',price:Number(v.price_usd),priceCurrency:'USD',availability:status==='sold'?'https://schema.org/SoldOut':status==='reserved'?'https://schema.org/LimitedAvailability':'https://schema.org/InStock',url:`${SITE_URL}/vehicles/${v.id}`}:undefined};
  return <main className="wrap vehicleDetailPage">
+  <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(jsonLd).replace(/</g,'\\u003c')}}/>
+  <nav className="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> › <a href={v.category==='motorcycle'?'/motorcycles':'/cars'}>{v.category==='motorcycle'?'Motorcycles':'Cars'}</a> › <span>{title}</span></nav>
   <div className="vehicleDetailGrid">
    <section className="vehicleGallery card">
-    <div className="galleryMain"><img src={images[0]} alt={`${v.brand||''} ${v.model||''}`}/></div>
-    <div className="galleryThumbs">{images.slice(0,8).map((src:string,i:number)=><a href={src} target="_blank" rel="noreferrer" key={src+i}><img src={src} alt={`Vehicle photo ${i+1}`}/></a>)}</div>
-    <p className="galleryHint">Click any photo to open it full size.{modelPhotos?' Model photos are shown for vehicle identification; ask our team for the exact stock-unit photos before payment.':' Exact stock-unit photos are shown when supplied.'}</p>
+    <VehicleGallery images={images} alt={title}/>
+    {!media.length&&<p className="galleryHint">Photos shown may represent this model. Contact Sky Cars to confirm the exact vehicle and request its actual photos before payment.</p>}
    </section>
    <section className="card vehicleInfoPanel">
-    <div className="detailTopline"><span className="badge">{String(v.status||'available').replaceAll('_',' ')}</span><span>{v.stock_no}</span></div>
-    <h1>{v.model_year||''} {v.brand||''} {v.model||''}</h1>
+    <div className="detailTopline"><span className={'badge '+(status==='pending_verification'||status==='reserved'?'pending':status==='sold'?'sold':'')}>{statusText}</span><span>Stock No. {v.stock_no}</span></div>
+    <h1>{title}</h1>
     <div className="price">{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</div>
+    <p className="muted">Price shown is the vehicle price in China. Shipping, destination charges and documents are quoted separately.</p>
     <div className="specGrid">
       <div><small>Year</small><b>{v.model_year||'On request'}</b></div><div><small>Mileage</small><b>{v.mileage_km?Number(v.mileage_km).toLocaleString()+' km':'On request'}</b></div>
       <div><small>Transmission</small><b>{v.transmission||'On request'}</b></div><div><small>Fuel</small><b>{v.fuel_type||'On request'}</b></div>
       <div><small>Engine</small><b>{v.engine||'On request'}</b></div><div><small>Steering</small><b>{v.steering||'On request'}</b></div>
       <div><small>Color</small><b>{v.color||'On request'}</b></div><div><small>Location</small><b>{v.location||'China'}</b></div>
     </div>
-    {demo&&<p className="muted">This sample record is for website testing only.</p>}
-    {!demo&&media.length<3&&<p className="muted"><b>Photos:</b> more verified photos can be requested from the sales team.</p>}
-    <div className="detailActions"><a className="btn" href={'/quote?vehicle='+v.id}>Get Total Quote</a><a className="btn alt" href={`https://wa.me/?text=${encodeURIComponent(`Hi Sky Cars, I am interested in ${v.stock_no} ${v.model_year||''} ${v.brand||''} ${v.model||''} - https://skyshcars.com/vehicles/${v.id}`)}`}>Ask on WhatsApp</a></div>
+    <div className="detailActions"><a className="btn" href={'/quote?vehicle='+v.id}>Get Total Quote</a><a className="btn wa" href={waLink(`Hi Sky Cars, I am interested in ${v.stock_no} ${title} - ${SITE_URL}/vehicles/${v.id}`)} target="_blank" rel="noreferrer">Ask on WhatsApp</a></div>
    </section>
   </div>
  </main>

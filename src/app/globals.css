@@ -15,7 +15,7 @@ body{background:#eaf6ff}.pageHome{background:linear-gradient(180deg,#eaf6ff,#f7f
 
 /* Vehicle media control center */
 .mediaGrid{max-width:1450px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}.mediaCard{background:#fff;border:1px solid #d8e6f0;border-radius:14px;overflow:hidden;box-shadow:0 5px 20px #0b2d4610}.mediaCard img{width:100%;height:180px;object-fit:cover;background:#edf3f7;display:block}.mediaCard>div{padding:13px}.mediaCard b,.mediaCard span,.mediaCard small{display:block}.mediaCard span{margin-top:3px}.mediaCard small{margin-top:5px;color:#6d8090}.mediaActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.vehicleImageWrap{position:relative}.illustrationBadge{position:absolute;left:10px;bottom:10px;background:#071b2de8;color:#fff;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:850;letter-spacing:.2px}
+.vehicleImageWrap{position:relative}
 
 .kpi{transition:transform .15s ease,box-shadow .15s ease;cursor:pointer}.kpi:hover{transform:translateY(-3px);box-shadow:0 10px 30px #071d3222}.kpi:hover b{color:#d88b00}
 
@@ -28,3 +28,49 @@ body{background:#eaf6ff}.pageHome{background:linear-gradient(180deg,#eaf6ff,#f7f
 /* V16 catalog + gallery */
 .heroSearch{display:flex;max-width:760px;background:#fff;border-radius:12px;overflow:hidden;margin-top:24px;box-shadow:0 12px 36px #0004}.heroSearch input{margin:0;border:0;border-radius:0;padding:17px 18px;font-size:16px;min-width:0}.heroSearch button{border:0;background:#ff9d00;color:#071b2d;font-weight:900;padding:0 28px;cursor:pointer}.brandBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #dce8f1;border-radius:14px;padding:13px 16px;margin:-22px 0 28px;position:relative;z-index:5;box-shadow:0 8px 28px #071d3214}.brandBar b{margin-right:5px}.brandBar a{border:1px solid #d8e2ea;border-radius:999px;padding:7px 12px;background:#fff;font-size:13px}.brandBar a:hover{background:#071b2d;color:#fff;border-color:#071b2d}.catalogTop{display:flex;align-items:end;justify-content:space-between;gap:25px;margin-bottom:25px}.catalogTop h1{font-size:42px;margin:4px 0}.catalogSearch{display:flex;gap:8px;min-width:min(520px,100%)}.catalogSearch input{margin:0}.catalogSearch .btn{margin:0}.vehicleDetailPage{max-width:1450px}.vehicleDetailGrid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(360px,.7fr);gap:24px}.vehicleGallery{padding:16px}.galleryMain{height:560px;background:#e8eef3;border-radius:14px;overflow:hidden;position:relative}.galleryMain img{width:100%;height:100%;object-fit:contain;background:#f8fafc}.galleryThumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:10px}.galleryThumbs a{height:115px;border-radius:9px;overflow:hidden;border:2px solid transparent;background:#edf2f6}.galleryThumbs a:hover{border-color:#ffb400}.galleryThumbs img{width:100%;height:100%;object-fit:cover}.galleryHint{font-size:12px;color:#708090;margin:10px 2px 0}.vehicleInfoPanel{padding:28px;align-self:start;position:sticky;top:95px}.vehicleInfoPanel h1{font-size:35px;line-height:1.15;margin:18px 0 12px}.detailTopline{display:flex;align-items:center;justify-content:space-between;color:#647789}.specGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:23px 0}.specGrid>div{background:#f5f8fb;border:1px solid #e2eaf0;border-radius:10px;padding:12px}.specGrid small{display:block;color:#6d7d8d;margin-bottom:4px}.specGrid b{font-size:14px}.detailActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}.detailActions .btn{flex:1;text-align:center;min-width:160px}@media(max-width:900px){.catalogTop{align-items:stretch;flex-direction:column}.catalogSearch{min-width:0}.vehicleDetailGrid{grid-template-columns:1fr}.galleryMain{height:380px}.vehicleInfoPanel{position:static}.galleryThumbs{grid-template-columns:repeat(3,1fr)}}@media(max-width:560px){.heroSearch{flex-direction:column;background:transparent;box-shadow:none;overflow:visible}.heroSearch input,.heroSearch button{border-radius:9px}.heroSearch button{padding:14px}.galleryMain{height:300px}.galleryThumbs{grid-template-columns:repeat(2,1fr)}.galleryThumbs a{height:90px}}
 .memorySummary{background:#f2f8fc;border:1px solid #d8e8f2;border-radius:10px;padding:11px}.memorySummary p{margin:6px 0;color:#43596c;white-space:pre-wrap}.memorySummary small{color:#6a7f90}
+
+/* ===== V20 professional polish ===== */
+.headerSearch{display:flex;flex:1;max-width:340px;min-width:160px;background:#0d2b47;border:1px solid #1f4468;border-radius:10px;overflow:hidden;margin:0 14px}
+.headerSearch input{flex:1;min-width:0;background:transparent;border:0;color:#fff;padding:9px 12px;font-size:14px;outline:none}
+.headerSearch input::placeholder{color:#8fa8c0}
+.headerSearch button{background:#ffc400;color:#061a2e;border:0;padding:0 14px;font-size:18px;font-weight:700;cursor:pointer}
+@media(max-width:900px){header{flex-wrap:wrap;gap:8px;padding-bottom:10px}.headerSearch{order:3;max-width:none;flex-basis:100%;margin:0}}
+.vehicleCard{display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s}
+.vehicleCard:hover{transform:translateY(-3px);box-shadow:0 14px 34px #0a1f3a22}
+.vehicleCard .vehicleImageWrap{display:block}
+.vehicleCard h3{margin:8px 0 4px}.vehicleCard h3 a:hover{text-decoration:underline}
+.vehicleBody{display:flex;flex-direction:column;flex:1}
+.vehicleFacts{margin:0 0 6px;color:#42586f;font-size:14px}
+.cardActions{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:12px}
+.btn.small{padding:8px 12px;font-size:13px;border-radius:8px}
+.btn.wa{background:#1fa855;color:#fff;border-color:#1fa855}
+.badge.sold{background:#e5e7eb;color:#374151}
+.pager{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin:28px 0 8px;color:#42586f}
+.pager div{display:flex;gap:16px;align-items:center}.pager a{font-weight:700;color:#0b4a8f}.pager .off{opacity:.35}
+.crumbs{font-size:14px;color:#5b6f84;margin:6px 0 14px}.crumbs a{color:#0b4a8f}
+.galleryMain{position:relative}
+.galleryZoom{display:block;width:100%;padding:0;border:0;background:#0b1f35;cursor:zoom-in;border-radius:12px;overflow:hidden}
+.galleryZoom img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.galleryNav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;border:0;background:#061a2ecc;color:#fff;font-size:26px;line-height:1;cursor:pointer}
+.galleryNav.prev{left:10px}.galleryNav.next{right:10px}
+.galleryCount{position:absolute;right:10px;bottom:10px;background:#061a2ecc;color:#fff;font-size:12px;padding:4px 9px;border-radius:20px}
+.galleryThumbs{display:flex;gap:8px;overflow-x:auto;padding:10px 0 2px}
+.galleryThumbs button{flex:0 0 84px;padding:0;border:2px solid transparent;border-radius:8px;overflow:hidden;background:none;cursor:pointer;opacity:.75}
+.galleryThumbs button.on{border-color:#ffc400;opacity:1}
+.galleryThumbs img{display:block;width:84px;height:64px;object-fit:cover}
+.lightbox{position:fixed;inset:0;z-index:100;background:#020b14ee;display:flex;align-items:center;justify-content:center;padding:20px}
+.lightbox img{max-width:100%;max-height:92vh;border-radius:8px}
+.lbClose{position:absolute;top:14px;right:18px;background:none;border:0;color:#fff;font-size:40px;cursor:pointer}
+.lbNav{position:absolute;top:50%;transform:translateY(-50%);background:#ffffff22;border:0;color:#fff;width:52px;height:52px;border-radius:50%;font-size:32px;cursor:pointer}
+.lbNav.prev{left:14px}.lbNav.next{right:14px}
+.statePage{text-align:center;padding:90px 20px;max-width:640px}.statePage h1{margin:10px 0}.statePage .heroActions{justify-content:center;display:flex;gap:12px;margin-top:20px}
+footer small{display:block;margin-top:8px;opacity:.75}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #ffc400;outline-offset:2px}
+.card .btn.alt,.vehicleInfoPanel .btn.alt{background:#fff;color:#0b4a8f;border:2px solid #0b4a8f}
+.card .btn.alt:hover{background:#eaf2fb}
+.card .btn.wa,.detailActions .btn.wa{background:#1fa855;color:#fff;border:2px solid #1fa855}
+.detailActions{display:flex;gap:10px;flex-wrap:wrap}.detailActions .btn{flex:1 1 150px;text-align:center}
+.cardActions{flex-wrap:nowrap}.cardActions .btn.small{flex:1 1 auto;text-align:center;padding:8px 6px;font-size:12.5px;white-space:nowrap}
+.vehiclePhoto{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;background:#dfe7f0}
+main{padding-bottom:70px}
+@media(max-width:800px){header .nav{display:flex!important;order:4;flex-basis:100%;overflow-x:auto;white-space:nowrap;gap:20px;padding:4px 0 2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}header .nav::-webkit-scrollbar{display:none}header .nav a{padding:6px 2px;font-size:15px}.headerSearch{order:3}}

@@ -110,13 +110,16 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
   if (!vehicles.length && priorCustomer) vehicles = await findVehicles(priorCustomer);
   const v = vehicles.find((x:any) => x.status === 'available') || vehicles[0];
   if (!v) return null;
-  const mediaRows = await rows<any>(`SELECT url FROM vehicle_media WHERE vehicle_id=? AND media_type='image' AND review_status='approved' ORDER BY is_cover DESC,sort_order,id LIMIT 3`,[v.id]);
-  const images = mediaRows.map((m:any)=>String(m.url||'')).filter(Boolean).map((u:string)=>u.startsWith('http')?u:SITE+u);
-  if (!images.length) return null; // only send approved real website photos to customers
+  const mediaRows = await rows<any>(`SELECT url,caption,source FROM vehicle_media WHERE vehicle_id=? AND media_type='image' AND review_status='approved'
+    AND url NOT LIKE '/demo/vehicles/%' AND COALESCE(caption,'') NOT LIKE 'MODEL PHOTO%' AND COALESCE(caption,'') NOT LIKE '%Reference image%'
+    ORDER BY is_cover DESC,sort_order,id LIMIT 3`,[v.id]);
+  let images = mediaRows.map((m:any)=>String(m.url||'')).filter(Boolean).map((u:string)=>u.startsWith('http')?u:SITE+u);
+  const exact = images.length>0;
+  if (!images.length) images=[0,1,2].map(i=>`${SITE}/api/model-photo/${encodeURIComponent(String(v.id))}/${i}`);
   const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.trim();
   return {
-    vehicleId: v.id, stockNo: v.stock_no, title, image: images[0], images,
-    caption: `${title}${v.stock_no ? ` • ${v.stock_no}` : ''}${v.price_usd ? ` • $${Number(v.price_usd).toLocaleString()}` : ''}\n${SITE}/vehicles/${v.id}`
+    vehicleId: v.id, stockNo: v.stock_no, title, image: images[0], images, exact,
+    caption: `${title}${v.stock_no ? ` • ${v.stock_no}` : ''}${v.price_usd ? ` • $${Number(v.price_usd).toLocaleString()}` : ''}\n${exact?'Stock photos':'Model photos — confirm exact unit with Sky Cars'}\n${SITE}/vehicles/${v.id}`
   };
 }
 

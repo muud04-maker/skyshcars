@@ -3,13 +3,22 @@ import axios from 'axios';
 
 const GRAPH = `https://graph.facebook.com/${process.env.WHATSAPP_GRAPH_VERSION || 'v26.0'}`;
 
-/** Verifies Meta's X-Hub-Signature-256 header. If META_APP_SECRET is not set, allows the request but logs a warning. */
+/** Verifies Meta's X-Hub-Signature-256 header (fail-closed when no app secret is configured). */
 export function signatureOk(raw: string, header: string | null) {
-  const secret = process.env.META_APP_SECRET;
-  if (!secret) { console.warn('META_APP_SECRET not set: webhook signature NOT verified'); return true; }
+  // Accept any configured Meta app secret (WhatsApp Cloud API and Messenger may be different Meta apps).
+  const secrets = [process.env.WHATSAPP_APP_SECRET, process.env.META_APP_SECRET].filter((x): x is string => !!x);
+  if (!secrets.length) {
+    // Fail closed: unsigned webhooks are rejected unless the owner explicitly allows it temporarily.
+    if (process.env.ALLOW_UNSIGNED_WEBHOOKS === 'true') { console.warn('WEBHOOK SIGNATURE CHECK DISABLED (ALLOW_UNSIGNED_WEBHOOKS=true)'); return true; }
+    console.error('Webhook rejected: set WHATSAPP_APP_SECRET (or META_APP_SECRET) in Hostinger environment variables.');
+    return false;
+  }
   if (!header) return false;
-  const expected = 'sha256=' + createHmac('sha256', secret).update(raw).digest('hex');
-  try { return timingSafeEqual(Buffer.from(header), Buffer.from(expected)); } catch { return false; }
+  for (const secret of secrets) {
+    const expected = 'sha256=' + createHmac('sha256', secret).update(raw).digest('hex');
+    try { if (header.length === expected.length && timingSafeEqual(Buffer.from(header), Buffer.from(expected))) return true; } catch { /* try next */ }
+  }
+  return false;
 }
 
 export function whatsappConfigured() {

@@ -22,7 +22,7 @@ export async function ensureSupplierSchema(){
     auth_header_name VARCHAR(120) NULL,
     auth_secret_env VARCHAR(120) NULL,
     last_sync_at DATETIME NULL,
-    last_sync_status VARCHAR(80) NULL,
+    last_sync_status VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY(supplier_id) REFERENCES private_suppliers(id) ON DELETE CASCADE,
@@ -43,7 +43,17 @@ export async function ensureSupplierSchema(){
     FOREIGN KEY(vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
     INDEX(vehicle_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  // Older master schema created this column as VARCHAR(80), too short to record real error messages.
+  try{await db().execute('ALTER TABLE supplier_sources MODIFY last_sync_status VARCHAR(255) NULL')}catch{}
 }
-export async function supplierList(){await ensureSupplierSchema();return rows<any>(`SELECT s.*,src.base_url,src.feed_url,src.feed_format,src.default_markup_usd,src.permission_confirmed,src.last_sync_at,src.last_sync_status FROM private_suppliers s LEFT JOIN supplier_sources src ON src.supplier_id=s.id ORDER BY s.updated_at DESC`)}
-export async function supplierBySlug(slug:string){await ensureSupplierSchema();return one<any>(`SELECT s.*,src.base_url,src.feed_url,src.feed_format,src.default_markup_usd,src.permission_confirmed FROM private_suppliers s LEFT JOIN supplier_sources src ON src.supplier_id=s.id WHERE s.slug=? AND s.enabled=1 LIMIT 1`,[slug])}
 export function cleanSlug(v:string){return v.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100)}
+export async function ensureDefaultHongGuanMa(){
+  await ensureSupplierSchema();
+  let s:any=await one(`SELECT id FROM private_suppliers WHERE slug='hongguanma' LIMIT 1`);
+  if(!s){const [r]:any=await db().execute(`INSERT INTO private_suppliers(name_internal,slug,enabled,notes) VALUES('HongGuanMa','hongguanma',1,'Authorized supplier requested by Sky Cars owner. Keep identity private on public pages.')`);s={id:r.insertId}}
+  const ex:any=await one('SELECT id FROM supplier_sources WHERE supplier_id=? ORDER BY id LIMIT 1',[s.id]);
+  if(!ex) await db().execute(`INSERT INTO supplier_sources(supplier_id,base_url,feed_format,default_markup_usd,permission_confirmed) VALUES(?,'https://hongguanma.com/','manual',1000,1)`,[s.id]);
+  else await db().execute(`UPDATE supplier_sources SET base_url='https://hongguanma.com/',default_markup_usd=1000,permission_confirmed=1 WHERE id=?`,[ex.id]);
+}
+export async function supplierList(){await ensureDefaultHongGuanMa();return rows<any>(`SELECT s.*,src.base_url,src.feed_url,src.feed_format,src.default_markup_usd,src.permission_confirmed,src.last_sync_at,src.last_sync_status FROM private_suppliers s LEFT JOIN supplier_sources src ON src.supplier_id=s.id ORDER BY s.updated_at DESC`)}
+export async function supplierBySlug(slug:string){await ensureSupplierSchema();return one<any>(`SELECT s.*,src.base_url,src.feed_url,src.feed_format,src.default_markup_usd,src.permission_confirmed FROM private_suppliers s LEFT JOIN supplier_sources src ON src.supplier_id=s.id WHERE s.slug=? AND s.enabled=1 LIMIT 1`,[slug])}
