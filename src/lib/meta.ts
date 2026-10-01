@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import axios from 'axios';
 
-const GRAPH = 'https://graph.facebook.com/v23.0';
+const GRAPH = `https://graph.facebook.com/${process.env.WHATSAPP_GRAPH_VERSION || 'v26.0'}`;
 
 /** Verifies Meta's X-Hub-Signature-256 header. If META_APP_SECRET is not set, allows the request but logs a warning. */
 export function signatureOk(raw: string, header: string | null) {
@@ -14,6 +14,21 @@ export function signatureOk(raw: string, header: string | null) {
 
 export function whatsappConfigured() {
   return !!(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+}
+
+export async function downloadWhatsAppMedia(mediaId: string) {
+  if (!process.env.WHATSAPP_ACCESS_TOKEN) throw new Error('WHATSAPP_ACCESS_TOKEN missing');
+  const auth = { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}` };
+  const meta = await axios.get(`${GRAPH}/${encodeURIComponent(mediaId)}`, { headers: auth, timeout: 20000 });
+  const url = meta.data?.url;
+  if (!url) throw new Error('Meta media URL missing');
+  const media = await axios.get(url, { headers: auth, responseType: 'arraybuffer', timeout: 30000, maxContentLength: 25 * 1024 * 1024 });
+  return {
+    data: Buffer.from(media.data),
+    mimeType: String(meta.data?.mime_type || media.headers?.['content-type'] || 'application/octet-stream').split(';')[0],
+    sha256: meta.data?.sha256 || null,
+    fileSize: Number(meta.data?.file_size || 0) || null,
+  };
 }
 
 export async function sendWhatsApp(to: string, body: string) {

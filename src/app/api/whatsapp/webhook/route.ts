@@ -1,11 +1,10 @@
 import { inbound, outbound, alreadyProcessed } from '../../../../lib/conversations';
 import { salesReply, AI_MODEL } from '../../../../lib/ai';
 import { signatureOk, sendWhatsApp, whatsappConfigured } from '../../../../lib/meta';
-import { dbConfigured } from '../../../../lib/db';
+import { db, dbConfigured } from '../../../../lib/db';
 
 export const dynamic = 'force-dynamic';
 
-// Meta webhook verification (done once when you connect the webhook in Meta)
 export async function GET(req: Request) {
   const u = new URL(req.url);
   if (u.searchParams.get('hub.mode') === 'subscribe' && process.env.WHATSAPP_VERIFY_TOKEN &&
@@ -14,38 +13,73 @@ export async function GET(req: Request) {
   return new Response('Forbidden', { status: 403 });
 }
 
-function describe(m: any): { text: string; type: any } | null {
+type Described = { storedText: string; aiText?: string; type: any; mediaId?: string; needsHuman?: boolean };
+function describe(m: any): Described | null {
   switch (m.type) {
-    case 'text': return { text: m.text?.body || '', type: 'text' };
-    case 'image': return { text: m.image?.caption ? `[Photo] ${m.image.caption}` : '[Customer sent a photo]', type: 'image' };
-    case 'video': return { text: m.video?.caption ? `[Video] ${m.video.caption}` : '[Customer sent a video]', type: 'video' };
-    case 'audio': return { text: '[Customer sent a voice message]', type: 'audio' };
-    case 'document': return { text: `[Customer sent a document${m.document?.filename ? ': ' + m.document.filename : ''}]`, type: 'document' };
-    case 'button': return { text: m.button?.text || '', type: 'text' };
-    case 'interactive': return { text: m.interactive?.button_reply?.title || m.interactive?.list_reply?.title || '', type: 'text' };
-    default: return { text: `[Unsupported message: ${m.type}]`, type: 'other' };
+    case 'text': {
+      const text = String(m.text?.body || '').trim();
+      return text ? { storedText: text, aiText: text, type: 'text' } : null;
+    }
+    case 'image': {
+      const caption = String(m.image?.caption || '').trim();
+      return {
+        storedText: caption ? `PHOTO\nCaption: ${caption}` : 'PHOTO\nNo caption supplied — human review may be needed.',
+        aiText: caption ? `The customer sent a photo. You cannot see the image. Respond only to this customer caption and database facts: ${caption}` : undefined,
+        type: 'image', mediaId: m.image?.id, needsHuman: !caption,
+      };
+    }
+    case 'audio':
+      return {
+        storedText: 'VOICE NOTE\nHuman review required — no automatic transcription is enabled.',
+        type: 'audio', mediaId: m.audio?.id, needsHuman: true,
+      };
+    case 'video': {
+      const caption = String(m.video?.caption || '').trim();
+      return {
+        storedText: caption ? `VIDEO\nCaption: ${caption}` : 'VIDEO\nNo caption supplied — human review required.',
+        aiText: caption ? `The customer sent a video. You cannot see the video. Respond only to this caption and database facts: ${caption}` : undefined,
+        type: 'video', mediaId: m.video?.id, needsHuman: !caption,
+      };
+    }
+    case 'document': return { storedText: `[Customer sent a document${m.document?.filename ? ': ' + m.document.filename : ''}]`, type: 'document', mediaId: m.document?.id, needsHuman: true };
+    case 'button': {
+      const text = String(m.button?.text || '').trim();
+      return text ? { storedText: text, aiText: text, type: 'text' } : null;
+    }
+    case 'interactive': {
+      const text = String(m.interactive?.button_reply?.title || m.interactive?.list_reply?.title || '').trim();
+      return text ? { storedText: text, aiText: text, type: 'text' } : null;
+    }
+    default: return { storedText: `[Unsupported message: ${m.type}]`, type: 'other', needsHuman: true };
   }
 }
 
 async function handle(m: any, contacts: any[]) {
   const from = m.from;
   const d = describe(m);
-  if (!from || !d || !d.text) return;
-  if (await alreadyProcessed(m.id)) return; // Meta retry: already handled
+  if (!from || !d) return;
+  if (await alreadyProcessed(m.id)) return;
+
   const name = contacts.find(c => c.wa_id === from)?.profile?.name;
-  const c: any = await inbound('whatsapp', from, d.text, m.id, { type: d.type, name });
+  const c: any = await inbound('whatsapp', from, d.storedText, m.id, {
+    type: d.type,
+    name,
+    mediaRef: d.mediaId ? `meta:${d.mediaId}` : undefined,
+  });
 
-  // HUMAN or PAUSED: store only, AI stays silent
+  // Voice notes, uncaptained photos/videos and documents require a person.
+  if (d.needsHuman) {
+    await db().execute("UPDATE conversations SET mode='human', takeover_by='media-review', takeover_at=NOW() WHERE id=?", [c.id]);
+    return;
+  }
+
   if (c.mode !== 'ai') return;
-  if (!whatsappConfigured()) return;
+  if (!d.aiText || !whatsappConfigured()) return;
 
-  let reply: string | null = null;
-  if (d.type === 'audio') reply = 'Thanks! I can only read text messages. Please type your question, or a team member will listen to your voice note shortly.';
-  else reply = await salesReply(d.text, c.id);
+  const reply = await salesReply(d.aiText, c.id);
   if (!reply) return;
-
   await sendWhatsApp(from, reply);
-  await outbound(c.id, 'ai', reply, d.type === 'audio' ? 'auto' : AI_MODEL);
+  await outbound(c.id, 'ai', reply, AI_MODEL);
 }
 
 export async function POST(req: Request) {

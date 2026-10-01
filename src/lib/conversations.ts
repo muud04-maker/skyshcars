@@ -11,7 +11,7 @@ export async function alreadyProcessed(externalMessageId?: string) {
 
 /** Store an inbound customer message; creates the conversation + customer record on first contact. */
 export async function inbound(channel: Channel, externalId: string, text: string,
-  externalMessageId?: string, opts: { type?: MsgType; name?: string } = {}) {
+  externalMessageId?: string, opts: { type?: MsgType; name?: string; mediaRef?: string } = {}) {
   let c: any = await one('SELECT * FROM conversations WHERE channel=? AND external_user_id=? LIMIT 1', [channel, externalId]);
   if (!c) {
     const idCol = channel === 'whatsapp' ? 'whatsapp_id' : 'facebook_psid';
@@ -31,8 +31,8 @@ export async function inbound(channel: Channel, externalId: string, text: string
     await db().execute('UPDATE conversations SET last_message_at=NOW() WHERE id=?', [c.id]);
   }
   await db().execute(
-    'INSERT INTO messages(conversation_id,external_message_id,sender,direction,message_type,body) VALUES(?,?,?,?,?,?)',
-    [c.id, externalMessageId || null, 'customer', 'inbound', opts.type || 'text', text]);
+    'INSERT INTO messages(conversation_id,external_message_id,sender,direction,message_type,body,media_url) VALUES(?,?,?,?,?,?,?)',
+    [c.id, externalMessageId || null, 'customer', 'inbound', opts.type || 'text', text, opts.mediaRef || null]);
   return c;
 }
 
