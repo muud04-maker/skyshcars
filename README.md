@@ -1,3 +1,15 @@
+# Sky Cars V23.1 WhatsApp AI Reply Recovery — TypeScript Fix
+
+This package fixes the V23 deployment-blocking TypeScript Blob/Buffer error in `src/lib/media-ai.ts`.
+
+Deploy with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
+```
+
+The deployment script must pass TypeScript and `next build --webpack` before it can commit or push.
+
 # Sky Cars V20 PRO — Owner Control Center + Public Marketplace
 
 Start with `OWNER_GUIDE_SIMPLE.md`, then `SKY_CARS_FULL_REPORT.pdf` (in the ZIP root).

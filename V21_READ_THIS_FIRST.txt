@@ -1,0 +1,41 @@
+SKY CARS V21 — READ THIS FIRST
+
+This version is built on V20 PRO and fixes the WhatsApp AI problems shown in the screenshots.
+
+ONE DEPLOY COMMAND (run inside this folder):
+powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
+
+WHAT V21 FIXES
+- Reliable AI-mode replies with database-grounded fallback if DeepSeek fails.
+- Real stored chat-history continuity; explicit "see our previous chat" requests use the stored transcript.
+- Voice-note download + automatic transcription + AI reply when a media-AI key is configured.
+- Uncaptioned customer photo understanding + AI reply when a media-AI key is configured.
+- Human handoff when media AI is unavailable instead of pretending to understand media.
+- New Admin > AI Agent Health page showing inbound/reply/transcription/image-analysis/failure events.
+- WhatsApp group supplier bridge endpoint and local/VPS bridge tool.
+- Admin > Inventory Review now shows WhatsApp group drafts with Approve/Reject.
+- Imported group photos are stored persistently in MySQL and kept pending review before public use.
+
+HOSTINGER VARIABLES
+Keep your current DB / DeepSeek / Meta / WhatsApp variables.
+
+For automatic voice notes + uncaptained photo understanding, add ONE of these:
+OPENAI_API_KEY=<your key>
+OR
+MEDIA_AI_API_KEY=<your compatible media AI key>
+
+For the supplier WhatsApp group bridge:
+WHATSAPP_SERVICE_SECRET=<same strong secret in Hostinger and bridge .env>
+
+IMPORTANT PLATFORM LIMIT
+Normal WhatsApp group messages are not delivered to the website by Meta Cloud API. That is why V21 includes tools/whatsapp-group-bridge. Run that bridge on an always-on computer/VPS after deployment.
+
+GROUP BRIDGE START
+cd tools\whatsapp-group-bridge
+powershell -ExecutionPolicy Bypass -File .\RUN_GROUP_BRIDGE.ps1
+
+Then open:
+https://skyshcars.com/admin/imports
+
+AI diagnostics:
+https://skyshcars.com/admin/agent-health

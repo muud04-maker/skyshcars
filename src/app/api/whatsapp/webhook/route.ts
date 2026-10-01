@@ -1,14 +1,16 @@
 import { inbound, outbound, alreadyProcessed } from '../../../../lib/conversations';
 import { salesReply, AI_MODEL, vehicleMediaForMessage } from '../../../../lib/ai';
-import { signatureOk, sendWhatsApp, sendWhatsAppImage, whatsappConfigured } from '../../../../lib/meta';
+import { signatureOk, sendWhatsApp, sendWhatsAppImage, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken } from '../../../../lib/meta';
 import { db, dbConfigured } from '../../../../lib/db';
+import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
+import { agentEvent } from '../../../../lib/agent-events';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const u = new URL(req.url);
-  if (u.searchParams.get('hub.mode') === 'subscribe' && process.env.WHATSAPP_VERIFY_TOKEN &&
-      u.searchParams.get('hub.verify_token') === process.env.WHATSAPP_VERIFY_TOKEN)
+  if (u.searchParams.get('hub.mode') === 'subscribe' && whatsappVerifyToken() &&
+      u.searchParams.get('hub.verify_token') === whatsappVerifyToken())
     return new Response(u.searchParams.get('hub.challenge') || '');
   return new Response('Forbidden', { status: 403 });
 }
@@ -23,16 +25,13 @@ function describe(m: any): Described | null {
     case 'image': {
       const caption = String(m.image?.caption || '').trim();
       return {
-        storedText: caption ? `PHOTO\nCaption: ${caption}` : 'PHOTO\nNo caption supplied — human review may be needed.',
-        aiText: caption ? `Customer sent a photo with this caption: ${caption}. Continue naturally from the conversation and answer the caption using verified Sky Cars facts. Do not make any claim about unseen visual details.` : undefined,
-        type: 'image', mediaId: m.image?.id, needsHuman: !caption,
+        storedText: caption ? `PHOTO\nCaption: ${caption}` : 'PHOTO\nImage received.',
+        aiText: caption ? `Customer sent a photo with this caption: ${caption}. Continue naturally from the conversation. Do not invent unseen details.` : undefined,
+        type: 'image', mediaId: m.image?.id, needsHuman: false,
       };
     }
     case 'audio':
-      return {
-        storedText: 'VOICE NOTE\nHuman review required — no automatic transcription is enabled.',
-        type: 'audio', mediaId: m.audio?.id, needsHuman: true,
-      };
+      return { storedText: 'VOICE NOTE\nTranscription pending.', type: 'audio', mediaId: m.audio?.id, needsHuman: false };
     case 'video': {
       const caption = String(m.video?.caption || '').trim();
       return {
@@ -54,11 +53,83 @@ function describe(m: any): Described | null {
   }
 }
 
+async function updateInboundBody(externalMessageId:string, body:string){
+  await db().execute('UPDATE messages SET body=? WHERE external_message_id=? LIMIT 1',[body,externalMessageId]);
+}
+
+async function prepareMedia(m:any,d:Described,c:any){
+  if(!d.mediaId) return d;
+  if(m.type!=='audio' && m.type!=='image') return d;
+  try{
+    const media=await downloadWhatsAppMedia(d.mediaId);
+    if(m.type==='audio'){
+      if(!mediaAiConfigured()) throw new Error('Media AI key not configured');
+      const transcript=await transcribeAudio(media.data,media.mimeType);
+      if(!transcript) throw new Error('Voice transcription returned empty text');
+      const body=`VOICE NOTE\nTranscript: ${transcript}`;
+      await updateInboundBody(m.id,body);
+      await agentEvent(c.id,m.id,'voice_transcription','ok',{chars:transcript.length});
+      return {...d,storedText:body,aiText:`Customer sent a voice note. Transcript: ${transcript}`,needsHuman:false};
+    }
+    if(m.type==='image' && !d.aiText){
+      if(!mediaAiConfigured()) throw new Error('Media AI key not configured');
+      const visual=await describeImage(media.data,media.mimeType);
+      if(!visual) throw new Error('Image analysis returned empty text');
+      const body=`PHOTO\nVisual description: ${visual}`;
+      await updateInboundBody(m.id,body);
+      await agentEvent(c.id,m.id,'image_analysis','ok',{chars:visual.length});
+      return {...d,storedText:body,aiText:`Customer sent a photo. Visual description from the media analyzer: ${visual}. Use it only as visual context; vehicle inventory/price/availability claims must still come from verified database facts.`,needsHuman:false};
+    }
+  }catch(e:any){
+    await agentEvent(c.id,m.id,m.type==='audio'?'voice_transcription':'image_analysis','failed',e?.message||String(e));
+    return {...d,needsHuman:true};
+  }
+  return d;
+}
+
+async function sendVehicleImages(from:string,text:string,conversationId:number){
+  try {
+    const wantsImage = /\b(photo|photos|picture|pictures|image|images|show|see|look|send.*pic|car.*pic|vehicle.*pic)\b/i.test(text)
+      || /\bSC\s?-?\d{1,6}\b/i.test(text);
+    const media = await vehicleMediaForMessage(text, conversationId);
+    if (media && (wantsImage || /\b(have|available|price|cost|stock|model|toyota|nissan|honda|byd|changan|geely|motorcycle|bike|suv|sedan)\b/i.test(text))) {
+      const imgs = Array.isArray((media as any).images) ? (media as any).images.slice(0,3) : [media.image];
+      for (let i=0;i<imgs.length;i++) await sendWhatsAppImage(from, imgs[i], i===0 ? media.caption : `${media.title} • photo ${i+1}`);
+      await outbound(conversationId, 'ai', `[${imgs.length} vehicle photo${imgs.length>1?'s':''} sent] ${media.caption}`, AI_MODEL);
+    }
+  } catch (err:any) {
+    await agentEvent(conversationId,null,'vehicle_image_send','failed',err?.message||String(err));
+    console.error('WHATSAPP_SEND_VEHICLE_IMAGE', err);
+  }
+}
+
 async function handle(m: any, contacts: any[]) {
   const from = m.from;
-  const d = describe(m);
+  let d = describe(m);
   if (!from || !d) return;
-  if (await alreadyProcessed(m.id)) return;
+  if (await alreadyProcessed(m.id)) {
+    // Meta retries webhooks. If the inbound message was stored but its AI reply failed,
+    // use the retry as a recovery opportunity instead of permanently ignoring it.
+    const [rows]: any = await db().execute(`SELECT m.id,m.body,m.message_type,c.id conversation_id,c.mode,c.external_user_id
+      FROM messages m JOIN conversations c ON c.id=m.conversation_id
+      WHERE m.external_message_id=? LIMIT 1`, [m.id]);
+    const existing = rows?.[0];
+    if (!existing || existing.mode !== 'ai' || existing.message_type !== 'text') return;
+    const [later]: any = await db().execute(`SELECT id FROM messages WHERE conversation_id=? AND id>?
+      AND sender IN ('ai','human') AND direction='outbound' LIMIT 1`, [existing.conversation_id, existing.id]);
+    if (later?.[0]) return;
+    try {
+      if (!whatsappConfigured()) throw new Error('WhatsApp send credentials not configured');
+      const reply = await salesReply(String(existing.body || ''), Number(existing.conversation_id));
+      if (!reply) throw new Error('AI returned no reply');
+      const waId = await sendWhatsApp(String(existing.external_user_id), reply);
+      await outbound(Number(existing.conversation_id), 'ai', reply, AI_MODEL);
+      await agentEvent(Number(existing.conversation_id), m.id, 'retry_reply', 'ok', { whatsapp_message_id: waId, trigger: 'meta_retry' });
+    } catch (e:any) {
+      await agentEvent(Number(existing.conversation_id), m.id, 'retry_reply', 'failed', e?.response?.data || e?.message || String(e));
+    }
+    return;
+  }
 
   const name = contacts.find(c => c.wa_id === from)?.profile?.name;
   const c: any = await inbound('whatsapp', from, d.storedText, m.id, {
@@ -66,35 +137,35 @@ async function handle(m: any, contacts: any[]) {
     name,
     mediaRef: d.mediaId ? `meta:${d.mediaId}` : undefined,
   });
+  await agentEvent(c.id,m.id,'inbound','ok',{type:m.type,mode:c.mode});
 
-  // Voice notes, uncaptained photos/videos and documents require a person.
+  d=await prepareMedia(m,d,c);
+
   if (d.needsHuman) {
     await db().execute("UPDATE conversations SET mode='human', takeover_by='media-review', takeover_at=NOW() WHERE id=?", [c.id]);
+    await agentEvent(c.id,m.id,'handoff','human',{reason:`${m.type} requires review or media AI is not configured`});
     return;
   }
 
-  if (c.mode !== 'ai') return;
-  if (!d.aiText || !whatsappConfigured()) return;
+  // Re-read mode after any media processing so an admin takeover wins immediately.
+  const [modeRows]:any=await db().execute('SELECT mode FROM conversations WHERE id=? LIMIT 1',[c.id]);
+  if (modeRows?.[0]?.mode !== 'ai') return;
+  if (!d.aiText) return;
+  if (!whatsappConfigured()) {
+    await agentEvent(c.id,m.id,'reply','failed','WhatsApp send credentials not configured');
+    return;
+  }
 
-  const reply = await salesReply(d.aiText, c.id);
-  if (!reply) return;
-  await sendWhatsApp(from, reply);
-  await outbound(c.id, 'ai', reply, AI_MODEL);
-
-  // When the customer asks about a specific vehicle or asks to see a photo,
-  // send the matching website image as a separate WhatsApp image message.
-  // Only approved real vehicle photos are sent to customers. Website reference imagery is never sent as exact stock media.
-  try {
-    const wantsImage = /\b(photo|photos|picture|pictures|image|images|show|see|look|send.*pic|car.*pic|vehicle.*pic)\b/i.test(d.aiText)
-      || /\bSC\s?-?\d{1,6}\b/i.test(d.aiText);
-    const media = await vehicleMediaForMessage(d.aiText, c.id);
-    if (media && (wantsImage || /\b(have|available|price|cost|stock|model|toyota|nissan|honda|byd|changan|geely|motorcycle|bike|suv|sedan)\b/i.test(d.aiText))) {
-      const imgs = Array.isArray((media as any).images) ? (media as any).images.slice(0,3) : [media.image];
-      for (let i=0;i<imgs.length;i++) await sendWhatsAppImage(from, imgs[i], i===0 ? media.caption : `${media.title} • photo ${i+1}`);
-      await outbound(c.id, 'ai', `[${imgs.length} vehicle photo${imgs.length>1?'s':''} sent] ${media.caption}`, AI_MODEL);
-    }
-  } catch (err) {
-    console.error('WHATSAPP_SEND_VEHICLE_IMAGE', err);
+  try{
+    const reply = await salesReply(d.aiText, c.id);
+    if (!reply) throw new Error('AI returned no reply');
+    const waId=await sendWhatsApp(from, reply);
+    await outbound(c.id, 'ai', reply, AI_MODEL);
+    await agentEvent(c.id,m.id,'reply','ok',{whatsapp_message_id:waId,chars:reply.length});
+    await sendVehicleImages(from,d.aiText,c.id);
+  }catch(e:any){
+    await agentEvent(c.id,m.id,'reply','failed',e?.response?.data||e?.message||String(e));
+    console.error('WHATSAPP_REPLY_ERROR',e?.response?.data||e);
   }
 }
 
@@ -106,6 +177,10 @@ export async function POST(req: Request) {
     const body = JSON.parse(raw);
     for (const e of body.entry || []) for (const ch of e.changes || []) {
       const v = ch.value || {};
+      // Delivery/read status updates are stored when possible.
+      for(const s of v.statuses||[]){
+        if(s.id) await db().execute('UPDATE messages SET delivery_status=? WHERE external_message_id=?',[String(s.status||''),String(s.id)]).catch(()=>{});
+      }
       for (const m of v.messages || []) {
         try { await handle(m, v.contacts || []); }
         catch (err: any) { console.error('WHATSAPP_MESSAGE_ERROR', err?.response?.data || err); }

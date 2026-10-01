@@ -1,0 +1,2 @@
+import {redirect} from 'next/navigation';import {isAdmin} from '../../../lib/admin';import AdminShell from '../_components/AdminShell';import AgentHealthClient from './AgentHealthClient';
+export const dynamic='force-dynamic';export default async function Page(){if(!(await isAdmin()))redirect('/admin/login');return <AdminShell><main className="adminPage"><div className="adminTitle"><div><h1>AI Agent Health</h1><p>See every inbound message, reply, media transcription, handoff, and failure.</p></div></div><AgentHealthClient/></main></AdminShell>}

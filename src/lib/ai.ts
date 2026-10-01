@@ -196,30 +196,70 @@ ${JSON.stringify(knowledge || [])}
 DATABASE FACTS:
 ${JSON.stringify(facts)}`;
 
+function compactVehicleLine(v:any){
+  const title=[v.model_year,v.brand,v.model,v.trim_name].filter(Boolean).join(' ');
+  const price=v.price_usd!=null?`$${Number(v.price_usd).toLocaleString()}`:'Price on request';
+  return `${title || 'Vehicle'} — ${price}${v.stock_no?` (${v.stock_no})`:''}${v.link?`\n${v.link}`:''}`;
+}
+
+function deterministicFallback(text:string,facts:any,past:any[]){
+  const vehicles=Array.isArray(facts?.matching_vehicles)?facts.matching_vehicles:[];
+  const lower=text.toLowerCase();
+  if(/(chat between us|our chat|previous chat|earlier messages|remember|what did i say|history)/i.test(text)){
+    const recent=past.filter(m=>m.sender==='customer').slice(-5).map(m=>String(m.body||'').replace(/\s+/g,' ').slice(0,140));
+    if(recent.length) return `Yes — I can see our recent conversation. You previously said: ${recent.map((x,i)=>`${i+1}) ${x}`).join('  ')}. Tell me which part you want to continue.`;
+  }
+  if(vehicles.length){
+    const max=/\bunder\s*\$?([0-9][0-9,]*)|\$\s*([0-9][0-9,]*)\s*(?:budget|max|maximum)?/i.exec(text);
+    let chosen=vehicles;
+    if(max){const n=Number((max[1]||max[2]||'').replace(/,/g,'')); if(n) chosen=chosen.filter((v:any)=>Number(v.price_usd||Infinity)<=n);}
+    chosen=(chosen.length?chosen:vehicles).slice(0,4);
+    return `Here are verified options from our current inventory:\n\n${chosen.map(compactVehicleLine).join('\n\n')}\n\nTell me your budget, preferred model, or destination and I can narrow it down.`;
+  }
+  const summary=Array.isArray(facts?.available_inventory_by_brand)?facts.available_inventory_by_brand:[];
+  if(/\b(what cars|what.*have|available|inventory|stock|cars.*now|vehicles.*now)\b/i.test(lower) && summary.length){
+    const brands=summary.filter((x:any)=>x.category==='car').slice(0,10).map((x:any)=>`${x.brand} (${x.n})`);
+    return `We have used vehicles available now. Current car brands include ${brands.join(', ')}. Browse the live inventory here: ${facts?.browse_links?.cars||SITE+'/cars'}\n\nTell me your budget or preferred brand and I’ll show matching cars.`;
+  }
+  return `I received your message. I can help with current vehicles, prices, shipping, or tracking using our verified Sky Cars data. You can also browse the live inventory here: ${facts?.browse_links?.all||SITE+'/vehicles'}.`;
+}
+
 export async function salesReply(text: string, conversationId?: number) {
-  if (!process.env.DEEPSEEK_API_KEY) return null;
   let past: any[] = [];
-  if (conversationId) { try { past = await history(conversationId, 200); } catch { } }
+  if (conversationId) { try { past = await history(conversationId, 250); } catch { } }
   // The just-stored inbound message is the last item; exclude it from context duplication.
   if (past.length && past[past.length - 1].sender === 'customer' && past[past.length - 1].body === text) past = past.slice(0, -1);
-  const priorCustomer = past.filter(m => m.sender === 'customer').slice(-60).map(m => m.body).join(' ');
+  const priorCustomer = past.filter(m => m.sender === 'customer').slice(-80).map(m => m.body).join(' ');
   let memory:any = null;
   if (conversationId) { try { memory = await memoryForConversation(conversationId); } catch {} }
   const humanExamples = past.filter(m => m.sender === 'human').slice(-30).map(m => String(m.body||'')).filter(Boolean);
   const [facts, customer, knowledge] = await Promise.all([
     buildFacts(text, priorCustomer + ' ' + String(memory?.summary||'')), customerContext(conversationId), knowledgeContext()
   ]);
+
+  // Explicit history questions are answered from the real stored transcript, not guessed by the model.
+  if (/(chat between us|our chat|previous chat|earlier messages|remember|what did i say|history)/i.test(text) && past.some(m=>m.sender==='customer')) {
+    return deterministicFallback(text,facts,past);
+  }
+
+  if (!process.env.DEEPSEEK_API_KEY) return deterministicFallback(text,facts,past);
+  const transcript = past.slice(-120).map(m=>`${String(m.sender||'').toUpperCase()}: ${String(m.body||'')}`).join('\n');
   const messages = [
-    { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) },
-    ...past.map(m => ({ role: m.sender === 'customer' ? 'user' : 'assistant', content: String(m.body || '') })),
+    { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
+    ...past.slice(-120).map(m => ({ role: m.sender === 'customer' ? 'user' : 'assistant', content: String(m.body || '') })),
     { role: 'user', content: text },
   ];
-  const r = await axios.post('https://api.deepseek.com/chat/completions',
-    { model: MODEL, temperature: 0.35, max_tokens: 650, messages },
-    { headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 25000 });
-  const answer = r.data.choices?.[0]?.message?.content?.trim() || null;
-  if (conversationId) { try { await refreshCustomerMemory(conversationId); } catch {} }
-  return answer;
+  try{
+    const r = await axios.post('https://api.deepseek.com/chat/completions',
+      { model: MODEL, temperature: 0.2, max_tokens: 650, messages },
+      { headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 25000 });
+    const answer = r.data.choices?.[0]?.message?.content?.trim() || null;
+    if (conversationId) { try { await refreshCustomerMemory(conversationId); } catch {} }
+    return answer || deterministicFallback(text,facts,past);
+  }catch(e){
+    console.error('DEEPSEEK_REPLY_FAILED_USING_FALLBACK',e);
+    return deterministicFallback(text,facts,past);
+  }
 }
 
 export const AI_MODEL = MODEL;

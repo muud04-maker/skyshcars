@@ -1,0 +1,30 @@
+SKY CARS V23 — WHATSAPP AI REPLY RECOVERY
+
+This release targets the exact failure where customer messages appear in Admin/MySQL but the AI does not answer on WhatsApp.
+
+Fixes:
+1. WhatsApp credentials now support BOTH current and legacy Hostinger names:
+   WHATSAPP_ACCESS_TOKEN or WHATSAPP_TOKEN
+   WHATSAPP_PHONE_NUMBER_ID or PHONE_NUMBER_ID
+   WHATSAPP_VERIFY_TOKEN or VERIFY_TOKEN
+2. Tokens/IDs are trimmed and protected against accidental pasted extra text.
+3. If two token aliases exist, V23 can try the alternate credential when one fails.
+4. Transient WhatsApp API/network failures retry once.
+5. Meta webhook retries can now recover an inbound text that was already stored but never received an AI/human outbound reply.
+6. /api/admin/status now reports whether WhatsApp send credentials, verify token and app secret are actually present without revealing secret values.
+7. Existing V22 Return-to-Assistant catch-up is preserved.
+
+IMPORTANT SECURITY:
+WHATSAPP_APP_SECRET is still required for signed Meta webhooks unless ALLOW_UNSIGNED_WEBHOOKS=true is explicitly set temporarily.
+Do not expose tokens/passwords in screenshots. Rotate any credential that has already been shown publicly.
+
+DEPLOY:
+powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
+
+AFTER DEPLOYMENT TEST:
+1. Open /admin/agent-health and /api/admin/status while logged in.
+2. Make sure WhatsApp is configured and appSecretPresent=true.
+3. Keep the test chat in AI mode.
+4. Send: Do you have car
+5. Confirm the reply appears both in WhatsApp and Admin.
+6. If a previous message is waiting, press Return to Assistant once to force V22/V23 catch-up.

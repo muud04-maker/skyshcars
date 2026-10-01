@@ -1,0 +1,14 @@
+SKY CARS V22 — INBOX + REPLY FIX
+
+This build fixes the concrete failure shown in the admin screenshots:
+1. Messages that arrive while Human/Paused mode is active are marked NEEDS REPLY.
+2. Returning a conversation to AI immediately answers the newest unanswered customer message instead of silently waiting for another webhook.
+3. The main admin dashboard now counts conversations that actually need replies, not merely conversations in Human mode.
+4. The Sales Inbox sorts waiting conversations first and labels them NEEDS REPLY.
+5. Failed catch-up replies are logged to Agent Health.
+
+DEPLOY:
+powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
+
+IMPORTANT SECURITY:
+Rotate any credentials that were exposed in screenshots before continuing production use.

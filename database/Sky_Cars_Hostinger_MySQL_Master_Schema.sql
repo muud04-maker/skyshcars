@@ -271,3 +271,26 @@ CREATE TABLE IF NOT EXISTS supplier_vehicle_map (
  FOREIGN KEY(vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
  INDEX(vehicle_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- V21 AI agent diagnostics and WhatsApp-group import media
+CREATE TABLE IF NOT EXISTS ai_agent_events (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ conversation_id BIGINT UNSIGNED NULL,
+ external_message_id VARCHAR(191) NULL,
+ event_type VARCHAR(80) NOT NULL,
+ status VARCHAR(40) NOT NULL,
+ details TEXT NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ INDEX(conversation_id,created_at), INDEX(external_message_id), INDEX(status,created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventory_import_media (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ import_item_id BIGINT UNSIGNED NOT NULL,
+ url TEXT NULL,
+ mime_type VARCHAR(100) NULL,
+ blob_name VARCHAR(160) NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(import_item_id) REFERENCES inventory_import_items(id) ON DELETE CASCADE,
+ INDEX(import_item_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
