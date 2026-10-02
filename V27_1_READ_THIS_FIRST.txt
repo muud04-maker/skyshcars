@@ -1,0 +1,3 @@
+Sky Cars V27.1 runtime fix
+
+Fixes public /vehicles, /cars and /motorcycles crash caused by passing an onChange event handler from the server-rendered CatalogPage. Sorting now submits with an Apply button, keeping the catalog server-safe.
