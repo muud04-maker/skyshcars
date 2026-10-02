@@ -38,6 +38,10 @@ export async function createGroupImport(payload:any){
   if(existing) return {created:false,id:existing.id,status:existing.review_status};
   const text=String(payload.text||payload.caption||'').trim();
   const proposed=await extractVehicle(text);
+  // Preserve the real source context when AI extraction is unavailable or the message is sparse.
+  // The authorized motorcycle group is a strong category signal, but we still never invent make/model/specs.
+  const groupName=String(payload.groupName||'');
+  if((!proposed.category || proposed.category==='other') && /motorcycle|motorbike|moto|bike/i.test(groupName)) proposed.category='motorcycle';
   const rawSafe={groupName:payload.groupName||null,sender:payload.sender||null,text,receivedAt:payload.receivedAt||null};
   const [r]:any=await db().execute(`INSERT INTO inventory_import_items(source,source_message_id,raw_payload,proposed_vehicle,review_status) VALUES('whatsapp_group',?,?,?,'pending')`,[messageId,JSON.stringify(rawSafe),JSON.stringify(proposed)]);
   const itemId=Number(r.insertId);

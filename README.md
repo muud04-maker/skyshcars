@@ -1,55 +1,48 @@
-# Sky Cars V27 FINAL
+# Sky Cars V29 Marketplace
 
-V27 combines the current Sky Cars production website, HGM catalogue integration, WhatsApp sales assistant, admin control center and the new automation/private-development layer.
+V29 extends the existing production Sky Cars architecture into a larger vehicle marketplace while preserving the working inventory, supplier import, WhatsApp AI, Group Reader, admin, automation, tracking and private Lab systems.
 
-## Main production stack
+## Marketplace additions
+
+- Marketplace discovery homepage and navigation
+- Existing advanced inventory search/filtering preserved
+- Save/favorite vehicles in the browser
+- Recently viewed vehicles
+- Compare up to four vehicles
+- Similar-vehicle recommendations on detail pages
+- Expanded My Sky Cars shopping workspace
+- China→Africa shipping reference estimator
+- 95 supplied reference routes covering 54 African markets
+- Destination route table and gateway/city reference
+- Vehicle + reference-shipping estimate on detail pages
+- Responsive marketplace presentation
+
+## Shipping policy
+
+The shipping data in `data/shipping_reference.json` is planning/reference information supplied by the project owner. It is not a live carrier quotation. Final route, freight, inland transport, port, documentation, insurance, customs and destination charges must be confirmed through Sky Cars before payment.
+
+## Inventory and photos
+
+V29 preserves the V28 real-inventory rules. It does not fabricate inventory or motorcycle data, does not restore invalid legacy motorcycle listings, does not expose supplier identity/cost, and does not use random internet/model photos as exact stock-unit photos.
+
+## Production stack
 
 - Next.js 16.x + TypeScript
 - MySQL
-- Hostinger Node hosting
+- Hostinger
 - GitHub `main`
-- Required build command: `next build --webpack`
-- Production domain: `https://skyshcars.com`
-- Private development hostname: `https://lab.skyshcars.com`
-
-## V27 Admin areas
-
-Sales: Vehicles, Vehicle Photos, Inventory Review, Private Suppliers, Customers, Leads, Quotes.
-
-Shipping: Shipments, Documents, Countries, Ports, Routes, Rates.
-
-Communications: Inbox / Sales Assistant, AI Agent Health, WhatsApp Diagnostics, Sales Knowledge.
-
-Automation: Automation Center, Group Reader, Campaigns, Social Publishing.
-
-System: Backup / Export, Settings, Admin Users, Audit Logs, Dev Center.
-
-Owner only: Private Development Lab.
-
-## Automation behavior
-
-When a vehicle becomes available, V27 can queue a campaign. The default is approval-first. Admin can enable Facebook and WhatsApp channels and choose whether manual publishing, WhatsApp-group approval or supplier publishing should trigger automation.
-
-WhatsApp proactive vehicle updates are limited to customers explicitly marked as marketing opt-in and active within the last 24 hours. Supplier bulk auto-publishing is disabled by default.
-
-## WhatsApp Group Reader
-
-The group bridge lives in `tools/whatsapp-group-bridge`. It uses a linked WhatsApp session and sends only authorized group posts to the protected website endpoint. Authorized groups are managed in `/admin/group-reader`. Incoming listings remain drafts until review.
-
-## Private Development Lab
-
-The Lab runs under `lab.skyshcars.com`, uses a separate owner-only session cookie and is hidden from public navigation and search indexing. It stores application registry data in `lab_apps`, which the Sky Cars sales AI never queries.
-
-The Lab can register education, grocery-delivery, research or other private applications. A registered app can be opened through a private Lab route and embedded from its deployment URL.
+- Production: `https://skyshcars.com`
+- Private Lab target: `https://lab.skyshcars.com`
+- Required build: `next build --webpack`
 
 ## Deployment
 
-Run:
+Run on the Windows deployment machine:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
 ```
 
-The script checks the package, installs dependencies, runs TypeScript, builds with Webpack, commits and pushes only after successful checks.
+The deployment script performs package validation, `npm install`, TypeScript validation and the production Webpack build before it commits or pushes anything.
 
-Read `V27_READ_THIS_FIRST.txt` before deployment.
+Read `V29_READ_THIS_FIRST.txt` before deployment.

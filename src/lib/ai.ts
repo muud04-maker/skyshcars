@@ -115,10 +115,12 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
     ORDER BY is_cover DESC,sort_order,id LIMIT 3`,[v.id]);
   let images = mediaRows.map((m:any)=>String(m.url||'')).filter(Boolean).map((u:string)=>u.startsWith('http')?u:SITE+u);
   const exact = images.length>0;
-  if (!images.length) images=[0,1,2].map(i=>`${SITE}/api/model-photo/${encodeURIComponent(String(v.id))}/${i}`);
+  // Never substitute representative/model photos for a real stock unit in customer messaging.
+  // If approved listing media is absent, return no image and let the text reply say photos are pending.
+  if (!images.length) images=[];
   const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.trim();
   return {
-    vehicleId: v.id, stockNo: v.stock_no, title, image: images[0], images, exact,
+    vehicleId: v.id, stockNo: v.stock_no, title, image: images[0] || null, images, exact,
     caption: `${title}${v.stock_no ? ` • ${v.stock_no}` : ''}${v.price_usd ? ` • $${Number(v.price_usd).toLocaleString()}` : ''}\n${exact?'Stock photos':'Model photos — confirm exact unit with Sky Cars'}\n${SITE}/vehicles/${v.id}`
   };
 }

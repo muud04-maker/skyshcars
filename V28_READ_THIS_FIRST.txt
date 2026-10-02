@@ -1,0 +1,44 @@
+SKY CARS V28 — CONSOLIDATED REAL-INVENTORY BUILD
+
+BASE
+- Consolidated from the supplied V21, V22, V26, V27, V27.1 and V27.2 project history.
+- V27.2 remains the code base because it already contains the later runtime, catalogue cleanup, Group Reader, automation and campaign work.
+
+IMPORTANT DATA FINDINGS
+- The supplied original inventory has 198 rows: 156 cars + 42 legacy motorcycle rows.
+- The 42 legacy motorcycle rows do not contain real make/model data. V28 keeps them hidden rather than inventing motorcycle identities.
+- v16_last_50.json adds 50 later vehicle records, making 248 supplied vehicle records in total (198 + 50). No fake two records were added to claim 250.
+- tools/photo-pack/inventory_248.json is a 248-record model-photo research/download manifest. Those internet photos are representative model photos, NOT verified exact stock-unit photos.
+
+V28 CUSTOMER-PHOTO SAFETY FIX
+- WhatsApp AI no longer falls back to /api/model-photo when exact approved listing photos are missing.
+- Customer messaging sends only approved non-demo/non-reference vehicle_media images as stock photos.
+- Missing exact photos remain missing instead of being silently replaced with an internet/model image.
+
+REAL INVENTORY SOURCES
+1. Existing database vehicles + the supplied 50-record seed.
+2. Authorized HongGuanMa supplier sync: imports supplier listing data and listing gallery URLs into vehicle_media.
+3. WhatsApp Group Reader: authorized groups -> pending Inventory Review -> owner approval -> live inventory.
+4. Admin manual inventory/media management.
+
+MOTORCYCLES
+- Real motorcycles should enter through Group Reader, authorized supplier data, or Admin with make/model and real listing photos.
+- V28 improves Group Reader so an authorized group whose name contains motorcycle/motorbike/moto/bike supplies the motorcycle category when extraction lacks a category. It does NOT invent brand/model/specifications.
+
+GROUP READER
+- Admin -> Group Reader remains included.
+- Bridge remains in tools/whatsapp-group-bridge.
+- Default authorized group: SKy Cars motorcycles.
+- Requires an always-on PC/VPS running the bridge because Meta Cloud API does not expose ordinary WhatsApp group reading.
+- Group media is stored with the pending import and becomes approved vehicle_media only after inventory approval.
+
+PHOTO PACK
+- tools/photo-pack remains included for research/reference model images.
+- Do not publish those as exact stock photos unless independently verified for the actual unit.
+- Exact supplier/group/admin listing photos are preferred and are what customer-facing stock-photo messaging now requires.
+
+DEPLOY
+Run from this folder on Windows:
+  powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
+
+KEEP PRODUCTION SECRETS OUT OF ZIP/GITHUB.

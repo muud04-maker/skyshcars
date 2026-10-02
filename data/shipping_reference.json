@@ -1,0 +1,762 @@
+[
+  {
+    "country": "Algeria",
+    "gateway": "Algiers",
+    "city": "Algiers",
+    "min_usd": 3300,
+    "max_usd": 4300,
+    "note": ""
+  },
+  {
+    "country": "Algeria",
+    "gateway": "Oran",
+    "city": "Oran",
+    "min_usd": 3400,
+    "max_usd": 4500,
+    "note": ""
+  },
+  {
+    "country": "Angola",
+    "gateway": "Luanda",
+    "city": "Luanda",
+    "min_usd": 2400,
+    "max_usd": 3400,
+    "note": ""
+  },
+  {
+    "country": "Angola",
+    "gateway": "Lobito",
+    "city": "Benguela/Lobito",
+    "min_usd": 2500,
+    "max_usd": 3600,
+    "note": ""
+  },
+  {
+    "country": "Benin",
+    "gateway": "Cotonou",
+    "city": "Cotonou",
+    "min_usd": 1500,
+    "max_usd": 1800,
+    "note": "RoRo"
+  },
+  {
+    "country": "Botswana",
+    "gateway": "Durban/Walvis Bay + road",
+    "city": "Gaborone",
+    "min_usd": 2400,
+    "max_usd": 3500,
+    "note": ""
+  },
+  {
+    "country": "Burkina Faso",
+    "gateway": "Tema/Lomé + road",
+    "city": "Ouagadougou",
+    "min_usd": 2900,
+    "max_usd": 4000,
+    "note": ""
+  },
+  {
+    "country": "Burkina Faso",
+    "gateway": "Tema/Lomé + road",
+    "city": "Bobo-Dioulasso",
+    "min_usd": 3000,
+    "max_usd": 4100,
+    "note": ""
+  },
+  {
+    "country": "Burundi",
+    "gateway": "Dar es Salaam + road",
+    "city": "Bujumbura",
+    "min_usd": 3000,
+    "max_usd": 4300,
+    "note": ""
+  },
+  {
+    "country": "Cabo Verde",
+    "gateway": "Praia",
+    "city": "Praia",
+    "min_usd": 3000,
+    "max_usd": 4200,
+    "note": ""
+  },
+  {
+    "country": "Cabo Verde",
+    "gateway": "Mindelo",
+    "city": "Mindelo",
+    "min_usd": 3100,
+    "max_usd": 4300,
+    "note": ""
+  },
+  {
+    "country": "Cameroon",
+    "gateway": "Douala",
+    "city": "Douala",
+    "min_usd": 2300,
+    "max_usd": 3300,
+    "note": ""
+  },
+  {
+    "country": "Cameroon",
+    "gateway": "Douala + road",
+    "city": "Yaoundé",
+    "min_usd": 2500,
+    "max_usd": 3600,
+    "note": ""
+  },
+  {
+    "country": "Central African Republic",
+    "gateway": "Douala + road",
+    "city": "Bangui",
+    "min_usd": 4000,
+    "max_usd": 5800,
+    "note": ""
+  },
+  {
+    "country": "Chad",
+    "gateway": "Douala + road",
+    "city": "N'Djamena",
+    "min_usd": 4200,
+    "max_usd": 6000,
+    "note": ""
+  },
+  {
+    "country": "Comoros",
+    "gateway": "Moroni",
+    "city": "Moroni",
+    "min_usd": 2700,
+    "max_usd": 4000,
+    "note": ""
+  },
+  {
+    "country": "Republic of Congo",
+    "gateway": "Pointe-Noire",
+    "city": "Pointe-Noire",
+    "min_usd": 2400,
+    "max_usd": 3500,
+    "note": ""
+  },
+  {
+    "country": "Republic of Congo",
+    "gateway": "Pointe-Noire + road",
+    "city": "Brazzaville",
+    "min_usd": 2900,
+    "max_usd": 4100,
+    "note": ""
+  },
+  {
+    "country": "DR Congo",
+    "gateway": "Matadi",
+    "city": "Kinshasa",
+    "min_usd": 2700,
+    "max_usd": 4000,
+    "note": ""
+  },
+  {
+    "country": "DR Congo",
+    "gateway": "Dar es Salaam + road",
+    "city": "Lubumbashi",
+    "min_usd": 3500,
+    "max_usd": 5000,
+    "note": ""
+  },
+  {
+    "country": "Côte d'Ivoire",
+    "gateway": "Abidjan",
+    "city": "Abidjan",
+    "min_usd": 2200,
+    "max_usd": 3000,
+    "note": ""
+  },
+  {
+    "country": "Côte d'Ivoire",
+    "gateway": "Abidjan + road",
+    "city": "Yamoussoukro",
+    "min_usd": 2500,
+    "max_usd": 3400,
+    "note": ""
+  },
+  {
+    "country": "Djibouti",
+    "gateway": "Djibouti Port",
+    "city": "Djibouti City",
+    "min_usd": 2700,
+    "max_usd": 3400,
+    "note": ""
+  },
+  {
+    "country": "Egypt",
+    "gateway": "Alexandria",
+    "city": "Cairo/Alexandria",
+    "min_usd": 2000,
+    "max_usd": 2700,
+    "note": ""
+  },
+  {
+    "country": "Egypt",
+    "gateway": "Port Said",
+    "city": "Cairo",
+    "min_usd": 2100,
+    "max_usd": 2900,
+    "note": ""
+  },
+  {
+    "country": "Egypt",
+    "gateway": "Sokhna",
+    "city": "Cairo",
+    "min_usd": 2000,
+    "max_usd": 2800,
+    "note": ""
+  },
+  {
+    "country": "Equatorial Guinea",
+    "gateway": "Malabo",
+    "city": "Malabo",
+    "min_usd": 2800,
+    "max_usd": 4000,
+    "note": ""
+  },
+  {
+    "country": "Equatorial Guinea",
+    "gateway": "Bata",
+    "city": "Bata",
+    "min_usd": 2700,
+    "max_usd": 3900,
+    "note": ""
+  },
+  {
+    "country": "Eritrea",
+    "gateway": "Massawa",
+    "city": "Asmara",
+    "min_usd": 3000,
+    "max_usd": 4200,
+    "note": ""
+  },
+  {
+    "country": "Eswatini",
+    "gateway": "Durban/Maputo + road",
+    "city": "Mbabane",
+    "min_usd": 2300,
+    "max_usd": 3400,
+    "note": ""
+  },
+  {
+    "country": "Eswatini",
+    "gateway": "Maputo + road",
+    "city": "Manzini",
+    "min_usd": 2200,
+    "max_usd": 3300,
+    "note": ""
+  },
+  {
+    "country": "Ethiopia",
+    "gateway": "Djibouti + road",
+    "city": "Addis Ababa",
+    "min_usd": 3500,
+    "max_usd": 4800,
+    "note": ""
+  },
+  {
+    "country": "Gabon",
+    "gateway": "Owendo/Libreville",
+    "city": "Libreville",
+    "min_usd": 2500,
+    "max_usd": 3600,
+    "note": ""
+  },
+  {
+    "country": "Gambia",
+    "gateway": "Banjul",
+    "city": "Banjul",
+    "min_usd": 2500,
+    "max_usd": 3600,
+    "note": ""
+  },
+  {
+    "country": "Ghana",
+    "gateway": "Tema",
+    "city": "Accra/Tema",
+    "min_usd": 1300,
+    "max_usd": 2700,
+    "note": ""
+  },
+  {
+    "country": "Ghana",
+    "gateway": "Tema + road",
+    "city": "Kumasi",
+    "min_usd": 1700,
+    "max_usd": 3100,
+    "note": ""
+  },
+  {
+    "country": "Ghana",
+    "gateway": "Takoradi",
+    "city": "Takoradi",
+    "min_usd": 1500,
+    "max_usd": 2800,
+    "note": ""
+  },
+  {
+    "country": "Guinea",
+    "gateway": "Conakry",
+    "city": "Conakry",
+    "min_usd": 2400,
+    "max_usd": 3500,
+    "note": ""
+  },
+  {
+    "country": "Guinea-Bissau",
+    "gateway": "Bissau",
+    "city": "Bissau",
+    "min_usd": 2800,
+    "max_usd": 4000,
+    "note": ""
+  },
+  {
+    "country": "Kenya",
+    "gateway": "Mombasa",
+    "city": "Mombasa",
+    "min_usd": 1200,
+    "max_usd": 2200,
+    "note": "RoRo"
+  },
+  {
+    "country": "Kenya",
+    "gateway": "Mombasa + road",
+    "city": "Nairobi",
+    "min_usd": 1700,
+    "max_usd": 2800,
+    "note": ""
+  },
+  {
+    "country": "Kenya",
+    "gateway": "Mombasa + road",
+    "city": "Kisumu",
+    "min_usd": 2100,
+    "max_usd": 3300,
+    "note": ""
+  },
+  {
+    "country": "Lesotho",
+    "gateway": "Durban + road",
+    "city": "Maseru",
+    "min_usd": 2300,
+    "max_usd": 3500,
+    "note": ""
+  },
+  {
+    "country": "Liberia",
+    "gateway": "Monrovia",
+    "city": "Monrovia",
+    "min_usd": 2500,
+    "max_usd": 3700,
+    "note": ""
+  },
+  {
+    "country": "Libya",
+    "gateway": "Tripoli",
+    "city": "Tripoli",
+    "min_usd": 2400,
+    "max_usd": 3500,
+    "note": ""
+  },
+  {
+    "country": "Libya",
+    "gateway": "Benghazi",
+    "city": "Benghazi",
+    "min_usd": 2400,
+    "max_usd": 3600,
+    "note": ""
+  },
+  {
+    "country": "Madagascar",
+    "gateway": "Toamasina",
+    "city": "Antananarivo",
+    "min_usd": 2400,
+    "max_usd": 3500,
+    "note": ""
+  },
+  {
+    "country": "Malawi",
+    "gateway": "Dar es Salaam/Beira + road",
+    "city": "Lilongwe",
+    "min_usd": 3100,
+    "max_usd": 4400,
+    "note": ""
+  },
+  {
+    "country": "Malawi",
+    "gateway": "Beira + road",
+    "city": "Blantyre",
+    "min_usd": 2700,
+    "max_usd": 4000,
+    "note": ""
+  },
+  {
+    "country": "Mali",
+    "gateway": "Dakar/Abidjan + road",
+    "city": "Bamako",
+    "min_usd": 3300,
+    "max_usd": 4700,
+    "note": ""
+  },
+  {
+    "country": "Mauritania",
+    "gateway": "Nouakchott",
+    "city": "Nouakchott",
+    "min_usd": 3000,
+    "max_usd": 4200,
+    "note": ""
+  },
+  {
+    "country": "Mauritania",
+    "gateway": "Nouadhibou",
+    "city": "Nouadhibou",
+    "min_usd": 3000,
+    "max_usd": 4300,
+    "note": ""
+  },
+  {
+    "country": "Mauritius",
+    "gateway": "Port Louis",
+    "city": "Port Louis",
+    "min_usd": 2300,
+    "max_usd": 3400,
+    "note": ""
+  },
+  {
+    "country": "Morocco",
+    "gateway": "Casablanca",
+    "city": "Casablanca",
+    "min_usd": 3500,
+    "max_usd": 4500,
+    "note": ""
+  },
+  {
+    "country": "Morocco",
+    "gateway": "Tanger Med",
+    "city": "Tangier/Rabat",
+    "min_usd": 3400,
+    "max_usd": 4500,
+    "note": ""
+  },
+  {
+    "country": "Mozambique",
+    "gateway": "Maputo",
+    "city": "Maputo",
+    "min_usd": 1700,
+    "max_usd": 2800,
+    "note": ""
+  },
+  {
+    "country": "Mozambique",
+    "gateway": "Beira",
+    "city": "Beira",
+    "min_usd": 1900,
+    "max_usd": 3000,
+    "note": ""
+  },
+  {
+    "country": "Mozambique",
+    "gateway": "Nacala",
+    "city": "Nampula/Nacala",
+    "min_usd": 2100,
+    "max_usd": 3200,
+    "note": ""
+  },
+  {
+    "country": "Namibia",
+    "gateway": "Walvis Bay",
+    "city": "Walvis Bay",
+    "min_usd": 1100,
+    "max_usd": 1500,
+    "note": "RoRo"
+  },
+  {
+    "country": "Namibia",
+    "gateway": "Walvis Bay + road",
+    "city": "Windhoek",
+    "min_usd": 1600,
+    "max_usd": 2200,
+    "note": ""
+  },
+  {
+    "country": "Niger",
+    "gateway": "Cotonou/Lomé + road",
+    "city": "Niamey",
+    "min_usd": 3200,
+    "max_usd": 4500,
+    "note": ""
+  },
+  {
+    "country": "Nigeria",
+    "gateway": "Lagos/Tin Can",
+    "city": "Lagos",
+    "min_usd": 1700,
+    "max_usd": 2700,
+    "note": ""
+  },
+  {
+    "country": "Nigeria",
+    "gateway": "Apapa",
+    "city": "Lagos",
+    "min_usd": 1800,
+    "max_usd": 2800,
+    "note": ""
+  },
+  {
+    "country": "Nigeria",
+    "gateway": "Lagos + road",
+    "city": "Abuja",
+    "min_usd": 2300,
+    "max_usd": 3400,
+    "note": ""
+  },
+  {
+    "country": "Nigeria",
+    "gateway": "Lagos + road",
+    "city": "Kano",
+    "min_usd": 2700,
+    "max_usd": 3900,
+    "note": ""
+  },
+  {
+    "country": "Nigeria",
+    "gateway": "Onne",
+    "city": "Port Harcourt",
+    "min_usd": 2200,
+    "max_usd": 3300,
+    "note": ""
+  },
+  {
+    "country": "Rwanda",
+    "gateway": "Dar/Mombasa + road",
+    "city": "Kigali",
+    "min_usd": 3000,
+    "max_usd": 4300,
+    "note": ""
+  },
+  {
+    "country": "São Tomé & Príncipe",
+    "gateway": "São Tomé",
+    "city": "São Tomé",
+    "min_usd": 3000,
+    "max_usd": 4400,
+    "note": ""
+  },
+  {
+    "country": "Senegal",
+    "gateway": "Dakar",
+    "city": "Dakar",
+    "min_usd": 1100,
+    "max_usd": 2600,
+    "note": ""
+  },
+  {
+    "country": "Seychelles",
+    "gateway": "Port Victoria",
+    "city": "Victoria",
+    "min_usd": 2600,
+    "max_usd": 3800,
+    "note": ""
+  },
+  {
+    "country": "Sierra Leone",
+    "gateway": "Freetown",
+    "city": "Freetown",
+    "min_usd": 2600,
+    "max_usd": 3800,
+    "note": ""
+  },
+  {
+    "country": "Somalia",
+    "gateway": "Mogadishu",
+    "city": "Mogadishu",
+    "min_usd": 2200,
+    "max_usd": 3500,
+    "note": ""
+  },
+  {
+    "country": "Somalia",
+    "gateway": "Berbera",
+    "city": "Hargeisa/Berbera",
+    "min_usd": 2500,
+    "max_usd": 3800,
+    "note": ""
+  },
+  {
+    "country": "Somalia",
+    "gateway": "Bosaso",
+    "city": "Bosaso/Garowe",
+    "min_usd": 2500,
+    "max_usd": 3800,
+    "note": ""
+  },
+  {
+    "country": "Somalia",
+    "gateway": "Kismayo",
+    "city": "Kismayo",
+    "min_usd": 2600,
+    "max_usd": 4000,
+    "note": ""
+  },
+  {
+    "country": "South Africa",
+    "gateway": "Durban",
+    "city": "Durban/Johannesburg",
+    "min_usd": 1400,
+    "max_usd": 2400,
+    "note": "RoRo"
+  },
+  {
+    "country": "South Africa",
+    "gateway": "Durban + road",
+    "city": "Johannesburg",
+    "min_usd": 1900,
+    "max_usd": 3000,
+    "note": ""
+  },
+  {
+    "country": "South Africa",
+    "gateway": "Cape Town",
+    "city": "Cape Town",
+    "min_usd": 1600,
+    "max_usd": 2700,
+    "note": ""
+  },
+  {
+    "country": "South Africa",
+    "gateway": "Gqeberha",
+    "city": "Eastern Cape",
+    "min_usd": 1700,
+    "max_usd": 2800,
+    "note": ""
+  },
+  {
+    "country": "South Sudan",
+    "gateway": "Mombasa + road",
+    "city": "Juba",
+    "min_usd": 4000,
+    "max_usd": 5800,
+    "note": ""
+  },
+  {
+    "country": "Sudan",
+    "gateway": "Port Sudan",
+    "city": "Port Sudan",
+    "min_usd": 3100,
+    "max_usd": 5000,
+    "note": "Upper range may exceed estimate"
+  },
+  {
+    "country": "Sudan",
+    "gateway": "Port Sudan + road",
+    "city": "Khartoum",
+    "min_usd": 4000,
+    "max_usd": 6000,
+    "note": "Upper range may exceed estimate"
+  },
+  {
+    "country": "Tanzania",
+    "gateway": "Dar es Salaam",
+    "city": "Dar es Salaam",
+    "min_usd": 1300,
+    "max_usd": 2300,
+    "note": ""
+  },
+  {
+    "country": "Tanzania",
+    "gateway": "Dar + road",
+    "city": "Dodoma",
+    "min_usd": 1800,
+    "max_usd": 2800,
+    "note": ""
+  },
+  {
+    "country": "Tanzania",
+    "gateway": "Dar + road",
+    "city": "Arusha",
+    "min_usd": 2000,
+    "max_usd": 3100,
+    "note": ""
+  },
+  {
+    "country": "Tanzania",
+    "gateway": "Zanzibar",
+    "city": "Zanzibar City",
+    "min_usd": 1800,
+    "max_usd": 2800,
+    "note": ""
+  },
+  {
+    "country": "Togo",
+    "gateway": "Lomé",
+    "city": "Lomé",
+    "min_usd": 1400,
+    "max_usd": 1800,
+    "note": "RoRo"
+  },
+  {
+    "country": "Tunisia",
+    "gateway": "Radès",
+    "city": "Tunis",
+    "min_usd": 2800,
+    "max_usd": 3900,
+    "note": ""
+  },
+  {
+    "country": "Tunisia",
+    "gateway": "Sfax",
+    "city": "Sfax",
+    "min_usd": 2900,
+    "max_usd": 4000,
+    "note": ""
+  },
+  {
+    "country": "Uganda",
+    "gateway": "Mombasa + road",
+    "city": "Kampala",
+    "min_usd": 2300,
+    "max_usd": 3500,
+    "note": ""
+  },
+  {
+    "country": "Uganda",
+    "gateway": "Mombasa + road",
+    "city": "Entebbe",
+    "min_usd": 2300,
+    "max_usd": 3500,
+    "note": ""
+  },
+  {
+    "country": "Zambia",
+    "gateway": "Dar/Durban + road",
+    "city": "Lusaka",
+    "min_usd": 3000,
+    "max_usd": 4300,
+    "note": ""
+  },
+  {
+    "country": "Zambia",
+    "gateway": "Dar + road",
+    "city": "Ndola/Kitwe",
+    "min_usd": 3200,
+    "max_usd": 4500,
+    "note": ""
+  },
+  {
+    "country": "Zimbabwe",
+    "gateway": "Durban/Beira + road",
+    "city": "Harare",
+    "min_usd": 2800,
+    "max_usd": 4100,
+    "note": ""
+  },
+  {
+    "country": "Zimbabwe",
+    "gateway": "Durban + road",
+    "city": "Bulawayo",
+    "min_usd": 2700,
+    "max_usd": 3900,
+    "note": ""
+  }
+]

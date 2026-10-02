@@ -54,3 +54,9 @@ const proxy=fs.readFileSync('proxy.ts','utf8');if(!proxy.includes('lab.skyshcars
 const bridge=fs.readFileSync('tools/whatsapp-group-bridge/server.js','utf8');if(!bridge.includes('/api/bridge/whatsapp-group/config')||!bridge.includes('heartbeat')) fail('V27 group reader dynamic allowlist/heartbeat missing');
 const aut=fs.readFileSync('src/lib/automation.ts','utf8');if(!aut.includes('require_approval')||!aut.includes('dispatchCampaign')) fail('V27 automation approval/dispatch missing');
 console.log('V27 CHECK OK: Automation Center, Group Reader, Campaigns, owner-only lab subdomain isolation present.');
+
+for(const f of ['src/components/MarketplaceTools.tsx','src/components/ShippingEstimator.tsx','src/app/compare/page.tsx','data/shipping_reference.json','V29_READ_THIS_FIRST.txt']) if(!fs.existsSync(f)) fail('V29 missing '+f);
+const rates=JSON.parse(fs.readFileSync('data/shipping_reference.json','utf8'));if(rates.length<90) fail('V29 shipping reference routes incomplete');
+if(!fs.readFileSync('src/app/layout.tsx','utf8').includes('My Sky Cars')) fail('V29 marketplace header/account missing');
+if(!fs.readFileSync('src/app/vehicles/[id]/page.tsx','utf8').includes('ShippingEstimator')) fail('V29 detail shipping estimator missing');
+console.log('V29 CHECK OK: marketplace tools, compare/saved/recent, shipping reference and detail estimate integration present.');

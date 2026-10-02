@@ -1,0 +1,42 @@
+SKY CARS V29 MARKETPLACE EXPANSION
+
+BASE
+- Built by extending V28; working WhatsApp, AI, Group Reader, supplier import, admin, tracking, automation and real-photo protections are preserved.
+- Package version: 29.0.0
+- Required production build remains: next build --webpack
+
+V29 PUBLIC MARKETPLACE ADDITIONS
+- Marketplace-style header and discovery navigation
+- Rich homepage with type/category discovery and popular brands
+- Saved vehicles (browser-local customer convenience)
+- Recently viewed vehicles (browser-local)
+- Compare up to 4 vehicles
+- Vehicle-card favorite/compare controls
+- Vehicle-detail favorite/compare controls
+- Vehicle-detail similar-vehicle recommendations
+- Shipping estimator from supplied China→Africa reference guide
+- 95 reference routes across 54 African markets
+- Vehicle + reference-shipping range on detail pages when vehicle price exists
+- Strong disclaimer: estimates are NOT confirmed freight quotes
+- Expanded My Sky Cars shopping workspace
+- Marketplace footer/navigation and responsive mobile layouts
+
+SHIPPING DATA SAFETY
+- data/shipping_reference.json is reference data supplied by the project owner.
+- It must never be described as a live carrier quotation.
+- Final freight, inland transport, port, document, insurance, customs and destination charges require confirmation.
+- Existing /quote remains the confirmation workflow.
+
+INVENTORY / PHOTO SAFETY
+- No fake vehicles were added.
+- Invalid legacy motorcycle rows remain excluded from public inventory.
+- No internet/model photo fallback was re-enabled.
+- Public stock media remains limited to approved real listing media according to V28 rules.
+
+DEPLOYMENT
+1. Configure .env from .env.example.
+2. npm install
+3. npm run check
+4. npx tsc --noEmit
+5. npm run build
+6. Only deploy after all checks pass.

@@ -1,6 +1,6 @@
 {
   "name": "sky-cars",
-  "version": "27.2.0",
+  "version": "29.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

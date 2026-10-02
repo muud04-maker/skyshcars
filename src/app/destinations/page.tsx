@@ -1,14 +1,7 @@
-import markets from "../../../data/africa_markets.json";
-export default function Page(){
- const priority=markets.filter(x=>x.priority_market), other=markets.filter(x=>!x.priority_market);
- const Cards=({items}:{items:any[]})=><div className="grid">{items.map((x:any)=><div className="card" key={x.country}>
-  <span className="badge">{x.preferred_steering} market</span><h3>{x.country}</h3>
-  <p>Traffic: {x.traffic_side==="right"?"drives on the right":"drives on the left"}</p>
-  <p>{x.landlocked?"Landlocked — gateway port required":x.ports.length?`Reference ports: ${x.ports.join(", ")}`:"Port/gateway confirmation required"}</p>
-  <small>Shipping: quote & route confirmation required</small>
- </div>)}</div>;
- return <main className="wrap pageDestinations"><h1>Africa Destinations</h1>
- <p>Sky Cars primarily highlights right-driving markets compatible with typical LHD China-market vehicles. Shipping availability, import eligibility, route, price and transit time are confirmed per quote.</p>
- <h2>Priority LHD Markets</h2><Cards items={priority}/><h2>Other African Markets</h2>
- <p>Kept in the system for enquiries, but steering/import requirements must be checked.</p><Cards items={other}/></main>
+import markets from '../../../data/africa_markets.json';
+import rates from '../../../data/shipping_reference.json';
+export default async function Page({searchParams}:{searchParams:Promise<{country?:string}>}){
+ const sp=await searchParams;const countries=Array.from(new Set((rates as any[]).map(x=>x.country)));const selected=sp.country&&countries.includes(sp.country)?sp.country:'';const shown=selected?(rates as any[]).filter(x=>x.country===selected):(rates as any[]);
+ const priority=(markets as any[]).filter(x=>x.priority_market), other=(markets as any[]).filter(x=>!x.priority_market);
+ return <main className="wrap pageDestinations"><section className="shippingHero"><span className="eyebrow">DESTINATION NETWORK</span><h1>China → Africa vehicle shipping reference</h1><p>Explore gateway ports, important cities served and owner-supplied shipping estimate ranges. Final route availability and charges are confirmed for each vehicle and shipment.</p></section><form className="destinationFilter" action="/destinations"><label>Choose a market<select name="country" defaultValue={selected}><option value="">All reference markets</option>{countries.map(c=><option key={c}>{c}</option>)}</select></label><button className="btn">Show routes</button></form><div className="tableWrap routeReference"><table className="table"><thead><tr><th>Country</th><th>Gateway / route</th><th>City served</th><th>Reference shipping / car</th></tr></thead><tbody>{shown.map((x:any,i)=><tr key={x.country+x.gateway+x.city+i}><td><b>{x.country}</b></td><td>{x.gateway}</td><td>{x.city}</td><td><strong>${Number(x.min_usd).toLocaleString()}–${Number(x.max_usd).toLocaleString()}</strong>{x.note?<small> {x.note}</small>:null}</td></tr>)}</tbody></table></div><p className="estimateDisclaimer">These are planning references, not live carrier rates or customs quotations. Vehicle dimensions, RoRo/container availability, inland transport, port costs, documents, insurance, customs and destination fees can change the final amount.</p><div className="sectionHead"><div><span className="eyebrow">STEERING GUIDANCE</span><h2>Market compatibility records</h2></div></div><div className="grid destinationCards">{[...priority,...other].map((x:any)=><div className="card" key={x.country}><span className="badge">{x.preferred_steering} market</span><h3>{x.country}</h3><p>{x.traffic_side==='right'?'Drives on the right':'Drives on the left'}</p><small>{x.landlocked?'Gateway port plus inland route required':x.ports?.length?`Reference ports: ${x.ports.join(', ')}`:'Route confirmation required'}</small></div>)}</div></main>
 }
