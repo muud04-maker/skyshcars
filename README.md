@@ -1,48 +1,41 @@
-# Sky Cars V29 Marketplace
+# Sky Cars V30.1 Full Fix
 
-V29 extends the existing production Sky Cars architecture into a larger vehicle marketplace while preserving the working inventory, supplier import, WhatsApp AI, Group Reader, admin, automation, tracking and private Lab systems.
+This package is the consolidated follow-up to the V29 marketplace build. It preserves the existing Sky Cars production architecture and fixes the issues reported from the live screenshots.
 
-## Marketplace additions
+## Main fixes
 
-- Marketplace discovery homepage and navigation
-- Existing advanced inventory search/filtering preserved
-- Save/favorite vehicles in the browser
-- Recently viewed vehicles
-- Compare up to four vehicles
-- Similar-vehicle recommendations on detail pages
-- Expanded My Sky Cars shopping workspace
-- China→Africa shipping reference estimator
-- 95 supplied reference routes covering 54 African markets
-- Destination route table and gateway/city reference
-- Vehicle + reference-shipping estimate on detail pages
-- Responsive marketplace presentation
+- Model-matched representative photo fallback for inventory that has no exact approved stock media; exact vehicle media always wins.
+- Merged tools/manifests from the uploaded 248-vehicle / 5-photo master package.
+- Google/Facebook/GitHub passwordless customer login and signup, with MySQL customer synchronization.
+- Quote form with live vehicle selection, Africa country/port selection, automatic gateway and method behavior, required name/WhatsApp, optional email.
+- Robust Admin vehicle status updates with safe status-schema migration and useful errors.
+- Full Admin shipment CRUD + tracking-event creation.
+- Rebuilt Automation Center controls and layout.
+- Admin/Lab no longer show the public marketplace chrome.
+- `/lab` owner-only fallback while Hostinger maps `lab.skyshcars.com` and its SSL certificate.
 
-## Shipping policy
+## Photo policy
 
-The shipping data in `data/shipping_reference.json` is planning/reference information supplied by the project owner. It is not a live carrier quotation. Final route, freight, inland transport, port, documentation, insurance, customs and destination charges must be confirmed through Sky Cars before payment.
+Exact approved stock-unit photos have priority. When they do not exist, Sky Cars may show clearly labelled **Representative photo** imagery for browsing. The customer should receive/confirm current stock-unit photos before purchase.
 
-## Inventory and photos
+## Social login
 
-V29 preserves the V28 real-inventory rules. It does not fabricate inventory or motorcycle data, does not restore invalid legacy motorcycle listings, does not expose supplier identity/cost, and does not use random internet/model photos as exact stock-unit photos.
+Configure `AUTH_SECRET` plus any enabled provider credentials in `.env` / Hostinger environment variables. Supported providers are Google, Facebook and GitHub. OAuth callbacks must use the production domain according to each provider's setup.
 
-## Production stack
+## Shipping reference
 
-- Next.js 16.x + TypeScript
-- MySQL
-- Hostinger
-- GitHub `main`
-- Production: `https://skyshcars.com`
-- Private Lab target: `https://lab.skyshcars.com`
-- Required build: `next build --webpack`
+The bundled China→Africa route table is for estimation and destination selection. It is not a guaranteed live freight quote.
+
+## Lab
+
+Read `HOSTINGER_LAB_SETUP.txt`. `ERR_CONNECTION_CLOSED` on the subdomain is a Hostinger/DNS/SSL routing problem that happens before the Next.js application can answer. The package therefore keeps `https://skyshcars.com/lab` as an owner-only fallback when `LAB_PATH_FALLBACK=true`.
 
 ## Deployment
 
-Run on the Windows deployment machine:
+Run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
 ```
 
-The deployment script performs package validation, `npm install`, TypeScript validation and the production Webpack build before it commits or pushes anything.
-
-Read `V29_READ_THIS_FIRST.txt` before deployment.
+The deployment script is expected to run install, TypeScript checking and `next build --webpack` before any commit/push. Do not deploy if those checks fail.

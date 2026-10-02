@@ -20,5 +20,8 @@ export async function GET(_req:Request,{params}:{params:Promise<{id:string,index
     const uniq=imgs.filter((x,i,a)=>a.findIndex(y=>y.url===x.url)===i);
     if(uniq.length){const start=hash(String(v.stock_no||id))%uniq.length;const pick=uniq[(start+idx)%uniq.length];return Response.redirect(pick.url,302)}
   }catch(e){console.error('MODEL_PHOTO',e)}
-  return new Response(fallbackSvg(title,String(v.stock_no||id)+idx),{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=3600'}})
+  const localN=(hash(String(v.stock_no||id)+idx)%24)+1;
+  const local=v.category==='motorcycle'?`/demo/vehicles/moto-${localN}.webp`:`/demo/vehicles/car-${localN}.webp`;
+  const origin=new URL(_req.url).origin;
+  return Response.redirect(origin+local,302)
 }

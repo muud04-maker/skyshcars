@@ -1,0 +1,76 @@
+SKY CARS V30.1 — FULL PRODUCTION FIX PACKAGE
+
+THIS VERSION CONTINUES THE EXISTING SKY CARS PROJECT. IT DOES NOT RESTART OR REMOVE THE WORKING WHATSAPP AI, GROUP READER, SUPPLIER IMPORT, CAMPAIGNS, ADMIN, SHIPPING OR LAB CODE.
+
+WHAT WAS FIXED
+
+1) PUBLIC VEHICLE PHOTOS
+- Exact approved stock-unit photos still have highest priority.
+- If an exact photo is missing, the catalog now uses a model-matched representative photo route instead of showing a large "Photo coming soon" block.
+- Vehicle detail pages can show up to 5 representative model photos when exact media is unavailable.
+- Representative photos are clearly labelled so they are not misrepresented as the exact stock unit.
+- The fallback uses live Wikimedia/model lookup when available, then one of the included realistic local catalog images if the external lookup fails.
+- The uploaded 248-vehicle / 5-photo package tools and master 248 inventory manifest were merged into tools/photo-pack and tools/photo-master-tools.
+
+2) CUSTOMER LOGIN / SIGNUP / ACCOUNTS
+- /login and /signup are included.
+- Passwordless OAuth login supports Google, Facebook and GitHub when credentials are configured.
+- A successful social sign-in creates or updates the corresponding customer record by email in MySQL.
+- /account shows the signed-in identity plus saved and recently viewed vehicles.
+- Passwords are not stored by Sky Cars for these social logins.
+
+Required OAuth environment variables are in .env.example:
+AUTH_SECRET
+AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET
+AUTH_FACEBOOK_ID / AUTH_FACEBOOK_SECRET
+AUTH_GITHUB_ID / AUTH_GITHUB_SECRET
+
+3) QUOTE FORM
+- Vehicle is now a dropdown sourced from live public inventory.
+- Clicking Get Total Quote from a vehicle page auto-selects that vehicle.
+- Destination country is a dropdown from the Africa shipping reference data.
+- Destination port/gateway changes automatically with country.
+- Shipping method auto-selects RORO when the reference route explicitly says RoRo; otherwise it uses Need recommendation.
+- Name and WhatsApp remain required and intentionally blank.
+- Email is OPTIONAL and may be prefilled only when the customer is already signed in.
+- Quote requests preserve destination country/port text even if the admin countries/ports tables do not yet contain that route.
+
+4) VEHICLE MANAGEMENT UPDATE FAILURE
+- Admin vehicle API now checks/migrates the production vehicle status ENUM to include available/reserved/sold/pending_verification/hidden.
+- Status updates return the real database error instead of only "Could not update status".
+- Manual stock photos added from Admin are marked as exact stock photos.
+
+5) SHIPMENTS
+- /admin/shipments can now CREATE a shipment.
+- Can link customer, vehicle, quote and destination port.
+- Can set/change tracking reference, status, vessel, container, ETA and notes.
+- Status changes automatically create tracking events.
+- Can edit and delete shipment records.
+- Empty shipment page now contains a clear + Add Shipment action.
+
+6) AUTOMATION CENTER
+- Fixed broken checkbox layout caused by global input width rules.
+- Rules are presented as proper toggle rows.
+- Added clear master/channel/trigger descriptions.
+- Added Run due campaigns now and Refresh actions.
+- Existing opt-in and WhatsApp active-window restrictions remain preserved.
+
+7) ADMIN LAYOUT
+- Public marketplace header/footer/WhatsApp floating button are no longer rendered around Admin or Lab pages.
+- Admin now uses its own control-center shell without the duplicated public navigation shown in the screenshots.
+
+8) PRIVATE LAB
+- Preferred address remains https://lab.skyshcars.com
+- New safe fallback: https://skyshcars.com/lab
+- The fallback stays owner-only and noindex.
+- If lab.skyshcars.com shows ERR_CONNECTION_CLOSED, Hostinger DNS/domain/SSL mapping is still required. Read HOSTINGER_LAB_SETUP.txt.
+- Keep LAB_PATH_FALLBACK=true until the subdomain is fully mapped.
+
+VALIDATION STATUS
+- V30.1 structure/feature check PASSED.
+- ZIP integrity should be checked after packaging.
+- npm install could not finish in the provided build environment because dependency download timed out, so a full Next.js production build is NOT claimed here.
+- DEPLOY_NOW.ps1 must run npm install, TypeScript validation and next build --webpack on your deployment machine and must stop before push if they fail.
+
+DEPLOY
+powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1

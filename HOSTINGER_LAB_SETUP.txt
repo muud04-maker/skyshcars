@@ -1,0 +1,17 @@
+SKY CARS LAB — HOSTINGER SETUP
+
+The application now supports BOTH:
+1) Preferred: https://lab.skyshcars.com
+2) Safe fallback: https://skyshcars.com/lab
+
+If lab.skyshcars.com shows ERR_CONNECTION_CLOSED, that happens before Next.js receives the request. The code cannot create DNS or SSL from inside the ZIP.
+
+Hostinger steps:
+- Add subdomain: lab.skyshcars.com
+- Point it to the SAME deployed application as skyshcars.com
+- Ensure SSL certificate is issued for lab.skyshcars.com
+- Do not create a separate empty website for the subdomain
+- Keep LAB_OWNER_EMAIL and LAB_OWNER_PASSWORD configured
+- Keep LAB_PATH_FALLBACK=true until the subdomain works
+
+After mapping, visiting https://lab.skyshcars.com rewrites to the private /lab application automatically and remains noindex.

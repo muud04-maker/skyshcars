@@ -27,7 +27,7 @@ if(!hgm.includes('/uploads/vehicles/${id}/')) fail('HGM per-vehicle gallery filt
 const hgmRoute=fs.readFileSync('src/app/api/admin/suppliers/hgm-page/route.ts','utf8');
 if(!hgmRoute.includes('Supplier stock photo')||!hgmRoute.includes('supplier_vehicle_map')) fail('HGM stable import/gallery upsert missing');
 if(!vehicles.includes("category='motorcycle'")||!vehicles.includes("status='hidden'")) fail('Invalid legacy motorcycle cleanup missing');
-if(/api\/model-photo/.test(card)) fail('Vehicle cards still use unrelated model-photo fallback');
+if(!vehicles.includes('/api/model-photo/')) fail('Representative model-photo fallback missing');
 const catalog=fs.readFileSync('src/components/CatalogFilters.tsx','utf8');
 for(const token of ['Brand','Body Type','Steering','Fuel Type','Min price','Max price','Min year','Max year','Min mileage','Max mileage','Stock Status']) if(!catalog.includes(token)) fail('Catalog filter missing: '+token);
 

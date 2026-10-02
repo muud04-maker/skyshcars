@@ -4,7 +4,7 @@ import {labApp} from '../../../../lib/lab';
 export const dynamic='force-dynamic';
 export const metadata={robots:{index:false,follow:false,noarchive:true}};
 export default async function Page({params}:{params:Promise<{slug:string}>}){
- if(!(await isLabOwner()))redirect('/login');
+ if(!(await isLabOwner()))redirect('/lab/login');
  const {slug}=await params;const app=await labApp(slug);if(!app)notFound();
  return <main style={{minHeight:'100vh',background:'#0b1220',color:'#eef5ff',padding:20}}>
   <div style={{maxWidth:1440,margin:'0 auto'}}>

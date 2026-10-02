@@ -1,3 +1,9 @@
 import {NextRequest,NextResponse} from 'next/server';
-export function proxy(req:NextRequest){const host=(req.headers.get('host')||'').split(':')[0].toLowerCase();const p=req.nextUrl.pathname;const isLab=host==='lab.skyshcars.com'||host.startsWith('lab.');if(isLab){const h=new Headers(req.headers);h.set('x-sky-lab','1');if(p.startsWith('/_next')||p==='/favicon.ico'||p.startsWith('/api/lab/'))return NextResponse.next({request:{headers:h}});const u=req.nextUrl.clone();if(p==='/')u.pathname='/lab';else if(p==='/login')u.pathname='/lab/login';else if(!p.startsWith('/lab'))u.pathname='/lab'+p;const r=NextResponse.rewrite(u,{request:{headers:h}});r.headers.set('X-Robots-Tag','noindex, nofollow, noarchive');return r}if(p.startsWith('/lab')){const u=req.nextUrl.clone();u.pathname='/';return NextResponse.redirect(u)}if(p.startsWith('/api/lab/'))return NextResponse.json({error:'Not found'},{status:404});return NextResponse.next()}
+export function proxy(req:NextRequest){
+ const host=(req.headers.get('host')||'').split(':')[0].toLowerCase();const p=req.nextUrl.pathname;const isLab=host==='lab.skyshcars.com'||host.startsWith('lab.');const allowPath=process.env.LAB_PATH_FALLBACK!=='false';
+ if(isLab){const h=new Headers(req.headers);h.set('x-sky-lab','1');if(p.startsWith('/_next')||p==='/favicon.ico'||p.startsWith('/api/lab/'))return NextResponse.next({request:{headers:h}});const u=req.nextUrl.clone();if(p==='/')u.pathname='/lab';else if(p==='/login')u.pathname='/lab/login';else if(!p.startsWith('/lab'))u.pathname='/lab'+p;const r=NextResponse.rewrite(u,{request:{headers:h}});r.headers.set('X-Robots-Tag','noindex, nofollow, noarchive');return r}
+ if((p.startsWith('/lab')||p.startsWith('/api/lab/'))&&allowPath){const r=NextResponse.next();r.headers.set('X-Robots-Tag','noindex, nofollow, noarchive');return r}
+ if(p.startsWith('/lab')){const u=req.nextUrl.clone();u.pathname='/';return NextResponse.redirect(u)}
+ if(p.startsWith('/api/lab/'))return NextResponse.json({error:'Not found'},{status:404});return NextResponse.next()
+}
 export const config={matcher:['/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)']};
