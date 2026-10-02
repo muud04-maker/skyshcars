@@ -17,7 +17,7 @@ export async function generateMetadata({params}:{params:Promise<{id:string}>}):P
 export default async function Detail({params}:{params:Promise<{id:string}>}){
  const {id}=await params;const v:any=await getVehicle(id);if(!v)notFound();
  const media=await getVehicleMedia(v.id);
- const images:string[]=media.length?media.map((m:any)=>m.url):[v.category==='motorcycle'?'/vehicle-placeholder-motorcycle.svg':'/vehicle-placeholder-car.svg'];
+ const images:string[]=media.map((m:any)=>m.url);
  const status=String(v.status||'available');const statusText=status==='pending_verification'?'check availability':status.replaceAll('_',' ');
  const title=titleOf(v);const sx=typeof v.specs==='object'&&v.specs?v.specs:(()=>{try{return JSON.parse(v.specs||'{}')}catch{return{}}})();
  const jsonLd:any={'@context':'https://schema.org','@type':'Vehicle',name:title,sku:v.stock_no,brand:v.brand?{'@type':'Brand',name:v.brand}:undefined,model:v.model||undefined,vehicleModelDate:v.model_year?String(v.model_year):undefined,mileageFromOdometer:v.mileage_km?{'@type':'QuantitativeValue',value:Number(v.mileage_km),unitCode:'KMT'}:undefined,fuelType:v.fuel_type||undefined,vehicleTransmission:v.transmission||undefined,color:v.color||undefined,url:`${SITE_URL}/vehicles/${v.id}`,image:media.length?media.slice(0,6).map((m:any)=>String(m.url).startsWith('/')?SITE_URL+m.url:m.url):undefined,offers:v.price_usd?{'@type':'Offer',price:Number(v.price_usd),priceCurrency:'USD',availability:status==='sold'?'https://schema.org/SoldOut':status==='reserved'?'https://schema.org/LimitedAvailability':'https://schema.org/InStock',url:`${SITE_URL}/vehicles/${v.id}`}:undefined};
@@ -26,8 +26,7 @@ export default async function Detail({params}:{params:Promise<{id:string}>}){
   <nav className="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> › <a href={v.category==='motorcycle'?'/motorcycles':'/cars'}>{v.category==='motorcycle'?'Motorcycles':'Cars'}</a> › <span>{title}</span></nav>
   <div className="vehicleDetailGrid">
    <section className="vehicleGallery card">
-    <VehicleGallery images={images} alt={title}/>
-    {!media.length&&<p className="galleryHint">No verified vehicle photos are available yet. Contact Sky Cars for actual photos before payment.</p>}
+    {images.length?<VehicleGallery images={images} alt={title}/>:<div className="detailNoPhoto"><span>SKY CARS</span><strong>Current photos available on request</strong><p>Contact us and we will send the latest vehicle photos before you decide.</p></div>}
    </section>
    <section className="card vehicleInfoPanel">
     <div className="detailTopline"><span className={'badge '+(status==='pending_verification'||status==='reserved'?'pending':status==='sold'?'sold':'')}>{statusText}</span><span>Stock No. {v.stock_no}</span></div>

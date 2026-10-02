@@ -1,0 +1,5 @@
+Sky Cars V27.2 public catalogue cleanup
+- Removes internal motorcycle data-quality explanation from public pages.
+- Removes fake vehicle silhouette placeholders from public listings.
+- Uses a clean Photo coming soon state when no approved real image exists.
+- Detail pages no longer show a fake vehicle image when media is missing.
