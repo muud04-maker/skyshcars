@@ -1,17 +1,33 @@
-SKY CARS LAB — HOSTINGER SETUP
+SKY CARS PRIVATE LAB — HOSTINGER DOMAIN BINDING
+===============================================
 
-The application now supports BOTH:
-1) Preferred: https://lab.skyshcars.com
-2) Safe fallback: https://skyshcars.com/lab
+The application already contains these routes:
+  /lab
+  /lab/login
+  /lab/apps/[slug]
+  /api/lab/*
 
-If lab.skyshcars.com shows ERR_CONNECTION_CLOSED, that happens before Next.js receives the request. The code cannot create DNS or SSL from inside the ZIP.
+WORKING FALLBACK
+----------------
+Use:
+  https://skyshcars.com/lab
 
-Hostinger steps:
-- Add subdomain: lab.skyshcars.com
-- Point it to the SAME deployed application as skyshcars.com
-- Ensure SSL certificate is issued for lab.skyshcars.com
-- Do not create a separate empty website for the subdomain
-- Keep LAB_OWNER_EMAIL and LAB_OWNER_PASSWORD configured
-- Keep LAB_PATH_FALLBACK=true until the subdomain works
+WHY lab.skyshcars.com CAN STILL FAIL
+------------------------------------
+A 502 Bad Gateway or ERR_CONNECTION_CLOSED for lab.skyshcars.com happens before the Next.js route is served. That indicates Hostinger hostname/DNS/proxy/SSL binding, not a missing /lab route.
 
-After mapping, visiting https://lab.skyshcars.com rewrites to the private /lab application automatically and remains noindex.
+RECOMMENDED HOSTINGER SETUP
+---------------------------
+Do NOT rely on a static /public_html/lab folder for this Next.js route.
+Bind the hostname lab.skyshcars.com to the SAME Node.js application that serves skyshcars.com, using Hostinger's Node.js application domain/custom-domain connection workflow.
+
+Checklist:
+1. In Hostinger, open the deployed Node.js application for skyshcars.com.
+2. Find its Domain / Custom domain / Connect domain control.
+3. Add lab.skyshcars.com to that SAME application.
+4. Confirm DNS for host 'lab' resolves according to Hostinger's required target.
+5. Confirm SSL is issued/active for lab.skyshcars.com.
+6. Restart/redeploy the application if Hostinger requests it.
+7. Open https://lab.skyshcars.com/ and confirm it reaches the Lab login.
+
+If Hostinger's generic Subdomains screen only creates a physical public_html folder, that does not automatically proxy a Node.js route and is not sufficient by itself.

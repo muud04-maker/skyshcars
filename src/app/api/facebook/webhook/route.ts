@@ -4,6 +4,7 @@ import { salesReply, AI_MODEL } from '../../../../lib/ai';
 import { signatureOk } from '../../../../lib/meta';
 
 export const dynamic = 'force-dynamic';
+const GRAPH_VERSION=process.env.META_GRAPH_VERSION||process.env.WHATSAPP_GRAPH_VERSION||'v26.0';
 
 export async function GET(req: Request) {
   const u = new URL(req.url);
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
         if (c.mode !== 'ai' || !process.env.META_PAGE_ACCESS_TOKEN) continue;
         const reply = await salesReply(text, c.id);
         if (!reply) continue;
-        await axios.post(`https://graph.facebook.com/v23.0/me/messages?access_token=${encodeURIComponent(process.env.META_PAGE_ACCESS_TOKEN)}`,
+        await axios.post(`https://graph.facebook.com/${GRAPH_VERSION}/me/messages?access_token=${encodeURIComponent(process.env.META_PAGE_ACCESS_TOKEN)}`,
           { recipient: { id }, messaging_type: 'RESPONSE', message: { text: reply } }, { timeout: 20000 });
         await outbound(c.id, 'ai', reply, AI_MODEL);
       } catch (err: any) { console.error('FB_MESSAGE_ERROR', err?.response?.data || err); }

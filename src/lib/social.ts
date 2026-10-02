@@ -64,6 +64,12 @@ function abs(url?: string | null) {
 export async function getVehicleForSocial(vehicleId: number) {
   return one<any>(`SELECT v.*,
     (SELECT url FROM vehicle_media m WHERE m.vehicle_id=v.id AND m.media_type='image' AND m.review_status='approved'
+      AND m.url NOT LIKE '/demo/vehicles/%'
+      AND m.url NOT LIKE '%vehicle-placeholder%'
+      AND m.url NOT LIKE '/api/vehicle-art/%'
+      AND COALESCE(m.caption,'') NOT LIKE 'MODEL PHOTO%'
+      AND COALESCE(m.caption,'') NOT LIKE '%Reference image%'
+      AND COALESCE(m.caption,'') NOT LIKE '%Representative%'
       ORDER BY m.is_cover DESC,m.sort_order,id LIMIT 1) cover_url
     FROM vehicles v WHERE v.id=? LIMIT 1`, [vehicleId]);
 }
@@ -77,6 +83,7 @@ function safeCaption(v: any) {
     v.mileage_km ? `Mileage: ${Number(v.mileage_km).toLocaleString()} km` : '',
     v.transmission ? `Transmission: ${v.transmission}` : '',
     `${SITE}/vehicles/${v.id}`,
+    '#SkyCars #CarsFromChina'
   ].filter(Boolean);
   return parts.join('\n');
 }
@@ -145,7 +152,7 @@ export async function publishVehicleToFacebook(vehicleId: number, force = false)
       }, { timeout: 25000 });
     } else {
       r = await axios.post(`${GRAPH}/${process.env.META_PAGE_ID}/feed`, {
-        message, access_token: process.env.META_PAGE_ACCESS_TOKEN,
+        message, link:`${SITE}/vehicles/${v.id}`, access_token: process.env.META_PAGE_ACCESS_TOKEN,
       }, { timeout: 25000 });
     }
     const id = r.data?.post_id || r.data?.id || null;
@@ -204,3 +211,4 @@ export async function recentSocialLogs() {
   return rows<any>(`SELECT l.*,v.stock_no,v.brand,v.model FROM social_publish_log l
     LEFT JOIN vehicles v ON v.id=l.vehicle_id ORDER BY l.id DESC LIMIT 50`);
 }
+

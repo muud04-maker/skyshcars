@@ -1,41 +1,17 @@
-# Sky Cars V30.1 Full Fix
+# Sky Cars V31.1 — Final All-in-One Sell-Now Package
 
-This package is the consolidated follow-up to the V29 marketplace build. It preserves the existing Sky Cars production architecture and fixes the issues reported from the live screenshots.
+This is the consolidated package to deploy if V31 was not used.
 
-## Main fixes
+Included: marketplace UI, real/representative photo handling rules, 248-vehicle inventory tooling, customer login/signup and social OAuth support, quote selectors and shipping references, admin vehicle updates, shipments, WhatsApp AI, Group Reader, supplier import, Facebook social publishing, automation, campaigns, readiness dashboard, motorcycles workflow, and private Lab routes.
 
-- Model-matched representative photo fallback for inventory that has no exact approved stock media; exact vehicle media always wins.
-- Merged tools/manifests from the uploaded 248-vehicle / 5-photo master package.
-- Google/Facebook/GitHub passwordless customer login and signup, with MySQL customer synchronization.
-- Quote form with live vehicle selection, Africa country/port selection, automatic gateway and method behavior, required name/WhatsApp, optional email.
-- Robust Admin vehicle status updates with safe status-schema migration and useful errors.
-- Full Admin shipment CRUD + tracking-event creation.
-- Rebuilt Automation Center controls and layout.
-- Admin/Lab no longer show the public marketplace chrome.
-- `/lab` owner-only fallback while Hostinger maps `lab.skyshcars.com` and its SSL certificate.
+Start with `V31_1_FINAL_READ_FIRST.txt`.
 
-## Photo policy
-
-Exact approved stock-unit photos have priority. When they do not exist, Sky Cars may show clearly labelled **Representative photo** imagery for browsing. The customer should receive/confirm current stock-unit photos before purchase.
-
-## Social login
-
-Configure `AUTH_SECRET` plus any enabled provider credentials in `.env` / Hostinger environment variables. Supported providers are Google, Facebook and GitHub. OAuth callbacks must use the production domain according to each provider's setup.
-
-## Shipping reference
-
-The bundled China→Africa route table is for estimation and destination selection. It is not a guaranteed live freight quote.
-
-## Lab
-
-Read `HOSTINGER_LAB_SETUP.txt`. `ERR_CONNECTION_CLOSED` on the subdomain is a Hostinger/DNS/SSL routing problem that happens before the Next.js application can answer. The package therefore keeps `https://skyshcars.com/lab` as an owner-only fallback when `LAB_PATH_FALLBACK=true`.
-
-## Deployment
-
-Run:
+Deploy with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
 ```
 
-The deployment script is expected to run install, TypeScript checking and `next build --webpack` before any commit/push. Do not deploy if those checks fail.
+Do not hard-code Meta tokens or other secrets in the repository. Keep them in Hostinger Environment Variables.
+
+For the private Lab, `/lab` is implemented in the app. `lab.skyshcars.com` still requires Hostinger to bind that hostname to the same Node.js application and provide SSL/proxy routing; a plain static subdomain folder is not enough for a Next.js route.

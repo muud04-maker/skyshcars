@@ -1,0 +1,31 @@
+SKY CARS V31 — SELL NOW / LIVE CONNECTION PACKAGE
+
+Purpose: make the existing production business easier to launch and diagnose without inventing inventory or audience.
+
+NEW / FIXED
+1. /admin/launch = live readiness page for database, Facebook Page, WhatsApp AI, Group Reader, real-photo inventory, campaigns, customer login and Lab.
+2. Facebook status is now a REAL Graph API check, not merely “token exists”. It shows the connected Page name/ID or the actual Meta error.
+3. Social Publishing lets you test the connection and manually post one available vehicle before enabling automation.
+4. Facebook/WhatsApp social publishing uses exact approved stock-unit photos only. Representative website imagery is never sent as if it were the stock unit.
+5. If a vehicle has no exact social photo, Facebook publishes a link post instead of a fake stock image.
+6. Group Reader now shows ONLINE only when heartbeat is fresh (<3 minutes), and the bridge has setup/startup scripts for Windows PC/VPS.
+7. Group Reader import switch in Automation Center is now enforced by the bridge endpoint.
+8. Facebook Messenger AI webhook now follows META_GRAPH_VERSION instead of an old hard-coded Graph version.
+9. Automation Center has a safe “sell-now” preset: Facebook queue on, Group Reader on, approval required, WhatsApp broadcast off by default.
+10. Admin Private Lab link uses /lab so it works even while lab.skyshcars.com Hostinger routing/SSL is not fixed.
+
+IMPORTANT LIMITS
+- No code can create a Facebook audience instantly. Organic reach depends on Page history/content. Predictable reach normally requires Meta Ads and a real budget.
+- Do not buy fake followers/engagement. They damage conversion and measurement.
+- Do not publish fake cars or generic images as exact stock units.
+- WhatsApp Group Reader is separate from Meta Cloud API and must run on an always-on authorized WhatsApp Web bridge PC/VPS.
+- lab.skyshcars.com ERR_CONNECTION_CLOSED is Hostinger/DNS/SSL routing, not a missing Next.js page. /lab remains the working fallback.
+
+FIRST LIVE SALES TEST
+A. Open /admin/launch and refresh checks.
+B. Facebook should show connected to your Page.
+C. Open /admin/social, select ONE real available vehicle and click Post Facebook.
+D. Confirm the real Facebook post. Do not enable automatic posting until this succeeds.
+E. Run Group Reader on the PC/VPS and confirm /admin/group-reader says ONLINE.
+F. Approve a real motorcycle group draft in Inventory Review. It will become public inventory with its own uploaded photos.
+G. Use the safe sell-now preset in Automation Center, save it, and keep Require approval enabled for the first few days.

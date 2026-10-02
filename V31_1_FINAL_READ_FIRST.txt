@@ -1,0 +1,46 @@
+SKY CARS V31.1 FINAL ALL-IN-ONE
+================================
+
+This package supersedes V30.1 and V31 for deployment.
+It includes the current marketplace, customer login, quote workflow, shipping reference, vehicle/media handling, Facebook publishing, WhatsApp AI, Group Reader, automation, shipments, motorcycles workflow, supplier import, admin, and private Lab routes.
+
+IMPORTANT PRODUCTION FACTS
+--------------------------
+1. Facebook Page environment variables must exist in Hostinger:
+   META_PAGE_ID
+   META_PAGE_ACCESS_TOKEN
+   Never commit the token to GitHub.
+
+2. The Page ID for the connected Sky Cars Page is already known by the owner. Do not hard-code it into source; keep it in Hostinger environment variables.
+
+3. The private Lab code is available at /lab in this same Next.js application.
+   lab.skyshcars.com is NOT a code-only problem if Hostinger returns 502/connection closed.
+   Hostinger must bind lab.skyshcars.com to the same Node.js application (or otherwise proxy it correctly) and issue SSL for that hostname.
+   Until that domain binding is confirmed, use https://skyshcars.com/lab.
+
+4. Motorcycle inventory must remain real. Do not restore the old incomplete 42 rows. Add motorcycles only from approved Group Reader posts, manual admin entry with real data/photos, or trusted supplier feeds.
+
+5. Facebook/WhatsApp social publishing must never represent generic model photos as exact stock-unit photos. Exact approved vehicle media is preferred; when absent, the website may show clearly-labelled representative photos for browsing, but automated sales/social publishing should use verified stock media or a link-only post.
+
+DEPLOYMENT
+----------
+Run from this folder:
+  powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
+
+The deployment script must stop before push if npm install, TypeScript, or Next.js webpack build fails.
+
+AFTER HOSTINGER DEPLOYMENT
+--------------------------
+1. Open /admin/launch and confirm DB, Facebook, WhatsApp, DeepSeek, Group Reader and inventory health.
+2. Open /admin/social and click Test connections.
+3. Manually publish ONE real vehicle to Facebook first.
+4. Confirm the Facebook post actually appears on the correct Page.
+5. Open /admin/group-reader; start the bridge on an always-on Windows PC/VPS and confirm fresh heartbeat/ONLINE status.
+6. Use the safe sell-now automation preset and keep approval enabled while validating.
+7. Test one quote, one vehicle status update, and one shipment record.
+8. Test /login, /signup, /account and Google/Facebook/GitHub login only for providers whose OAuth credentials are actually configured.
+9. Use /lab until Hostinger subdomain binding for lab.skyshcars.com is confirmed.
+
+SECURITY
+--------
+Any Meta access token pasted into chat/screenshots should be rotated. Store replacement secrets only in Hostinger environment variables.
