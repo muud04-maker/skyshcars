@@ -4,6 +4,7 @@ import { signatureOk, sendWhatsApp, sendWhatsAppImage, whatsappConfigured, downl
 import { db, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
+import { claimReply, markReplySent, markReplyFailed } from '../../../../lib/reply-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,10 +90,10 @@ async function prepareMedia(m:any,d:Described,c:any){
 
 async function sendVehicleImages(from:string,text:string,conversationId:number){
   try {
-    const wantsImage = /\b(photo|photos|picture|pictures|image|images|show|see|look|send.*pic|car.*pic|vehicle.*pic)\b/i.test(text)
-      || /\bSC\s?-?\d{1,6}\b/i.test(text);
+    const wantsImage = /\b(photo|photos|picture|pictures|image|images|show me|let me see|send.*pic|send.*photo|car.*pic|vehicle.*pic)\b/i.test(text);
+    if (!wantsImage) return;
     const media = await vehicleMediaForMessage(text, conversationId);
-    if (media && (wantsImage || /\b(have|available|price|cost|stock|model|toyota|nissan|honda|byd|changan|geely|motorcycle|bike|suv|sedan)\b/i.test(text))) {
+    if (media) {
       const imgs = Array.isArray((media as any).images) ? (media as any).images.slice(0,3) : [media.image];
       for (let i=0;i<imgs.length;i++) await sendWhatsAppImage(from, imgs[i], i===0 ? media.caption : `${media.title} • photo ${i+1}`);
       await outbound(conversationId, 'ai', `[${imgs.length} vehicle photo${imgs.length>1?'s':''} sent] ${media.caption}`, AI_MODEL);
@@ -108,26 +109,9 @@ async function handle(m: any, contacts: any[]) {
   let d = describe(m);
   if (!from || !d) return;
   if (await alreadyProcessed(m.id)) {
-    // Meta retries webhooks. If the inbound message was stored but its AI reply failed,
-    // use the retry as a recovery opportunity instead of permanently ignoring it.
-    const [rows]: any = await db().execute(`SELECT m.id,m.body,m.message_type,c.id conversation_id,c.mode,c.external_user_id
-      FROM messages m JOIN conversations c ON c.id=m.conversation_id
-      WHERE m.external_message_id=? LIMIT 1`, [m.id]);
-    const existing = rows?.[0];
-    if (!existing || existing.mode !== 'ai' || existing.message_type !== 'text') return;
-    const [later]: any = await db().execute(`SELECT id FROM messages WHERE conversation_id=? AND id>?
-      AND sender IN ('ai','human') AND direction='outbound' LIMIT 1`, [existing.conversation_id, existing.id]);
-    if (later?.[0]) return;
-    try {
-      if (!whatsappConfigured()) throw new Error('WhatsApp send credentials not configured');
-      const reply = await salesReply(String(existing.body || ''), Number(existing.conversation_id));
-      if (!reply) throw new Error('AI returned no reply');
-      const waId = await sendWhatsApp(String(existing.external_user_id), reply);
-      await outbound(Number(existing.conversation_id), 'ai', reply, AI_MODEL);
-      await agentEvent(Number(existing.conversation_id), m.id, 'retry_reply', 'ok', { whatsapp_message_id: waId, trigger: 'meta_retry' });
-    } catch (e:any) {
-      await agentEvent(Number(existing.conversation_id), m.id, 'retry_reply', 'failed', e?.response?.data || e?.message || String(e));
-    }
+    // Meta may deliver the same webhook more than once. Never auto-send another reply
+    // for a message we already stored; this prevents unsolicited/duplicate WhatsApp texts.
+    await agentEvent(null,m.id,'duplicate_inbound','ignored',{reason:'already_processed'}).catch(()=>{});
     return;
   }
 
@@ -156,16 +140,27 @@ async function handle(m: any, contacts: any[]) {
     return;
   }
 
+  const inboundKey=String(m.id||'').trim();
+  const claimed=await claimReply(inboundKey,Number(c.id),'webhook',false);
+  if(!claimed){
+    await agentEvent(c.id,m.id,'reply','ignored',{reason:'reply_already_claimed'});
+    return;
+  }
   try{
     const reply = await salesReply(d.aiText, c.id);
     if (!reply) throw new Error('AI returned no reply');
     const waId=await sendWhatsApp(from, reply);
+    // Mark sent immediately after Meta accepts the message, before any secondary DB work.
+    // This makes webhook retries safe even if a later database insert fails.
+    await markReplySent(inboundKey,waId);
     await outbound(c.id, 'ai', reply, AI_MODEL);
     await agentEvent(c.id,m.id,'reply','ok',{whatsapp_message_id:waId,chars:reply.length});
     await sendVehicleImages(from,d.aiText,c.id);
   }catch(e:any){
-    await agentEvent(c.id,m.id,'reply','failed',e?.response?.data||e?.message||String(e));
-    console.error('WHATSAPP_REPLY_ERROR',e?.response?.data||e);
+    const detail=e?.response?.data||e?.message||String(e);
+    await markReplyFailed(inboundKey,detail).catch(()=>{});
+    await agentEvent(c.id,m.id,'reply','failed',detail);
+    console.error('WHATSAPP_REPLY_ERROR',detail);
   }
 }
 

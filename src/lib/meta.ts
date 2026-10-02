@@ -124,7 +124,7 @@ export async function downloadWhatsAppMedia(mediaId: string) {
 export async function sendWhatsApp(to: string, body: string) {
   return withMetaCredentials(async (token, phoneId) => {
     const r = await axios.post(`${GRAPH}/${phoneId}/messages`,
-      { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: true, body: body.slice(0, 4000) } },
+      { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body: body.slice(0, 4000) } },
       { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, timeout: 20000 });
     return r.data?.messages?.[0]?.id || null;
   });

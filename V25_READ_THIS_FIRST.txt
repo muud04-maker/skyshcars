@@ -1,0 +1,15 @@
+SKY CARS V25 — HUMAN SALES AGENT + DUPLICATE-REPLY FIX
+
+This release fixes the behavior seen in production after WhatsApp connectivity started working:
+- No automatic second/third messages from a duplicated Meta webhook.
+- Exactly one automatic AI reply is claimed per inbound WhatsApp message.
+- Failed replies can be retried only through an explicit admin action.
+- The agent chats like a salesperson instead of repeatedly pushing website/quote links.
+- Website links are optional and normally sent only when the customer asks to see/open a listing or is clearly ready to act.
+- No repeated generic browse links.
+- Vehicle photos are sent only when the customer explicitly asks for photos/images.
+- Explicit language choices such as “English only” persist in the conversation.
+- Short acknowledgements such as “yes” follow the immediately previous question instead of reviving an old topic.
+
+DEPLOY:
+powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1

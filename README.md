@@ -71,3 +71,7 @@ No feature should be considered production-verified until the Hostinger deployme
 
 ## V24 WhatsApp Full Fix
 V24 restores inbound WhatsApp delivery when WHATSAPP_APP_SECRET has not yet been configured by using a clearly reported compatibility mode, while automatically using strict signature verification once the secret is present. It also adds `/admin/whatsapp-health`, global 3-second inbox polling, a sticky human reply composer, and an **AI Reply Now** recovery button for unanswered messages.
+
+
+## V25 human sales behavior
+V25 changes the WhatsApp agent from link-heavy catalogue behavior to a concise sales conversation flow and adds a database-backed one-reply-per-inbound-message guard to prevent duplicate/unsolicited replies caused by webhook redelivery.
