@@ -1,10 +1,10 @@
 export const PAGE_SIZE = 36;
 
-export function pageOf<T>(list: T[], page: unknown) {
+export function pageOf<T>(list: T[], page: unknown, size = PAGE_SIZE) {
   const total = list.length;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(total / size));
   const p = Math.min(pages, Math.max(1, parseInt(String(page || '1'), 10) || 1));
-  return { items: list.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE), page: p, pages, total, from: total ? (p - 1) * PAGE_SIZE + 1 : 0, to: Math.min(total, p * PAGE_SIZE) };
+  return { items: list.slice((p - 1) * size, p * size), page: p, pages, total, from: total ? (p - 1) * size + 1 : 0, to: Math.min(total, p * size) };
 }
 
 export default function Pager({ base, params, page, pages, total, from, to }: { base: string; params?: Record<string, string | undefined>; page: number; pages: number; total: number; from: number; to: number }) {

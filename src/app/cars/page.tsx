@@ -1,11 +1,5 @@
-import { getVehicles } from '../../lib/vehicles';
-import VehicleGrid from '../../components/VehicleGrid';
-import Pager, { pageOf } from '../../components/Pager';
-export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Cars for Sale from China | Sky Cars', description: 'Browse cars in stock in China with price, year, mileage and export support from Sky Cars.' };
-export default async function Page({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
-  const sp = await searchParams;
-  const list = await getVehicles({ category: 'car' });
-  const p = pageOf(list, sp.page);
-  return <main className="wrap pageCars"><h1>Cars</h1><p>{list.length} listings</p><VehicleGrid list={p.items} emptyTitle="No cars listed right now" /><Pager base="/cars" {...p} /></main>;
-}
+import {getVehicles,getVehicleFilterOptions} from '../../lib/vehicles';import CatalogPage from '../../components/CatalogPage';
+export const dynamic='force-dynamic';
+export const metadata={title:'Cars for Sale from China | Sky Cars',description:'Browse current cars with real vehicle photos, filters, prices, year, mileage and export support from Sky Cars.'};
+type SP={q?:string;brand?:string;steering?:string;fuel?:string;body?:string;minPrice?:string;maxPrice?:string;minYear?:string;maxYear?:string;minMileage?:string;maxMileage?:string;stock?:string;sort?:string;page?:string};
+export default async function Page({searchParams}:{searchParams:Promise<SP>}){const sp=await searchParams;const q={category:'car',search:sp.q||'',brand:sp.brand||'',steering:sp.steering||'',fuel:sp.fuel||'',bodyType:sp.body||'',minPrice:sp.minPrice?Number(sp.minPrice):undefined,maxPrice:sp.maxPrice?Number(sp.maxPrice):undefined,minYear:sp.minYear?Number(sp.minYear):undefined,maxYear:sp.maxYear?Number(sp.maxYear):undefined,minMileage:sp.minMileage?Number(sp.minMileage):undefined,maxMileage:sp.maxMileage?Number(sp.maxMileage):undefined,stock:sp.stock||'',sort:sp.sort||'newest'};const [list,options]=await Promise.all([getVehicles(q),getVehicleFilterOptions('car')]);return <CatalogPage title="Cars" action="/cars" list={list} options={options} sp={sp}/>}

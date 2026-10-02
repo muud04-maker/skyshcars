@@ -1,11 +1,5 @@
-import { getVehicles } from '../../lib/vehicles';
-import VehicleGrid from '../../components/VehicleGrid';
-import Pager, { pageOf } from '../../components/Pager';
-export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Motorcycles for Sale from China | Sky Cars', description: 'Browse motorcycles in stock in China with export support from Sky Cars.' };
-export default async function Page({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
-  const sp = await searchParams;
-  const list = await getVehicles({ category: 'motorcycle' });
-  const p = pageOf(list, sp.page);
-  return <main className="wrap pageMoto"><h1>Motorcycles</h1><p>{list.length} listings</p><VehicleGrid list={p.items} emptyTitle="No motorcycles listed right now" /><Pager base="/motorcycles" {...p} /></main>;
-}
+import {getVehicles,getVehicleFilterOptions} from '../../lib/vehicles';import CatalogPage from '../../components/CatalogPage';
+export const dynamic='force-dynamic';
+export const metadata={title:'Motorcycles for Sale from China | Sky Cars',description:'Verified motorcycle listings with real make, model and approved photos only.'};
+type SP={q?:string;brand?:string;steering?:string;fuel?:string;body?:string;minPrice?:string;maxPrice?:string;minYear?:string;maxYear?:string;minMileage?:string;maxMileage?:string;stock?:string;sort?:string;page?:string};
+export default async function Page({searchParams}:{searchParams:Promise<SP>}){const sp=await searchParams;const q={category:'motorcycle',search:sp.q||'',brand:sp.brand||'',minPrice:sp.minPrice?Number(sp.minPrice):undefined,maxPrice:sp.maxPrice?Number(sp.maxPrice):undefined,minYear:sp.minYear?Number(sp.minYear):undefined,maxYear:sp.maxYear?Number(sp.maxYear):undefined,sort:sp.sort||'newest'};const [list,options]=await Promise.all([getVehicles(q),getVehicleFilterOptions('motorcycle')]);if(!list.length)return <main className="wrap verifiedMotoEmpty"><span className="eyebrow">VERIFIED MOTORCYCLES ONLY</span><h1>Motorcycles</h1><p>The old 42 motorcycle rows had no make, model or real motorcycle photos, so they have been removed from the public catalogue instead of showing unrelated car images.</p><p>Add real motorcycle inventory from Admin → Vehicles / Vehicle Photos and it will appear here automatically.</p><a className="btn" href="/quote">Request a motorcycle</a></main>;return <CatalogPage title="Motorcycles" action="/motorcycles" list={list} options={options} sp={sp}/>}

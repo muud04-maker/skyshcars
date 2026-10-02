@@ -20,6 +20,17 @@ if(!api.includes('PRIVATE_FIELDS')) fail('Public vehicle API does not strip priv
 for(const f of ['src/app/robots.ts','src/app/sitemap.ts','src/app/not-found.tsx','src/app/error.tsx','src/lib/ratelimit.ts','src/components/VehicleGallery.tsx']) if(!fs.existsSync(f)) fail('Missing '+f);
 if(!/X-Frame-Options/.test(fs.readFileSync('next.config.mjs','utf8'))) fail('Security headers missing');
 if(!/rateLimit\(/.test(fs.readFileSync('src/app/api/admin/login/route.ts','utf8'))) fail('Login rate limit missing');
+
+const hgm=fs.readFileSync('src/lib/hgm-scraper.ts','utf8');
+if(!hgm.includes('535')&&!hgm.includes('totalVehicles')) fail('HGM full catalogue detection missing');
+if(!hgm.includes('/uploads/vehicles/${id}/')) fail('HGM per-vehicle gallery filter missing');
+const hgmRoute=fs.readFileSync('src/app/api/admin/suppliers/hgm-page/route.ts','utf8');
+if(!hgmRoute.includes('Supplier stock photo')||!hgmRoute.includes('supplier_vehicle_map')) fail('HGM stable import/gallery upsert missing');
+if(!vehicles.includes("category='motorcycle'")||!vehicles.includes("status='hidden'")) fail('Invalid legacy motorcycle cleanup missing');
+if(/api\/model-photo/.test(card)) fail('Vehicle cards still use unrelated model-photo fallback');
+const catalog=fs.readFileSync('src/components/CatalogFilters.tsx','utf8');
+for(const token of ['Brand','Body Type','Steering','Fuel Type','Min price','Max price','Min year','Max year','Min mileage','Max mileage','Stock Status']) if(!catalog.includes(token)) fail('Catalog filter missing: '+token);
+
 console.log('FINAL CHECK OK: 50 extra vehicles, full-active inventory query, no public Reference badge, supplier import + markup, Hostinger webpack build.');
 
 // Resolve all relative imports so a bad ../ path is caught before npm build.

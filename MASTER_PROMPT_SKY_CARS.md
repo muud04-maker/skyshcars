@@ -10,6 +10,15 @@ You are taking over an ACTIVE production project called **Sky Cars & Motorcycles
 - The live site and database already exist. **Do not start over.**
 - MySQL is the single source of truth.
 
+## Current V26 catalogue upgrade
+- HongGuanMa is an authorized private supplier source.
+- The current public supplier catalogue reports about **535 vehicles across 34 pages**; V26 must discover the live count rather than hard-code the inventory as permanent truth.
+- `/admin/suppliers` contains a full page-by-page importer. Each supplier detail page is parsed separately so each vehicle receives only its own gallery images.
+- Supplier identity/base price/source URL remain private. Public price uses the configured Sky Cars markup.
+- Public catalogues use brand/body/steering/fuel/price/year/mileage/status filters and sorting.
+- The old 42 `motorcycle` rows with blank brand/model and no real motorcycle media are invalid legacy data; they must stay hidden from public pages until real motorcycle inventory is added.
+- Do not use random Wikimedia/model photos as exact stock photos.
+
 ## Working rules
 1. Inspect the actual source before claiming a feature exists.
 2. Do not claim something is fixed until TypeScript check AND production build pass.

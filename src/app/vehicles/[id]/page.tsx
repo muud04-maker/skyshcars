@@ -17,9 +17,9 @@ export async function generateMetadata({params}:{params:Promise<{id:string}>}):P
 export default async function Detail({params}:{params:Promise<{id:string}>}){
  const {id}=await params;const v:any=await getVehicle(id);if(!v)notFound();
  const media=await getVehicleMedia(v.id);
- const images:string[]=media.length?media.map((m:any)=>m.url):[0,1,2].map(i=>`/api/model-photo/${encodeURIComponent(String(v.id))}/${i}`);
+ const images:string[]=media.length?media.map((m:any)=>m.url):[v.category==='motorcycle'?'/vehicle-placeholder-motorcycle.svg':'/vehicle-placeholder-car.svg'];
  const status=String(v.status||'available');const statusText=status==='pending_verification'?'check availability':status.replaceAll('_',' ');
- const title=titleOf(v);
+ const title=titleOf(v);const sx=typeof v.specs==='object'&&v.specs?v.specs:(()=>{try{return JSON.parse(v.specs||'{}')}catch{return{}}})();
  const jsonLd:any={'@context':'https://schema.org','@type':'Vehicle',name:title,sku:v.stock_no,brand:v.brand?{'@type':'Brand',name:v.brand}:undefined,model:v.model||undefined,vehicleModelDate:v.model_year?String(v.model_year):undefined,mileageFromOdometer:v.mileage_km?{'@type':'QuantitativeValue',value:Number(v.mileage_km),unitCode:'KMT'}:undefined,fuelType:v.fuel_type||undefined,vehicleTransmission:v.transmission||undefined,color:v.color||undefined,url:`${SITE_URL}/vehicles/${v.id}`,image:media.length?media.slice(0,6).map((m:any)=>String(m.url).startsWith('/')?SITE_URL+m.url:m.url):undefined,offers:v.price_usd?{'@type':'Offer',price:Number(v.price_usd),priceCurrency:'USD',availability:status==='sold'?'https://schema.org/SoldOut':status==='reserved'?'https://schema.org/LimitedAvailability':'https://schema.org/InStock',url:`${SITE_URL}/vehicles/${v.id}`}:undefined};
  return <main className="wrap vehicleDetailPage">
   <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(jsonLd).replace(/</g,'\\u003c')}}/>
@@ -27,7 +27,7 @@ export default async function Detail({params}:{params:Promise<{id:string}>}){
   <div className="vehicleDetailGrid">
    <section className="vehicleGallery card">
     <VehicleGallery images={images} alt={title}/>
-    {!media.length&&<p className="galleryHint">Photos shown may represent this model. Contact Sky Cars to confirm the exact vehicle and request its actual photos before payment.</p>}
+    {!media.length&&<p className="galleryHint">No verified vehicle photos are available yet. Contact Sky Cars for actual photos before payment.</p>}
    </section>
    <section className="card vehicleInfoPanel">
     <div className="detailTopline"><span className={'badge '+(status==='pending_verification'||status==='reserved'?'pending':status==='sold'?'sold':'')}>{statusText}</span><span>Stock No. {v.stock_no}</span></div>
@@ -35,10 +35,10 @@ export default async function Detail({params}:{params:Promise<{id:string}>}){
     <div className="price">{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</div>
     <p className="muted">Price shown is the vehicle price in China. Shipping, destination charges and documents are quoted separately.</p>
     <div className="specGrid">
-      <div><small>Year</small><b>{v.model_year||'On request'}</b></div><div><small>Mileage</small><b>{v.mileage_km?Number(v.mileage_km).toLocaleString()+' km':'On request'}</b></div>
+      <div><small>Year</small><b>{v.model_year||'On request'}</b></div><div><small>Mileage</small><b>{sx.mileage_range|| (v.mileage_km?Number(v.mileage_km).toLocaleString()+'+ km':'On request')}</b></div>
       <div><small>Transmission</small><b>{v.transmission||'On request'}</b></div><div><small>Fuel</small><b>{v.fuel_type||'On request'}</b></div>
       <div><small>Engine</small><b>{v.engine||'On request'}</b></div><div><small>Steering</small><b>{v.steering||'On request'}</b></div>
-      <div><small>Color</small><b>{v.color||'On request'}</b></div><div><small>Location</small><b>{v.location||'China'}</b></div>
+      <div><small>Body type</small><b>{sx.body_type||'On request'}</b></div><div><small>Stock status</small><b>{sx.stock_status||statusText}</b></div><div><small>Color</small><b>{v.color||'On request'}</b></div><div><small>Location</small><b>{v.location||'China'}</b></div>
     </div>
     <div className="detailActions"><a className="btn" href={'/quote?vehicle='+v.id}>Get Total Quote</a><a className="btn wa" href={waLink(`Hi Sky Cars, I am interested in ${v.stock_no} ${title} - ${SITE_URL}/vehicles/${v.id}`)} target="_blank" rel="noreferrer">Ask on WhatsApp</a></div>
    </section>

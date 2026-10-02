@@ -1,7 +1,4 @@
-import Pager,{pageOf} from '../../components/Pager';import { getVehicles } from '../../lib/vehicles';
-import VehicleGrid from '../../components/VehicleGrid';
-export const dynamic = 'force-dynamic';
-export default async function Vehicles({searchParams}:{searchParams:Promise<{q?:string;brand?:string;page?:string}>}) {
-  const sp=await searchParams;const all=await getVehicles({search:sp.q||'',brand:sp.brand||''});const pg=pageOf(all,sp.page);const vs=pg.items;
-  return <main className="wrap pageVehicles"><div className="catalogTop"><div><span className="eyebrow">SKY CARS STOCK</span><h1>Vehicles</h1><p className="muted">Search current stock. Contact us to confirm availability before payment.</p></div><form className="catalogSearch" action="/vehicles"><input name="q" defaultValue={sp.q||''} placeholder="Search by brand, model or stock number"/><button className="btn">Search</button></form></div><VehicleGrid list={vs} emptyTitle="No matching vehicle found"/><Pager base="/vehicles" params={{q:sp.q,brand:sp.brand}} {...pg}/></main>;
-}
+import {getVehicles,getVehicleFilterOptions} from '../../lib/vehicles';import CatalogPage from '../../components/CatalogPage';
+export const dynamic='force-dynamic';
+type SP={q?:string;brand?:string;steering?:string;fuel?:string;body?:string;minPrice?:string;maxPrice?:string;minYear?:string;maxYear?:string;minMileage?:string;maxMileage?:string;stock?:string;sort?:string;page?:string};
+export default async function Vehicles({searchParams}:{searchParams:Promise<SP>}){const sp=await searchParams;const q={category:'car',search:sp.q||'',brand:sp.brand||'',steering:sp.steering||'',fuel:sp.fuel||'',bodyType:sp.body||'',minPrice:sp.minPrice?Number(sp.minPrice):undefined,maxPrice:sp.maxPrice?Number(sp.maxPrice):undefined,minYear:sp.minYear?Number(sp.minYear):undefined,maxYear:sp.maxYear?Number(sp.maxYear):undefined,minMileage:sp.minMileage?Number(sp.minMileage):undefined,maxMileage:sp.maxMileage?Number(sp.maxMileage):undefined,stock:sp.stock||'',sort:sp.sort||'newest'};const [list,options]=await Promise.all([getVehicles(q),getVehicleFilterOptions('car')]);return <CatalogPage title="Vehicles" action="/vehicles" list={list} options={options} sp={sp}/>}

@@ -1,3 +1,15 @@
+# Sky Cars V26 — Full HongGuanMa Catalog + Marketplace Fix
+
+This is the current complete package. It keeps the V25 WhatsApp sales-agent fixes and adds the V26 supplier catalog, real galleries, filters, catalog styling, and motorcycle cleanup.
+
+Deploy with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
+```
+
+After deployment, sign in to `/admin/suppliers` and press **Import all supplier vehicles + photos**. The importer processes all detected HongGuanMa pages one by one and saves completed pages as it goes.
+
 # Sky Cars V23.1 WhatsApp AI Reply Recovery — TypeScript Fix
 
 This package fixes the V23 deployment-blocking TypeScript Blob/Buffer error in `src/lib/media-ai.ts`.
@@ -75,3 +87,6 @@ V24 restores inbound WhatsApp delivery when WHATSAPP_APP_SECRET has not yet been
 
 ## V25 human sales behavior
 V25 changes the WhatsApp agent from link-heavy catalogue behavior to a concise sales conversation flow and adds a database-backed one-reply-per-inbound-message guard to prevent duplicate/unsolicited replies caused by webhook redelivery.
+
+## V26 full supplier catalogue
+V26 adds a page-by-page HongGuanMa importer, real per-vehicle galleries, marketplace filters/sorting, neutral catalog styling, and removes invalid legacy motorcycle rows from the public site. See `docs/V26_HGM_FULL_CATALOG.md`.
