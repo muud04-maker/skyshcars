@@ -49,3 +49,8 @@ for(const file of walk('src').filter(f=>/\.(ts|tsx|js|jsx)$/.test(f))){
     if(!candidates.some(p=>fs.existsSync(p))) fail(`Unresolved relative import in ${file}: ${m[2]}`);
   }
 }
+for(const f of ['src/lib/automation.ts','src/lib/group-reader.ts','src/lib/lab-auth.ts','src/app/admin/automation/page.tsx','src/app/admin/group-reader/page.tsx','src/app/admin/campaigns/page.tsx','src/app/lab/page.tsx','src/app/lab/login/page.tsx','proxy.ts']) if(!fs.existsSync(f)) fail('V27 missing '+f);
+const proxy=fs.readFileSync('proxy.ts','utf8');if(!proxy.includes('lab.skyshcars.com')||!proxy.includes('X-Robots-Tag')) fail('Private lab subdomain isolation missing');
+const bridge=fs.readFileSync('tools/whatsapp-group-bridge/server.js','utf8');if(!bridge.includes('/api/bridge/whatsapp-group/config')||!bridge.includes('heartbeat')) fail('V27 group reader dynamic allowlist/heartbeat missing');
+const aut=fs.readFileSync('src/lib/automation.ts','utf8');if(!aut.includes('require_approval')||!aut.includes('dispatchCampaign')) fail('V27 automation approval/dispatch missing');
+console.log('V27 CHECK OK: Automation Center, Group Reader, Campaigns, owner-only lab subdomain isolation present.');

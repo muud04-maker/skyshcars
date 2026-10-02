@@ -1,9 +1,1 @@
-import { createGroupImport } from '../../../../lib/group-import';
-export const dynamic='force-dynamic';
-export async function POST(req:Request){
-  const secret=process.env.WHATSAPP_SERVICE_SECRET||'';
-  const given=req.headers.get('x-sky-secret')||'';
-  if(!secret || given!==secret) return Response.json({error:'Unauthorized'},{status:401});
-  try{return Response.json({ok:true,...await createGroupImport(await req.json())});}
-  catch(e:any){console.error('GROUP_BRIDGE',e);return Response.json({error:e?.message||'Import failed'},{status:400});}
-}
+import {createGroupImport} from '../../../../lib/group-import';import {isGroupAllowed,touchGroup} from '../../../../lib/group-reader';export const dynamic='force-dynamic';export async function POST(req:Request){const secret=process.env.WHATSAPP_SERVICE_SECRET||'';const given=req.headers.get('x-sky-secret')||'';if(!secret||given!==secret)return Response.json({error:'Unauthorized'},{status:401});try{const b=await req.json();const name=String(b.groupName||'');const gid=String(b.groupId||'');if(!(await isGroupAllowed(name,gid)))return Response.json({error:'Group is not authorized in Sky Cars Admin'},{status:403});const out=await createGroupImport(b);await touchGroup(name,String(b.messageId||''),gid);return Response.json({ok:true,...out})}catch(e:any){console.error('GROUP_BRIDGE',e);return Response.json({error:e?.message||'Import failed'},{status:400})}}

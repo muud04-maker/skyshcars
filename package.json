@@ -1,6 +1,6 @@
 {
   "name": "sky-cars",
-  "version": "26.0.0",
+  "version": "27.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,7 +12,7 @@
     "axios": "^1.12.2",
     "dotenv": "^17.2.2",
     "mysql2": "^3.15.3",
-    "next": "16.3.7",
+    "next": "16.3.8",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },

@@ -1,92 +1,55 @@
-# Sky Cars V26 — Full HongGuanMa Catalog + Marketplace Fix
+# Sky Cars V27 FINAL
 
-This is the current complete package. It keeps the V25 WhatsApp sales-agent fixes and adds the V26 supplier catalog, real galleries, filters, catalog styling, and motorcycle cleanup.
+V27 combines the current Sky Cars production website, HGM catalogue integration, WhatsApp sales assistant, admin control center and the new automation/private-development layer.
 
-Deploy with:
+## Main production stack
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
-```
+- Next.js 16.x + TypeScript
+- MySQL
+- Hostinger Node hosting
+- GitHub `main`
+- Required build command: `next build --webpack`
+- Production domain: `https://skyshcars.com`
+- Private development hostname: `https://lab.skyshcars.com`
 
-After deployment, sign in to `/admin/suppliers` and press **Import all supplier vehicles + photos**. The importer processes all detected HongGuanMa pages one by one and saves completed pages as it goes.
+## V27 Admin areas
 
-# Sky Cars V23.1 WhatsApp AI Reply Recovery — TypeScript Fix
+Sales: Vehicles, Vehicle Photos, Inventory Review, Private Suppliers, Customers, Leads, Quotes.
 
-This package fixes the V23 deployment-blocking TypeScript Blob/Buffer error in `src/lib/media-ai.ts`.
+Shipping: Shipments, Documents, Countries, Ports, Routes, Rates.
 
-Deploy with:
+Communications: Inbox / Sales Assistant, AI Agent Health, WhatsApp Diagnostics, Sales Knowledge.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
-```
+Automation: Automation Center, Group Reader, Campaigns, Social Publishing.
 
-The deployment script must pass TypeScript and `next build --webpack` before it can commit or push.
+System: Backup / Export, Settings, Admin Users, Audit Logs, Dev Center.
 
-# Sky Cars V20 PRO — Owner Control Center + Public Marketplace
+Owner only: Private Development Lab.
 
-Start with `OWNER_GUIDE_SIMPLE.md`, then `SKY_CARS_FULL_REPORT.pdf` (in the ZIP root).
+## Automation behavior
 
+When a vehicle becomes available, V27 can queue a campaign. The default is approval-first. Admin can enable Facebook and WhatsApp channels and choose whether manual publishing, WhatsApp-group approval or supplier publishing should trigger automation.
 
-Production domain: `https://skyshcars.com`
+WhatsApp proactive vehicle updates are limited to customers explicitly marked as marketing opt-in and active within the last 24 hours. Supplier bulk auto-publishing is disabled by default.
 
-The website uses MySQL as the source of truth for inventory and operational data. This package extends the existing admin into a unified control center without replacing the working public website design.
+## WhatsApp Group Reader
 
-## Admin
-Open `/admin/login` and sign in with both `ADMIN_EMAIL` and `ADMIN_PASSWORD` from Hostinger Environment Variables.
+The group bridge lives in `tools/whatsapp-group-bridge`. It uses a linked WhatsApp session and sends only authorized group posts to the protected website endpoint. Authorized groups are managed in `/admin/group-reader`. Incoming listings remain drafts until review.
 
-The control center includes inventory, media, import review, customers, leads, quotes, shipments, documents, countries, ports, routes, rates, conversations/AI takeover, admin users, audit logs, settings and a Developer & Operations Center.
+## Private Development Lab
 
-See `docs/ADMIN_CONTROL_CENTER.md` for the admin feature map and security model.
+The Lab runs under `lab.skyshcars.com`, uses a separate owner-only session cookie and is hidden from public navigation and search indexing. It stores application registry data in `lab_apps`, which the Sky Cars sales AI never queries.
 
-## Developer Center
-`/admin/dev` includes a VS Code-style read-only project explorer plus safe production diagnostics. It does **not** expose an arbitrary browser shell or secret files.
+The Lab can register education, grocery-delivery, research or other private applications. A registered app can be opened through a private Lab route and embedded from its deployment URL.
 
-## Database setup
-Do not re-import a working production database blindly. For a brand-new database only, the schema files are under `database/`.
+## Deployment
 
-## Environment variables
-See `.env.example`. Keep all real secret values in Hostinger, never GitHub.
-
-## Build
-The Hostinger-compatible build command remains:
-
-```bash
-npm run build
-```
-
-which maps to:
-
-```bash
-next build --webpack
-```
-
-Do not remove `--webpack` unless Hostinger's runtime compatibility is re-tested.
-
-## Deploy
-From the extracted package on the user's Windows machine:
+Run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
 ```
 
-The deployment script installs dependencies and builds before it commits/pushes.
+The script checks the package, installs dependencies, runs TypeScript, builds with Webpack, commits and pushes only after successful checks.
 
-## Post-deploy checks
-- `/api/health`
-- `/admin/login`
-- `/admin`
-- `/admin/dev`
-- `/api/vehicles`
-- `/admin/whatsapp`
-
-No feature should be considered production-verified until the Hostinger deployment and runtime checks pass.
-
-## V24 WhatsApp Full Fix
-V24 restores inbound WhatsApp delivery when WHATSAPP_APP_SECRET has not yet been configured by using a clearly reported compatibility mode, while automatically using strict signature verification once the secret is present. It also adds `/admin/whatsapp-health`, global 3-second inbox polling, a sticky human reply composer, and an **AI Reply Now** recovery button for unanswered messages.
-
-
-## V25 human sales behavior
-V25 changes the WhatsApp agent from link-heavy catalogue behavior to a concise sales conversation flow and adds a database-backed one-reply-per-inbound-message guard to prevent duplicate/unsolicited replies caused by webhook redelivery.
-
-## V26 full supplier catalogue
-V26 adds a page-by-page HongGuanMa importer, real per-vehicle galleries, marketplace filters/sorting, neutral catalog styling, and removes invalid legacy motorcycle rows from the public site. See `docs/V26_HGM_FULL_CATALOG.md`.
+Read `V27_READ_THIS_FIRST.txt` before deployment.

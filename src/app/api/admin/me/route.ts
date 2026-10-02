@@ -1,0 +1,1 @@
+import {NextResponse} from 'next/server';import {getAdminSession} from '../../../../lib/admin';export async function GET(){const s=await getAdminSession();if(!s)return NextResponse.json({error:'Unauthorized'},{status:401});return NextResponse.json({email:s.email,role:s.role})}

@@ -294,3 +294,56 @@ CREATE TABLE IF NOT EXISTS inventory_import_media (
  FOREIGN KEY(import_item_id) REFERENCES inventory_import_items(id) ON DELETE CASCADE,
  INDEX(import_item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- V27 Automation Center / Group Reader / Owner Private Lab
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_opt_in BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_opt_in_at DATETIME NULL;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_opt_out_at DATETIME NULL;
+
+CREATE TABLE IF NOT EXISTS whatsapp_group_sources (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ group_name VARCHAR(191) NOT NULL,
+ group_external_id VARCHAR(191) NULL,
+ enabled BOOLEAN NOT NULL DEFAULT TRUE,
+ notes TEXT NULL,
+ last_seen_at DATETIME NULL,
+ last_message_id VARCHAR(191) NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_group_name(group_name), INDEX(enabled), INDEX(last_seen_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO whatsapp_group_sources(group_name,enabled,notes) VALUES('SKy Cars motorcycles',1,'Primary Sky Cars inventory group');
+
+CREATE TABLE IF NOT EXISTS whatsapp_group_bridge_status (
+ bridge_id VARCHAR(80) PRIMARY KEY,status VARCHAR(40) NOT NULL,whatsapp_account VARCHAR(191) NULL,
+ visible_groups INT NULL,app_version VARCHAR(40) NULL,details TEXT NULL,last_heartbeat_at DATETIME NOT NULL,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS automation_campaigns (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,vehicle_id BIGINT UNSIGNED NULL,reason VARCHAR(80) NOT NULL DEFAULT 'new_vehicle',
+ title VARCHAR(191) NOT NULL,message TEXT NULL,channels JSON NOT NULL,audience JSON NULL,
+ status ENUM('draft','approved','sending','sent','failed','cancelled') NOT NULL DEFAULT 'draft',
+ scheduled_at DATETIME NULL,sent_at DATETIME NULL,last_error TEXT NULL,created_by VARCHAR(191) NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ INDEX(status,scheduled_at),INDEX(vehicle_id),FOREIGN KEY(vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS automation_campaign_deliveries (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,campaign_id BIGINT UNSIGNED NOT NULL,channel VARCHAR(40) NOT NULL,
+ recipient VARCHAR(191) NULL,status ENUM('sent','skipped','failed') NOT NULL,details TEXT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ INDEX(campaign_id),INDEX(channel,status),FOREIGN KEY(campaign_id) REFERENCES automation_campaigns(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS automation_events (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,event_type VARCHAR(80) NOT NULL,entity_type VARCHAR(80) NULL,
+ entity_id VARCHAR(191) NULL,status VARCHAR(40) NOT NULL,details TEXT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ INDEX(created_at),INDEX(event_type,status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO business_settings(setting_key,setting_value) VALUES('automation_v27',JSON_OBJECT('enabled',true,'require_approval',true,'facebook_auto',true,'whatsapp_auto',false,'group_reader_enabled',true,'auto_on_manual_publish',true,'auto_on_group_approval',true,'auto_on_supplier_publish',false,'whatsapp_active_window_only',true,'max_whatsapp_recipients_per_vehicle',50)) ON DUPLICATE KEY UPDATE setting_key=setting_key;
+
+CREATE TABLE IF NOT EXISTS lab_apps (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,name VARCHAR(191) NOT NULL,slug VARCHAR(120) NOT NULL UNIQUE,
+ category VARCHAR(80) NULL,status ENUM('development','testing','live','paused') NOT NULL DEFAULT 'development',
+ launch_url TEXT NULL,notes TEXT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,INDEX(status),INDEX(category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

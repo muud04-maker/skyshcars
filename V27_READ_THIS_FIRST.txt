@@ -1,0 +1,79 @@
+SKY CARS V27 FINAL
+Automation Center + Group Reader + Campaigns + Owner Private Lab
+
+DEPLOY
+1. Extract this ZIP.
+2. Open PowerShell inside the extracted folder.
+3. Run exactly:
+   powershell -ExecutionPolicy Bypass -File .\DEPLOY_NOW.ps1
+
+WHAT V27 ADDS
+- Admin -> Automation Center
+- Admin -> Group Reader
+- Admin -> Campaigns
+- Facebook and WhatsApp vehicle-update rules
+- WhatsApp updates restricted to customers explicitly marked OPTED IN and within an active 24-hour conversation window
+- Group-reader allowlist controlled from Admin
+- Group-reader heartbeat/status in Admin
+- Group listing text + images -> Inventory Review -> approval -> Inventory
+- Campaign approval by default, with optional full automatic mode
+- Owner-only Private Development Lab at lab.skyshcars.com
+- Private app registry for education, grocery, research and other experiments
+- Lab data is separated from the sales AI knowledge path
+- Lab pages are noindex/noarchive and are not linked from the public site
+- Staff/admin accounts do not get Lab access; only OWNER credentials do
+
+HOSTINGER ENVIRONMENT VARIABLES
+Keep all existing DB, ADMIN, DeepSeek, WhatsApp and Meta variables.
+Add/confirm:
+WHATSAPP_SERVICE_SECRET=<long random value>
+AUTOMATION_CRON_SECRET=<long random value if using scheduled campaigns>
+
+Optional separate Lab credentials:
+LAB_OWNER_EMAIL=<your private lab login email>
+LAB_OWNER_PASSWORD=<your private lab password>
+If left blank, the Lab accepts the Sky Cars OWNER admin credentials.
+
+LAB SUBDOMAIN
+Create lab.skyshcars.com in Hostinger and point it to the SAME Node/Next.js application as skyshcars.com.
+V27's proxy routes that hostname into the private Lab automatically.
+The public skyshcars.com hostname redirects attempts to open /lab back to the public homepage.
+
+GROUP READER
+The Meta WhatsApp Cloud API does not provide ordinary WhatsApp group reading.
+Use tools\whatsapp-group-bridge on an always-on PC or VPS.
+It reads ONLY groups enabled in Admin -> Group Reader.
+The default authorized group is: SKy Cars motorcycles
+
+Bridge setup:
+cd tools\whatsapp-group-bridge
+copy .env.example .env
+# put the same WHATSAPP_SERVICE_SECRET used in Hostinger into .env
+npm install
+node server.js
+Scan the QR once.
+
+AUTOMATION SAFETY
+Default mode is REQUIRE APPROVAL.
+This prevents hundreds of supplier vehicles from immediately blasting Facebook or WhatsApp.
+You can change rules in Admin -> Automation Center.
+Supplier bulk auto-post is OFF by default.
+WhatsApp marketing auto-send is OFF by default until you intentionally enable it.
+
+FACEBOOK
+Requires META_PAGE_ID and META_PAGE_ACCESS_TOKEN.
+
+WHATSAPP
+Requires WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN.
+Automatic update messages only go to customers marked OPTED IN and with an active 24-hour WhatsApp conversation.
+This avoids treating ordinary sales chats as a mass marketing list.
+
+PRIVATE LAB
+Open: https://lab.skyshcars.com
+Login with OWNER credentials.
+Register live applications and open them inside the private Lab dashboard.
+The Lab is excluded from the Sky Cars sales AI data path and from public navigation/search indexing.
+
+IMPORTANT
+This ZIP contains no real production secrets.
+Do not place production API tokens or passwords in GitHub.

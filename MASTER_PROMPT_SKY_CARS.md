@@ -275,3 +275,11 @@ Do not give me another architecture essay. Inspect/fix the source, run checks, a
 - exact required environment-variable names only;
 - concise list of what was actually tested;
 - any remaining limitation stated plainly.
+
+## V27 FINAL architecture
+
+V27 adds a separate Automation layer and owner-only Private Development Lab without changing Sky Cars' primary purpose: vehicle sales and export support.
+
+Automation rules live in Admin and must be observable through campaigns/events. WhatsApp group inventory is accepted only from group names/IDs authorized in Admin. Group posts become inventory-review drafts before approval. Marketing messages must not use ordinary customer conversations as an unrestricted broadcast list; V27 requires customer marketing opt-in and an active WhatsApp conversation window for freeform proactive updates.
+
+The private development environment is `lab.skyshcars.com`. It uses a separate `sky_lab` owner-only session and is noindex/noarchive. The public Sky Cars AI, vehicle search, customer memory, Facebook/WhatsApp sales assistant and public APIs must never query `lab_apps` or any future Lab application data. Experimental apps must not be allowed to modify Sky Cars sales data unless a future integration is explicitly designed and approved.

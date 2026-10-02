@@ -158,17 +158,18 @@ export async function publishVehicleToFacebook(vehicleId: number, force = false)
   }
 }
 
+async function ensureMarketingColumns(){try{await db().execute(`ALTER TABLE customers ADD COLUMN marketing_opt_in BOOLEAN NOT NULL DEFAULT FALSE`)}catch{};try{await db().execute(`ALTER TABLE customers ADD COLUMN marketing_opt_out_at DATETIME NULL`)}catch{}}
+
 export async function publishVehicleToActiveWhatsAppChats(vehicleId: number, force = false) {
   const settings = await getSocialSettings();
+  await ensureMarketingColumns();
   const v: any = await getVehicleForSocial(vehicleId);
   if (!v || v.status !== 'available') return { ok: false, skipped: 'Vehicle is not available' };
   if (!force && await loggedAlready(vehicleId, 'whatsapp')) return { ok: true, skipped: 'Already shared' };
   if (!process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) return { ok: false, skipped: 'WhatsApp is not configured' };
-  const chats = await rows<any>(`SELECT id,external_user_id FROM conversations
-    WHERE channel='whatsapp' AND mode='ai' AND last_message_at >= (NOW() - INTERVAL 24 HOUR)
-    ORDER BY last_message_at DESC LIMIT 100`);
+  const chats = await rows<any>(`SELECT c.id,c.external_user_id FROM conversations c LEFT JOIN customers cu ON cu.id=c.customer_id\n    WHERE c.channel='whatsapp' AND c.mode='ai' AND c.last_message_at >= (NOW() - INTERVAL 24 HOUR)\n      AND COALESCE(cu.marketing_opt_in,0)=1 AND cu.marketing_opt_out_at IS NULL\n    ORDER BY c.last_message_at DESC LIMIT 100`);
   if (!chats.length) {
-    await log(vehicleId, 'whatsapp', 'skipped', 'No active AI WhatsApp chats in the last 24 hours');
+    await log(vehicleId, 'whatsapp', 'skipped', 'No opted-in active WhatsApp customers in the last 24 hours');
     return { ok: true, sent: 0 };
   }
   const caption = await aiCaption(v);

@@ -1,6 +1,8 @@
 import axios from 'axios';
+import {createHash} from 'crypto';
 import { db, one, rows } from './db';
 import { saveBlob } from './media-store';
+import { handleVehiclePublished } from './automation';
 
 const MODEL=process.env.DEEPSEEK_MODEL||'deepseek-chat';
 
@@ -29,7 +31,8 @@ async function extractVehicle(text:string){
 
 export async function createGroupImport(payload:any){
   await ensureGroupImportSchema();
-  const messageId=String(payload.messageId||payload.source_message_id||'').trim();
+  const rawMessageId=String(payload.messageId||payload.source_message_id||'').trim();
+  const messageId=rawMessageId.length<=190?rawMessageId:'grp-'+createHash('sha256').update(rawMessageId).digest('hex').slice(0,48);
   if(!messageId) throw new Error('messageId is required');
   const existing:any=await one('SELECT id,review_status FROM inventory_import_items WHERE source=? AND source_message_id=? LIMIT 1',['whatsapp_group',messageId]);
   if(existing) return {created:false,id:existing.id,status:existing.review_status};
@@ -77,11 +80,12 @@ export async function reviewGroupImport(id:number,action:'approve'|'reject'){
   const steering=['LHD','RHD','unknown'].includes(v.steering)?v.steering:'unknown';
   const [r]:any=await db().execute(`INSERT INTO vehicles(stock_no,category,brand,model,trim_name,model_year,manufacturing_date,mileage_km,engine,transmission,fuel_type,drivetrain,steering,color,price_usd,location,status,description,specs,source,published_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,[
-      stockNo(),category,v.brand||null,v.model||null,v.trim_name||null,v.model_year||null,v.manufacturing_date||null,v.mileage_km||null,v.engine||null,v.transmission||null,v.fuel_type||null,v.drivetrain||null,steering,v.color||null,v.price_usd||null,v.location||'China','pending_verification',v.description||null,JSON.stringify(v.specs||{}),'whatsapp_group'
+      stockNo(),category,v.brand||null,v.model||null,v.trim_name||null,v.model_year||null,v.manufacturing_date||null,v.mileage_km||null,v.engine||null,v.transmission||null,v.fuel_type||null,v.drivetrain||null,steering,v.color||null,v.price_usd||null,v.location||'China','available',v.description||null,JSON.stringify(v.specs||{}),'whatsapp_group'
     ]);
   const vehicleId=Number(r.insertId);
   const media=await rows<any>('SELECT url,mime_type FROM inventory_import_media WHERE import_item_id=? ORDER BY id',[id]);
-  for(let i=0;i<media.length;i++) await db().execute(`INSERT INTO vehicle_media(vehicle_id,media_type,url,source,is_cover,sort_order,review_status) VALUES(?,'image',?,'whatsapp_group',?,?, 'pending')`,[vehicleId,media[i].url,i===0?1:0,i]);
+  for(let i=0;i<media.length;i++) await db().execute(`INSERT INTO vehicle_media(vehicle_id,media_type,url,source,is_cover,sort_order,review_status) VALUES(?,'image',?,'whatsapp_group',?,?, 'approved')`,[vehicleId,media[i].url,i===0?1:0,i]);
   await db().execute(`UPDATE inventory_import_items SET review_status='approved',approved_vehicle_id=?,reviewed_at=NOW() WHERE id=?`,[vehicleId,id]);
-  return {ok:true,status:'approved',vehicleId};
+  let automation:any=null;try{automation=await handleVehiclePublished(vehicleId,'group')}catch(e){console.error('GROUP_AUTOMATION',e)}
+  return {ok:true,status:'approved',vehicleId,automation};
 }
