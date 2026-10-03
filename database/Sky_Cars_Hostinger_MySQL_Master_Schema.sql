@@ -347,3 +347,21 @@ CREATE TABLE IF NOT EXISTS lab_apps (
  launch_url TEXT NULL,notes TEXT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,INDEX(status),INDEX(category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Phase 1 customer accounts (email + password, Google). Also auto-created by the app on first use.
+CREATE TABLE IF NOT EXISTS customer_accounts (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ customer_id BIGINT UNSIGNED NOT NULL,
+ email VARCHAR(191) NOT NULL,
+ password_hash VARCHAR(255) NULL,
+ google_sub VARCHAR(191) NULL,
+ signup_method ENUM('password','google') NOT NULL,
+ last_login_at DATETIME NULL,
+ last_login_method VARCHAR(20) NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_customer_account_email(email),
+ UNIQUE KEY uq_customer_account_google(google_sub),
+ UNIQUE KEY uq_customer_account_customer(customer_id),
+ FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

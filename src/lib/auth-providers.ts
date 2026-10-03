@@ -4,8 +4,13 @@ const allProviders:AuthProviderMeta[]=[
   {id:'facebook',label:'Continue with Facebook',brand:'facebook'},
   {id:'github',label:'Continue with GitHub',brand:'github'},
 ];
+/** Google keys: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (preferred) or the older AUTH_GOOGLE_ID/AUTH_GOOGLE_SECRET. */
+export function googleCredentials(){
+  const clientId=process.env.GOOGLE_CLIENT_ID||process.env.AUTH_GOOGLE_ID,clientSecret=process.env.GOOGLE_CLIENT_SECRET||process.env.AUTH_GOOGLE_SECRET;
+  return clientId&&clientSecret?{clientId,clientSecret}:null;
+}
 export function getEnabledAuthProviders(){return allProviders.filter(p=>{
-  if(p.id==='google')return !!process.env.AUTH_GOOGLE_ID&&!!process.env.AUTH_GOOGLE_SECRET;
+  if(p.id==='google')return !!googleCredentials();
   if(p.id==='facebook')return !!process.env.AUTH_FACEBOOK_ID&&!!process.env.AUTH_FACEBOOK_SECRET;
   if(p.id==='github')return !!process.env.AUTH_GITHUB_ID&&!!process.env.AUTH_GITHUB_SECRET;
   return false;
