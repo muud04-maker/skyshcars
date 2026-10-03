@@ -31,7 +31,7 @@ export async function resolvePageToken(): Promise<string> {
   const pageToken = String(process.env.META_PAGE_ACCESS_TOKEN || '').trim();
   if (pageToken) return pageToken;
   const userToken = String(process.env.META_USER_ACCESS_TOKEN || '').trim();
-  if (!userToken || !fbPageId()) throw new Error('Facebook Page is not connected (META_PAGE_ID and a token are required).');
+  if (!userToken || !fbPageId()) throw new Error('Facebook Page is not connected yet.');
   if (derived && Date.now() - derived.at < DERIVED_TTL_MS) return derived.token;
   let longUser = userToken;
   if (appId() && appSecret()) {
@@ -42,7 +42,7 @@ export async function resolvePageToken(): Promise<string> {
   }
   const r = await axios.get(`${GRAPH}/${encodeURIComponent(fbPageId())}`, { params: { fields: 'access_token', access_token: longUser }, timeout: 15000 });
   const token = r.data?.access_token;
-  if (!token) throw new Error('Could not get a Page token from META_USER_ACCESS_TOKEN. The user must be an admin of the Page.');
+  if (!token) throw new Error('Could not get a Page token from the user token. The user must be an admin of the Page.');
   derived = { token, at: Date.now() };
   return token;
 }
@@ -70,7 +70,7 @@ export async function facebookStatus(): Promise<FacebookStatus> {
     const r = await axios.get(`${GRAPH}/${encodeURIComponent(fbPageId())}`, { params: { fields: 'id,name,category,link', access_token: token }, timeout: 15000 });
     const d = r.data || {};
     s.connected = String(d.id) === fbPageId(); s.id = d.id; s.name = d.name || ''; s.category = d.category || ''; s.link = d.link || '';
-    if (!s.connected) s.error = 'The token works but belongs to a different Page than META_PAGE_ID.';
+    if (!s.connected) s.error = 'The token works but belongs to a different Facebook Page than the one set up.';
   } catch (e: any) { s.error = graphError(e); return s; }
   if (s.debugAvailable) {
     try {
@@ -88,7 +88,7 @@ export async function facebookStatus(): Promise<FacebookStatus> {
       if (s.missingScopes?.length) s.warnings.push(`Token is missing permission(s): ${s.missingScopes.join(', ')}. Posting will fail.`);
     } catch (e: any) { s.warnings.push('Could not read token details: ' + graphError(e)); }
   } else {
-    s.warnings.push('Add META_APP_ID (with META_APP_SECRET) to see token expiry and permissions.');
+    s.warnings.push('Token expiry and permissions are not checked yet — see Readiness.');
   }
   return s;
 }

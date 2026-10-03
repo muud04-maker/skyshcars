@@ -3,7 +3,7 @@ import {useState} from 'react';
 
 function TokenStatus({fb}:{fb:any}){
  if(!fb)return null;
- const src=fb.tokenSource==='page_token'?'Page token (META_PAGE_ACCESS_TOKEN)':fb.tokenSource==='user_token'?'Derived from user token (META_USER_ACCESS_TOKEN)':'No token';
+ const src=fb.tokenSource==='page_token'?'Page token':fb.tokenSource==='user_token'?'Derived from a user token':'Not connected — see Readiness';
  return <div style={{display:'grid',gap:4,fontSize:14}}>
   {fb.name&&<p style={{margin:0}}><b>{fb.name}</b><br/><small>Page ID {fb.id}</small></p>}
   <div className="settingRow"><span>Token source</span><b>{src}</b></div>

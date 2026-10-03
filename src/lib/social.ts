@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { db, one, rows } from './db';
-import { sendWhatsApp, sendWhatsAppImage } from './meta';
+import { sendWhatsApp, sendWhatsAppImage, whatsappConfigured } from './meta';
 import { outbound } from './conversations';
 import { exactPhotoSql, sellableVehicleSql } from './exact-photos';
 import { GRAPH as FB_GRAPH, fbPageId, facebookConfigured, graphError, resolvePageToken } from './facebook';
@@ -212,7 +212,7 @@ export async function publishVehicleToActiveWhatsAppChats(vehicleId: number, for
   const v: any = await getVehicleForSocial(vehicleId);
   if (!v || !Number(v.sellable)) return { ok: false, skipped: 'Vehicle is not available for sale' };
   if (!force && await loggedAlready(vehicleId, 'whatsapp')) return { ok: true, skipped: 'Already shared' };
-  if (!process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) return { ok: false, skipped: 'WhatsApp is not configured' };
+  if (!whatsappConfigured()) return { ok: false, skipped: 'WhatsApp sending needs setup (see Readiness)' };
   const chats = await rows<any>(`SELECT c.id,c.external_user_id FROM conversations c LEFT JOIN customers cu ON cu.id=c.customer_id\n    WHERE c.channel='whatsapp' AND c.mode='ai' AND c.last_message_at >= (NOW() - INTERVAL 24 HOUR)\n      AND COALESCE(cu.marketing_opt_in,0)=1 AND cu.marketing_opt_out_at IS NULL\n    ORDER BY c.last_message_at DESC LIMIT 100`);
   if (!chats.length) {
     await log(vehicleId, 'whatsapp', 'skipped', 'No opted-in active WhatsApp customers in the last 24 hours');
