@@ -3,6 +3,7 @@ import last50 from '../../data/v16_last_50.json';
 import { rows, one, dbConfigured, lim, db } from './db';
 import { ensureLast50Vehicles } from './inventory-seed';
 import { getRepresentativeCover, getRepresentativePhotos } from './representative-photos';
+import { exactPhotoSql } from './exact-photos';
 
 const ALLOW_REPRESENTATIVE_MODEL_PHOTOS = process.env.ALLOW_REPRESENTATIVE_MODEL_PHOTOS !== 'false';
 
@@ -166,7 +167,7 @@ export async function getVehicle(id: string) {
   if (!dbConfigured()) return withRepresentative(combinedFallbackInventory().find((x: any) => String(x.id) === id || String(x.stock_no) === String(id)));
   try {
     await ensureCatalogueReady();
-    const row = await one<any>(`SELECT v.*, ${COVER} FROM vehicles v WHERE (v.id=? OR v.legacy_id=? OR v.stock_no=?) AND v.status IN ('available','reserved','pending_verification','sold') AND ${NOT_PENDING_GROUP} LIMIT 1`, [id, id, id]);
+    const row = await one<any>(`SELECT v.*, ${COVER}, (SELECT ${PUBLIC_URL} FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql("m")} ORDER BY m.is_cover DESC, m.sort_order, m.id LIMIT 1) exact_cover_url FROM vehicles v WHERE (v.id=? OR v.legacy_id=? OR v.stock_no=?) AND v.status IN ('available','reserved','pending_verification','sold') AND ${NOT_PENDING_GROUP} LIMIT 1`, [id, id, id]);
     return withRepresentative(row);
   } catch (e) { console.error('GET_VEHICLE_DB_ERROR', e); return null; }
 }

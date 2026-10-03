@@ -14,7 +14,7 @@ export async function generateMetadata({params}:{params:Promise<{id:string}>}):P
  const {id}=await params;const v:any=await getVehicle(id).catch(()=>null);
  if(!v)return {title:'Vehicle not found | Sky Cars'};
  const t=titleOf(v);const price=v.price_usd?` Price $${Number(v.price_usd).toLocaleString()}.`:'';
- return {title:`${t} for sale | Sky Cars`,description:`${t} (${v.stock_no}) in ${v.location||'China'}.${price} Export support from Sky Cars.`,alternates:{canonical:`${SITE_URL}/vehicles/${v.id}`},openGraph:{title:`${t} | Sky Cars`,url:`${SITE_URL}/vehicles/${v.id}`,type:'website',images:v.cover_url?[{url:String(v.cover_url).startsWith('/')?SITE_URL+v.cover_url:v.cover_url}]:undefined}};
+ return {title:`${t} for sale | Sky Cars`,description:`${t} (${v.stock_no}) in ${v.location||'China'}.${price} Export support from Sky Cars.`,alternates:{canonical:`${SITE_URL}/vehicles/${v.id}`},openGraph:{title:`${t} | Sky Cars`,url:`${SITE_URL}/vehicles/${v.id}`,type:'website',images:v.exact_cover_url?[{url:String(v.exact_cover_url).startsWith('/')?SITE_URL+v.exact_cover_url:v.exact_cover_url}]:undefined}};
 }
 
 export default async function Detail({params}:{params:Promise<{id:string}>}){

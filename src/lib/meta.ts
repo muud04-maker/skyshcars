@@ -138,3 +138,17 @@ export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: 
     return r.data?.messages?.[0]?.id || null;
   });
 }
+
+/** Live read-only check of the WhatsApp Cloud API number (sends nothing). */
+export async function checkWhatsAppNumber() {
+  if (!whatsappConfigured()) return { ok: false, error: 'WhatsApp Cloud API is not configured.' };
+  try {
+    const d = await withMetaCredentials(async (token, phoneId) => {
+      const r = await axios.get(`${GRAPH}/${phoneId}`, { params: { fields: 'display_phone_number,verified_name,quality_rating' }, headers: { Authorization: `Bearer ${token}` }, timeout: 12000 });
+      return r.data || {};
+    });
+    return { ok: true, number: d.display_phone_number || null, name: d.verified_name || null, quality: d.quality_rating || null };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message || e).slice(0, 300) };
+  }
+}
