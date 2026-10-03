@@ -35,7 +35,7 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
       if(!claimed){
         catchUp={attempted:true,sent:false,message:'This customer message already has a reply in progress or was already sent.'};
       }else try{
-        if(!whatsappConfigured()) throw new Error('WhatsApp send credentials not configured');
+        if(!whatsappConfigured()) throw new Error('WhatsApp sending needs setup (see Readiness)');
         const photoPlan=await planPhotos(String(pending.body),Number(id)).catch(()=>null);
         const reply=await salesReply(String(pending.body),Number(id),photoPlan);
         if(!reply) throw new Error('AI returned no reply');

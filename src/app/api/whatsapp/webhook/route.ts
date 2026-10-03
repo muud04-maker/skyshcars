@@ -1,7 +1,7 @@
 import { inbound, outbound, alreadyProcessed } from '../../../../lib/conversations';
 import { salesReply, AI_MODEL } from '../../../../lib/ai';
 import { planPhotos, sendPlannedPhotos } from '../../../../lib/whatsapp-photos';
-import { signatureOk, sendWhatsApp, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken, whatsappSignatureMode } from '../../../../lib/meta';
+import { checkSignature, sendWhatsApp, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken } from '../../../../lib/meta';
 import { db, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
@@ -65,7 +65,7 @@ async function prepareMedia(m:any,d:Described,c:any){
   try{
     const media=await downloadWhatsAppMedia(d.mediaId);
     if(m.type==='audio'){
-      if(!mediaAiConfigured()) throw new Error('Media AI key not configured');
+      if(!mediaAiConfigured()) throw new Error('Media understanding needs setup (see Readiness)');
       const transcript=await transcribeAudio(media.data,media.mimeType);
       if(!transcript) throw new Error('Voice transcription returned empty text');
       const body=`VOICE NOTE\nTranscript: ${transcript}`;
@@ -74,7 +74,7 @@ async function prepareMedia(m:any,d:Described,c:any){
       return {...d,storedText:body,aiText:`Customer sent a voice note. Transcript: ${transcript}`,needsHuman:false};
     }
     if(m.type==='image' && !d.aiText){
-      if(!mediaAiConfigured()) throw new Error('Media AI key not configured');
+      if(!mediaAiConfigured()) throw new Error('Media understanding needs setup (see Readiness)');
       const visual=await describeImage(media.data,media.mimeType);
       if(!visual) throw new Error('Image analysis returned empty text');
       const body=`PHOTO\nVisual description: ${visual}`;
@@ -130,7 +130,7 @@ async function handle(m: any, contacts: any[]) {
   if (modeRows?.[0]?.mode !== 'ai') return;
   if (!d.aiText) return;
   if (!whatsappConfigured()) {
-    await agentEvent(c.id,m.id,'reply','failed','WhatsApp send credentials not configured');
+    await agentEvent(c.id,m.id,'reply','skipped','WhatsApp sending needs setup (see Readiness)');
     return;
   }
   const sentAt=Number(m.timestamp||0);
@@ -179,18 +179,21 @@ async function handle(m: any, contacts: any[]) {
 
 export async function POST(req: Request) {
   const raw = await req.text();
-  const sigMode = whatsappSignatureMode();
-  if (!signatureOk(raw, req.headers.get('x-hub-signature-256'))) {
+  const sig = checkSignature(raw, req.headers.get('x-hub-signature-256'));
+  const sigMode = sig.mode;
+  if (!sig.accept) {
     if (dbConfigured()) await agentEvent(null,null,'webhook_rejected','failed',{reason:'bad_signature',signature_mode:sigMode}).catch(()=>{});
     return new Response('Bad signature', { status: 401 });
   }
+  // Monitor mode: signature is checked but not enforced; mismatches are recorded so Readiness can show them.
+  if (sigMode === 'monitor' && sig.valid === false && dbConfigured()) await agentEvent(null,null,'signature_mismatch','warning',{signature_mode:sigMode}).catch(()=>{});
   if (!dbConfigured()) { console.error('WHATSAPP_WEBHOOK: database not configured'); return new Response('EVENT_RECEIVED'); }
   try {
     const body = JSON.parse(raw);
     // When the app secret is not configured, only accept the exact object type Meta
     // sends for WhatsApp Cloud API. This is compatibility mode, not a substitute for
     // adding WHATSAPP_APP_SECRET.
-    if (sigMode === 'compatibility' && body?.object !== 'whatsapp_business_account') {
+    if (sig.valid !== true && body?.object !== 'whatsapp_business_account') {
       await agentEvent(null,null,'webhook_rejected','failed',{reason:'unexpected_object',object:body?.object||null,signature_mode:sigMode});
       return new Response('Bad webhook object', { status: 400 });
     }
