@@ -20,39 +20,39 @@ function verifyToken() {
   return String(process.env.WHATSAPP_VERIFY_TOKEN || process.env.VERIFY_TOKEN || '').trim();
 }
 
-/** Verifies Meta's X-Hub-Signature-256 header. */
-export function whatsappSignatureMode() {
-  const secrets = [process.env.WHATSAPP_APP_SECRET, process.env.META_APP_SECRET]
-    .map(x => String(x || '').trim()).filter(Boolean);
-  if (secrets.length) return 'secure';
-  if (process.env.REQUIRE_WHATSAPP_SIGNATURE === 'true') return 'blocked_missing_secret';
-  return 'compatibility';
+/*
+  Webhook signature (X-Hub-Signature-256) policy:
+   - No WHATSAPP_APP_SECRET            → 'compatibility': accepted (REQUIRE_WHATSAPP_SIGNATURE is ignored, so a missing
+                                         secret can never switch WhatsApp off). The route also checks the payload type.
+   - Secret set, REQUIRE not 'true'    → 'monitor': signature is checked; mismatches are logged but still accepted.
+   - Secret set, REQUIRE = 'true'      → 'secure': requests with a bad or missing signature are rejected.
+  REQUIRE_WHATSAPP_SIGNATURE is off by default.
+*/
+function signatureSecrets() {
+  return [process.env.WHATSAPP_APP_SECRET, process.env.META_APP_SECRET].map(x => String(x || '').trim()).filter(Boolean);
+}
+export type SignatureMode = 'compatibility' | 'monitor' | 'secure';
+export function whatsappSignatureMode(): SignatureMode {
+  if (!String(process.env.WHATSAPP_APP_SECRET || '').trim()) return 'compatibility';
+  return process.env.REQUIRE_WHATSAPP_SIGNATURE === 'true' ? 'secure' : 'monitor';
 }
 
-export function signatureOk(raw: string, header: string | null) {
-  const secrets = [process.env.WHATSAPP_APP_SECRET, process.env.META_APP_SECRET]
-    .map(x => String(x || '').trim()).filter(Boolean);
-  if (!secrets.length) {
-    if (process.env.REQUIRE_WHATSAPP_SIGNATURE === 'true') {
-      console.error('Webhook rejected: app secret missing and REQUIRE_WHATSAPP_SIGNATURE=true.');
-      return false;
+/** valid: true/false when a secret is available to check against, null when there is nothing to check with. */
+export function checkSignature(raw: string, header: string | null): { accept: boolean; valid: boolean | null; mode: SignatureMode } {
+  const mode = whatsappSignatureMode();
+  const secrets = signatureSecrets();
+  let valid: boolean | null = null;
+  if (secrets.length) {
+    valid = false;
+    if (header) for (const secret of secrets) {
+      const expected = 'sha256=' + createHmac('sha256', secret).update(raw).digest('hex');
+      try { if (header.length === expected.length && timingSafeEqual(Buffer.from(header), Buffer.from(expected))) { valid = true; break; } } catch { /* try next */ }
     }
-    // Compatibility mode keeps the existing production integration working when the
-    // Meta app secret has not yet been added to Hostinger. The webhook route also
-    // validates that the payload is a WhatsApp Business Account event. Add
-    // WHATSAPP_APP_SECRET as soon as possible to switch automatically to secure mode.
-    console.warn('WHATSAPP WEBHOOK COMPATIBILITY MODE: app secret missing; signature verification is not enforced.');
-    return true;
   }
-  if (!header) return false;
-  for (const secret of secrets) {
-    const expected = 'sha256=' + createHmac('sha256', secret).update(raw).digest('hex');
-    try {
-      if (header.length === expected.length && timingSafeEqual(Buffer.from(header), Buffer.from(expected))) return true;
-    } catch { /* try next */ }
-  }
-  return false;
+  return { accept: mode === 'secure' ? valid === true : true, valid, mode };
 }
+
+export function signatureOk(raw: string, header: string | null) { return checkSignature(raw, header).accept; }
 
 export function whatsappVerifyToken() { return verifyToken(); }
 export function whatsappConfigured() { return tokenCandidates().length > 0 && idCandidates().length > 0; }
@@ -76,8 +76,8 @@ export function whatsappConfigSummary() {
 async function withMetaCredentials<T>(fn: (token: string, phoneId: string) => Promise<T>): Promise<T> {
   const tokens = tokenCandidates();
   const ids = idCandidates();
-  if (!tokens.length) throw new Error('WhatsApp access token missing (set WHATSAPP_ACCESS_TOKEN or WHATSAPP_TOKEN)');
-  if (!ids.length) throw new Error('WhatsApp phone number ID missing (set WHATSAPP_PHONE_NUMBER_ID or PHONE_NUMBER_ID)');
+  if (!tokens.length) throw new Error('WhatsApp sending needs setup (see Readiness)');
+  if (!ids.length) throw new Error('WhatsApp sending needs setup (see Readiness)');
   const errors: string[] = [];
   for (const phoneId of ids) {
     for (const token of tokens) {
@@ -101,7 +101,7 @@ async function withMetaCredentials<T>(fn: (token: string, phoneId: string) => Pr
 
 export async function downloadWhatsAppMedia(mediaId: string) {
   const tokens = tokenCandidates();
-  if (!tokens.length) throw new Error('WhatsApp access token missing');
+  if (!tokens.length) throw new Error('WhatsApp media download needs setup (see Readiness)');
   let last: any = null;
   for (const token of tokens) {
     const auth = { Authorization: `Bearer ${token}` };
@@ -137,4 +137,18 @@ export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: 
       { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, timeout: 20000 });
     return r.data?.messages?.[0]?.id || null;
   });
+}
+
+/** Live read-only check of the WhatsApp Cloud API number (sends nothing). */
+export async function checkWhatsAppNumber() {
+  if (!whatsappConfigured()) return { ok: false, error: 'WhatsApp Cloud API is not configured.' };
+  try {
+    const d = await withMetaCredentials(async (token, phoneId) => {
+      const r = await axios.get(`${GRAPH}/${phoneId}`, { params: { fields: 'display_phone_number,verified_name,quality_rating' }, headers: { Authorization: `Bearer ${token}` }, timeout: 12000 });
+      return r.data || {};
+    });
+    return { ok: true, number: d.display_phone_number || null, name: d.verified_name || null, quality: d.quality_rating || null };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message || e).slice(0, 300) };
+  }
 }

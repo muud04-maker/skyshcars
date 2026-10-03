@@ -102,12 +102,12 @@ export async function dispatchCampaign(id:number){
   if(c.status==='sent')return {ok:true,skipped:'Already sent'};
   const channels=typeof c.channels==='string'?JSON.parse(c.channels||'{}'):(c.channels||{});
   await db().execute(`UPDATE automation_campaigns SET status='sending',last_error=NULL WHERE id=?`,[id]);
-  const result:any={};let anyOk=false;let errors:string[]=[];
+  const result:any={};let anyOk=false;let errors:string[]=[];const notes:string[]=[];
   try{
-    if(channels.facebook&&c.vehicle_id){const r:any=await publishVehicleToFacebook(Number(c.vehicle_id));result.facebook=r;anyOk=anyOk||!!r?.ok;if(!r?.ok&&!r?.skipped)errors.push('Facebook failed')}
+    if(channels.facebook&&c.vehicle_id){const r:any=await publishVehicleToFacebook(Number(c.vehicle_id));result.facebook=r;anyOk=anyOk||!!r?.ok;if(!r?.ok&&!r?.skipped)errors.push('Facebook failed: '+String(r?.error||'unknown'));if(!r?.ok&&r?.skipped)notes.push('Facebook skipped: '+r.skipped)}
     if(channels.whatsapp&&c.vehicle_id){const r:any=await publishVehicleToActiveWhatsAppChats(Number(c.vehicle_id));result.whatsapp=r;anyOk=anyOk||!!r?.ok;if(!r?.ok&&!r?.skipped)errors.push('WhatsApp failed')}
     const finalStatus=(anyOk||(!channels.facebook&&!channels.whatsapp))?'sent':(errors.length?'failed':'sent');
-    await db().execute(`UPDATE automation_campaigns SET status=?,sent_at=IF(?='sent',NOW(),sent_at),last_error=? WHERE id=?`,[finalStatus,finalStatus,errors.join('; ')||null,id]);
+    await db().execute(`UPDATE automation_campaigns SET status=?,sent_at=IF(?='sent',NOW(),sent_at),last_error=? WHERE id=?`,[finalStatus,finalStatus,[...errors,...notes].join('; ')||null,id]);
     await automationEvent('campaign_dispatch',finalStatus,result,'campaign',id);
     return {ok:finalStatus==='sent',result};
   }catch(e:any){await db().execute(`UPDATE automation_campaigns SET status='failed',last_error=? WHERE id=?`,[String(e?.message||e).slice(0,2000),id]);await automationEvent('campaign_dispatch','failed',String(e?.message||e),'campaign',id);throw e}

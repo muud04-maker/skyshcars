@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { db, one, rows } from './db';
-import { sendWhatsApp, sendWhatsAppImage } from './meta';
+import { sendWhatsApp, sendWhatsAppImage, whatsappConfigured } from './meta';
 import { outbound } from './conversations';
+import { exactPhotoSql, sellableVehicleSql } from './exact-photos';
+import { GRAPH as FB_GRAPH, fbPageId, facebookConfigured, graphError, resolvePageToken } from './facebook';
 
 const SITE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://skyshcars.com').replace(/\/$/, '');
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || process.env.WHATSAPP_GRAPH_VERSION || 'v26.0';
@@ -62,16 +64,40 @@ function abs(url?: string | null) {
 }
 
 export async function getVehicleForSocial(vehicleId: number) {
-  return one<any>(`SELECT v.*,
-    (SELECT url FROM vehicle_media m WHERE m.vehicle_id=v.id AND m.media_type='image' AND m.review_status='approved'
-      AND m.url NOT LIKE '/demo/vehicles/%'
-      AND m.url NOT LIKE '%vehicle-placeholder%'
-      AND m.url NOT LIKE '/api/vehicle-art/%'
-      AND COALESCE(m.caption,'') NOT LIKE 'MODEL PHOTO%'
-      AND COALESCE(m.caption,'') NOT LIKE '%Reference image%'
-      AND COALESCE(m.caption,'') NOT LIKE '%Representative%'
+  return one<any>(`SELECT v.*, (${sellableVehicleSql('v')}) sellable,
+    (SELECT url FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql('m')}
       ORDER BY m.is_cover DESC,m.sort_order,id LIMIT 1) cover_url
     FROM vehicles v WHERE v.id=? LIMIT 1`, [vehicleId]);
+}
+
+/*
+  Per-vehicle, per-channel publish lock: one row, claimed atomically, so a double click, two admins,
+  or manual + automatic posting at the same moment can never create two Facebook posts.
+*/
+async function ensureLockTable() {
+  await db().execute(`CREATE TABLE IF NOT EXISTS social_publish_lock(
+    vehicle_id BIGINT UNSIGNED NOT NULL, channel VARCHAR(40) NOT NULL,
+    status ENUM('processing','sent','failed') NOT NULL, external_id VARCHAR(191) NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY(vehicle_id,channel)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+}
+type Claim = { claimed: true } | { claimed: false; reason: 'already_posted' | 'in_progress' | 'just_posted'; externalId?: string | null };
+async function claimPublish(vehicleId: number, channel: string, repost: boolean): Promise<Claim> {
+  await ensureLockTable();
+  // Posts made before this lock existed still count as posted.
+  const legacy = await one<any>("SELECT external_id FROM social_publish_log WHERE vehicle_id=? AND channel=? AND status='sent' ORDER BY id DESC LIMIT 1", [vehicleId, channel]);
+  const [ins]: any = await db().execute(`INSERT IGNORE INTO social_publish_lock(vehicle_id,channel,status,external_id) VALUES(?,?,?,?)`, [vehicleId, channel, legacy && !repost ? 'sent' : 'processing', legacy?.external_id || null]);
+  if (Number(ins.affectedRows)) return legacy && !repost ? { claimed: false, reason: 'already_posted', externalId: legacy.external_id } : { claimed: true };
+  const row = await one<any>(`SELECT status,external_id,TIMESTAMPDIFF(SECOND,updated_at,NOW()) age FROM social_publish_lock WHERE vehicle_id=? AND channel=?`, [vehicleId, channel]);
+  if (row?.status === 'processing' && Number(row.age) < 600) return { claimed: false, reason: 'in_progress' };
+  if (row?.status === 'sent' && !repost) return { claimed: false, reason: 'already_posted', externalId: row.external_id };
+  if (row?.status === 'sent' && Number(row.age) < 120) return { claimed: false, reason: 'just_posted', externalId: row.external_id };
+  const [u]: any = await db().execute(`UPDATE social_publish_lock SET status='processing' WHERE vehicle_id=? AND channel=? AND status=?`, [vehicleId, channel, row?.status]);
+  return Number(u.affectedRows) ? { claimed: true } : { claimed: false, reason: 'in_progress' };
+}
+async function releasePublish(vehicleId: number, channel: string, status: 'sent' | 'failed', externalId?: string | null) {
+  await db().execute(`UPDATE social_publish_lock SET status=?,external_id=COALESCE(?,external_id) WHERE vehicle_id=? AND channel=?`, [status, externalId || null, vehicleId, channel]);
 }
 
 function safeCaption(v: any) {
@@ -113,7 +139,7 @@ async function aiCaption(v: any) {
   }
 }
 
-function imageFor(v: any, _settings: SocialSettings) {
+function imageFor(v: any, _settings?: SocialSettings) {
   // Social and WhatsApp publishing use only approved real vehicle photos.
   // Reference/test imagery remains website-only and is never presented as the actual stock vehicle.
   if (v.cover_url) return { url: abs(v.cover_url)!, demo: false };
@@ -132,34 +158,47 @@ async function log(vehicleId: number, channel: string, status: 'sent'|'skipped'|
     [vehicleId, channel, externalId || null, status, typeof details === 'string' ? details : JSON.stringify(details || {})]);
 }
 
-export async function publishVehicleToFacebook(vehicleId: number, force = false) {
-  const settings = await getSocialSettings();
+export type FacebookPublishMode = { manual?: boolean; repost?: boolean };
+const NO_EXACT_PHOTO_LINE = 'Exact photos of this unit are available on request — message us and we will send them.';
+
+/**
+ * Posts an Available vehicle to the Facebook Page at most once (unless an admin explicitly reposts).
+ * Uses ONLY an exact approved photo of the unit. Without one: automatic posting is skipped;
+ * a manual post goes out as a text + link post that says exact photos are available on request.
+ */
+export async function publishVehicleToFacebook(vehicleId: number, mode: FacebookPublishMode = {}) {
   const v: any = await getVehicleForSocial(vehicleId);
-  if (!v || v.status !== 'available') return { ok: false, skipped: 'Vehicle is not available' };
-  if (!force && await loggedAlready(vehicleId, 'facebook')) return { ok: true, skipped: 'Already posted' };
-  if (!process.env.META_PAGE_ACCESS_TOKEN || !process.env.META_PAGE_ID) {
-    await log(vehicleId, 'facebook', 'skipped', 'META_PAGE_ACCESS_TOKEN or META_PAGE_ID missing');
-    return { ok: false, skipped: 'Facebook Page credentials are not configured' };
+  if (!v || !Number(v.sellable)) return { ok: false, skipped: 'Vehicle is not available for sale' };
+  if (!facebookConfigured()) {
+    await log(vehicleId, 'facebook', 'skipped', 'Facebook Page not connected');
+    return { ok: false, skipped: 'Facebook Page is not connected' };
   }
-  const caption = await aiCaption(v);
-  const image = imageFor(v, settings);
-  const message = caption;
+  const image = imageFor(v);
+  if (!image && !mode.manual) {
+    await log(vehicleId, 'facebook', 'skipped', 'No exact photo of this unit — automatic post skipped');
+    return { ok: false, skipped: 'No exact photo of this unit, so it was not posted automatically. Add a real photo or post it manually as a link post.' };
+  }
+  const claim: any = await claimPublish(vehicleId, 'facebook', !!mode.repost);
+  if (!claim.claimed) {
+    const msg = claim.reason === 'in_progress' ? 'A post for this vehicle is already being published' : claim.reason === 'just_posted' ? 'This vehicle was posted less than 2 minutes ago' : 'Already posted';
+    return { ok: claim.reason !== 'in_progress', skipped: msg, alreadyPosted: claim.reason !== 'in_progress', id: claim.externalId || null };
+  }
   try {
+    const token = await resolvePageToken();
+    const caption = await aiCaption(v);
     let r: any;
     if (image) {
-      r = await axios.post(`${GRAPH}/${process.env.META_PAGE_ID}/photos`, {
-        url: image.url, caption: message, published: true, access_token: process.env.META_PAGE_ACCESS_TOKEN,
-      }, { timeout: 25000 });
+      r = await axios.post(`${FB_GRAPH}/${fbPageId()}/photos`, { url: image.url, caption, published: true, access_token: token }, { timeout: 25000 });
     } else {
-      r = await axios.post(`${GRAPH}/${process.env.META_PAGE_ID}/feed`, {
-        message, link:`${SITE}/vehicles/${v.id}`, access_token: process.env.META_PAGE_ACCESS_TOKEN,
-      }, { timeout: 25000 });
+      r = await axios.post(`${FB_GRAPH}/${fbPageId()}/feed`, { message: `${caption}\n\n${NO_EXACT_PHOTO_LINE}`, link: `${SITE}/vehicles/${v.id}`, access_token: token }, { timeout: 25000 });
     }
     const id = r.data?.post_id || r.data?.id || null;
-    await log(vehicleId, 'facebook', 'sent', { image: image?.url || null }, id);
-    return { ok: true, id };
+    await releasePublish(vehicleId, 'facebook', 'sent', id);
+    await log(vehicleId, 'facebook', 'sent', { image: image?.url || null, exact_photo: !!image, manual: !!mode.manual, repost: !!mode.repost }, id);
+    return { ok: true, id, exactPhoto: !!image };
   } catch (e: any) {
-    const err = e?.response?.data || e?.message || String(e);
+    const err = graphError(e);
+    await releasePublish(vehicleId, 'facebook', 'failed').catch(() => {});
     await log(vehicleId, 'facebook', 'failed', err);
     return { ok: false, error: err };
   }
@@ -171,9 +210,9 @@ export async function publishVehicleToActiveWhatsAppChats(vehicleId: number, for
   const settings = await getSocialSettings();
   await ensureMarketingColumns();
   const v: any = await getVehicleForSocial(vehicleId);
-  if (!v || v.status !== 'available') return { ok: false, skipped: 'Vehicle is not available' };
+  if (!v || !Number(v.sellable)) return { ok: false, skipped: 'Vehicle is not available for sale' };
   if (!force && await loggedAlready(vehicleId, 'whatsapp')) return { ok: true, skipped: 'Already shared' };
-  if (!process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) return { ok: false, skipped: 'WhatsApp is not configured' };
+  if (!whatsappConfigured()) return { ok: false, skipped: 'WhatsApp sending needs setup (see Readiness)' };
   const chats = await rows<any>(`SELECT c.id,c.external_user_id FROM conversations c LEFT JOIN customers cu ON cu.id=c.customer_id\n    WHERE c.channel='whatsapp' AND c.mode='ai' AND c.last_message_at >= (NOW() - INTERVAL 24 HOUR)\n      AND COALESCE(cu.marketing_opt_in,0)=1 AND cu.marketing_opt_out_at IS NULL\n    ORDER BY c.last_message_at DESC LIMIT 100`);
   if (!chats.length) {
     await log(vehicleId, 'whatsapp', 'skipped', 'No opted-in active WhatsApp customers in the last 24 hours');

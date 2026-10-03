@@ -9,7 +9,7 @@ export default function VehicleCard({v}:{v:any}){
  const statusText=status==='pending_verification'?'Check availability':status==='available'?'In stock':status.replaceAll('_',' ');
  const s=specsOf(v);const mileage=s.mileage_range||(v.mileage_km?Number(String(v.mileage_km).replace(/[^\d.]/g,'')||0).toLocaleString()+' km':null);const fuel=v.fuel_type?String(v.fuel_type).toLowerCase():null;const trans=v.transmission?String(v.transmission).toLowerCase():null;const msg=`Hi Sky Cars, I am interested in ${v.stock_no} ${title}.`;
  const lite={id:v.id,stock_no:v.stock_no,brand:v.brand,model:v.model,model_year:v.model_year,price_usd:v.price_usd,cover_url:image};
- return <article className="vehicleCard hgmCard">
+ return <article className="vehicleCard stockCard">
    <div className="cardMediaActions"><FavoriteButton vehicle={lite} compact/><CompareButton vehicle={lite} compact/></div>
    <a className="vehicleImageWrap" href={'/vehicles/'+v.id} aria-label={`View ${title}`}>
      {image

@@ -3,6 +3,7 @@ import last50 from '../../data/v16_last_50.json';
 import { rows, one, dbConfigured, lim, db } from './db';
 import { ensureLast50Vehicles } from './inventory-seed';
 import { getRepresentativeCover, getRepresentativePhotos } from './representative-photos';
+import { exactPhotoSql } from './exact-photos';
 
 const ALLOW_REPRESENTATIVE_MODEL_PHOTOS = process.env.ALLOW_REPRESENTATIVE_MODEL_PHOTOS !== 'false';
 
@@ -15,7 +16,9 @@ function verifiedMediaSql(allowRepresentative = ALLOW_REPRESENTATIVE_MODEL_PHOTO
 }
 
 const VERIFIED_MEDIA = verifiedMediaSql();
-const COVER = `(SELECT url FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${VERIFIED_MEDIA}
+// Supplier-hosted (external) photos are served through our own URL so supplier domains never appear publicly.
+const PUBLIC_URL = `CASE WHEN m.url LIKE 'http%' THEN CONCAT('/api/photo/', m.id) ELSE m.url END`;
+const COVER = `(SELECT ${PUBLIC_URL} FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${VERIFIED_MEDIA}
   ORDER BY m.is_cover DESC, m.sort_order, m.id LIMIT 1) cover_url`;
 
 let readyPromise: Promise<void> | null = null;
@@ -98,8 +101,10 @@ export type VehicleQuery = {
 };
 
 function num(v: any) { const n = Number(v); return Number.isFinite(n) ? n : null; }
+// Group Reader posts stay private until an admin approves them.
+export const NOT_PENDING_GROUP = `NOT (COALESCE(v.source,'')='whatsapp_group' AND v.status='pending_verification')`;
 function buildWhere(opts: VehicleQuery) {
-  const args: any[] = []; let where = `v.status IN ('available','reserved','pending_verification')`;
+  const args: any[] = []; let where = `v.status IN ('available','reserved','pending_verification') AND ${NOT_PENDING_GROUP}`;
   where += ` AND NOT (v.category='motorcycle' AND (TRIM(COALESCE(v.brand,''))='' OR TRIM(COALESCE(v.model,''))=''))`;
   if (opts.category) { where += ' AND v.category=?'; args.push(opts.category); }
   if (opts.brand) { where += ' AND LOWER(v.brand)=?'; args.push(String(opts.brand).toLowerCase()); }
@@ -149,7 +154,7 @@ export async function getVehicleFilterOptions(category = 'car') {
   if (!dbConfigured()) return { brands: [], fuels: [], bodyTypes: [], minPrice: 0, maxPrice: 0, minYear: 2011, maxYear: new Date().getFullYear(), minMileage: 0, maxMileage: 0 };
   try {
     await ensureCatalogueReady();
-    const base = `status IN ('available','reserved','pending_verification') AND category=?`;
+    const base = `status IN ('available','reserved','pending_verification') AND NOT (COALESCE(source,'')='whatsapp_group' AND status='pending_verification') AND category=?`;
     const brands = await rows<any>(`SELECT brand,COUNT(*) count FROM vehicles WHERE ${base} AND TRIM(COALESCE(brand,''))<>'' GROUP BY brand ORDER BY brand`, [category]);
     const fuels = await rows<any>(`SELECT LOWER(fuel_type) fuel,COUNT(*) count FROM vehicles WHERE ${base} AND TRIM(COALESCE(fuel_type,''))<>'' GROUP BY LOWER(fuel_type) ORDER BY fuel`, [category]);
     const bodies = await rows<any>(`SELECT LOWER(JSON_UNQUOTE(JSON_EXTRACT(specs,'$.body_type'))) body,COUNT(*) count FROM vehicles WHERE ${base} AND JSON_EXTRACT(specs,'$.body_type') IS NOT NULL GROUP BY body ORDER BY body`, [category]);
@@ -162,7 +167,7 @@ export async function getVehicle(id: string) {
   if (!dbConfigured()) return withRepresentative(combinedFallbackInventory().find((x: any) => String(x.id) === id || String(x.stock_no) === String(id)));
   try {
     await ensureCatalogueReady();
-    const row = await one<any>(`SELECT v.*, ${COVER} FROM vehicles v WHERE (v.id=? OR v.legacy_id=? OR v.stock_no=?) AND v.status IN ('available','reserved','pending_verification','sold') LIMIT 1`, [id, id, id]);
+    const row = await one<any>(`SELECT v.*, ${COVER}, (SELECT ${PUBLIC_URL} FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql("m")} ORDER BY m.is_cover DESC, m.sort_order, m.id LIMIT 1) exact_cover_url FROM vehicles v WHERE (v.id=? OR v.legacy_id=? OR v.stock_no=?) AND v.status IN ('available','reserved','pending_verification','sold') AND ${NOT_PENDING_GROUP} LIMIT 1`, [id, id, id]);
     return withRepresentative(row);
   } catch (e) { console.error('GET_VEHICLE_DB_ERROR', e); return null; }
 }
@@ -194,7 +199,7 @@ export async function getVehicleMedia(vehicleId: number | string) {
     return representativeFor(v);
   }
   try {
-    const media = await rows<any>(`SELECT id,url,caption,source,is_cover,sort_order, CASE WHEN COALESCE(caption,'') LIKE 'MODEL PHOTO%' OR COALESCE(caption,'') LIKE '%Representative%' THEN 1 ELSE 0 END is_representative FROM vehicle_media m WHERE m.vehicle_id=? AND ${VERIFIED_MEDIA} ORDER BY is_cover DESC,sort_order,id LIMIT 20`, [vehicleId]);
+    const media = await rows<any>(`SELECT id,${PUBLIC_URL} url,caption,is_cover,sort_order, CASE WHEN COALESCE(caption,'') LIKE 'MODEL PHOTO%' OR COALESCE(caption,'') LIKE '%Representative%' THEN 1 ELSE 0 END is_representative FROM vehicle_media m WHERE m.vehicle_id=? AND ${VERIFIED_MEDIA} ORDER BY is_cover DESC,sort_order,id LIMIT 20`, [vehicleId]);
     if (media.length) return media;
     const vehicle = await getVehicle(String(vehicleId));
     return representativeFor(vehicle);

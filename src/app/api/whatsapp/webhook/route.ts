@@ -1,10 +1,11 @@
 import { inbound, outbound, alreadyProcessed } from '../../../../lib/conversations';
-import { salesReply, AI_MODEL, vehicleMediaForMessage } from '../../../../lib/ai';
-import { signatureOk, sendWhatsApp, sendWhatsAppImage, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken, whatsappSignatureMode } from '../../../../lib/meta';
+import { salesReply, AI_MODEL } from '../../../../lib/ai';
+import { planPhotos, sendPlannedPhotos } from '../../../../lib/whatsapp-photos';
+import { checkSignature, sendWhatsApp, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken } from '../../../../lib/meta';
 import { db, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
-import { claimReply, markReplySent, markReplyFailed } from '../../../../lib/reply-guard';
+import { claimReply, markReplySent, markReplyFailed, markReplySkipped } from '../../../../lib/reply-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +65,7 @@ async function prepareMedia(m:any,d:Described,c:any){
   try{
     const media=await downloadWhatsAppMedia(d.mediaId);
     if(m.type==='audio'){
-      if(!mediaAiConfigured()) throw new Error('Media AI key not configured');
+      if(!mediaAiConfigured()) throw new Error('Media understanding needs setup (see Readiness)');
       const transcript=await transcribeAudio(media.data,media.mimeType);
       if(!transcript) throw new Error('Voice transcription returned empty text');
       const body=`VOICE NOTE\nTranscript: ${transcript}`;
@@ -73,7 +74,7 @@ async function prepareMedia(m:any,d:Described,c:any){
       return {...d,storedText:body,aiText:`Customer sent a voice note. Transcript: ${transcript}`,needsHuman:false};
     }
     if(m.type==='image' && !d.aiText){
-      if(!mediaAiConfigured()) throw new Error('Media AI key not configured');
+      if(!mediaAiConfigured()) throw new Error('Media understanding needs setup (see Readiness)');
       const visual=await describeImage(media.data,media.mimeType);
       if(!visual) throw new Error('Image analysis returned empty text');
       const body=`PHOTO\nVisual description: ${visual}`;
@@ -88,20 +89,13 @@ async function prepareMedia(m:any,d:Described,c:any){
   return d;
 }
 
-async function sendVehicleImages(from:string,text:string,conversationId:number){
-  try {
-    const wantsImage = /\b(photo|photos|picture|pictures|image|images|show me|let me see|send.*pic|send.*photo|car.*pic|vehicle.*pic)\b/i.test(text);
-    if (!wantsImage) return;
-    const media = await vehicleMediaForMessage(text, conversationId);
-    if (media) {
-      const imgs = Array.isArray((media as any).images) ? (media as any).images.slice(0,3) : [media.image];
-      for (let i=0;i<imgs.length;i++) await sendWhatsAppImage(from, imgs[i], i===0 ? media.caption : `${media.title} • photo ${i+1}`);
-      await outbound(conversationId, 'ai', `[${imgs.length} vehicle photo${imgs.length>1?'s':''} sent] ${media.caption}`, AI_MODEL);
-    }
-  } catch (err:any) {
-    await agentEvent(conversationId,null,'vehicle_image_send','failed',err?.message||String(err));
-    console.error('WHATSAPP_SEND_VEHICLE_IMAGE', err);
-  }
+const STALE_MESSAGE_SECONDS = 24 * 60 * 60; // Meta's customer-service window; never auto-reply to older deliveries
+
+/** True when the customer has already sent a newer text message; that message's reply will cover both (no burst spam). */
+async function supersededByNewer(conversationId:number, externalMessageId:string){
+  const [r]:any=await db().execute(`SELECT 1 FROM messages n WHERE n.conversation_id=? AND n.sender='customer' AND n.direction='inbound' AND n.message_type='text'
+    AND n.id > (SELECT MIN(x.id) FROM messages x WHERE x.external_message_id=?) LIMIT 1`,[conversationId,externalMessageId]);
+  return !!r?.length;
 }
 
 async function handle(m: any, contacts: any[]) {
@@ -136,7 +130,12 @@ async function handle(m: any, contacts: any[]) {
   if (modeRows?.[0]?.mode !== 'ai') return;
   if (!d.aiText) return;
   if (!whatsappConfigured()) {
-    await agentEvent(c.id,m.id,'reply','failed','WhatsApp send credentials not configured');
+    await agentEvent(c.id,m.id,'reply','skipped','WhatsApp sending needs setup (see Readiness)');
+    return;
+  }
+  const sentAt=Number(m.timestamp||0);
+  if (sentAt && Date.now()/1000-sentAt>STALE_MESSAGE_SECONDS) {
+    await agentEvent(c.id,m.id,'reply','ignored',{reason:'stale_delivery',age_seconds:Math.round(Date.now()/1000-sentAt)});
     return;
   }
 
@@ -147,15 +146,29 @@ async function handle(m: any, contacts: any[]) {
     return;
   }
   try{
-    const reply = await salesReply(d.aiText, c.id);
+    const photoPlan = await planPhotos(d.aiText, Number(c.id)).catch(async (e:any)=>{await agentEvent(c.id,m.id,'photo_plan','failed',e?.message||String(e));return null});
+    const reply = await salesReply(d.aiText, c.id, photoPlan);
     if (!reply) throw new Error('AI returned no reply');
+    // Customer sent another text while we were thinking: let that message's reply answer both.
+    if (await supersededByNewer(Number(c.id),inboundKey)) {
+      await markReplySkipped(inboundKey,'superseded_by_newer_message');
+      await agentEvent(c.id,m.id,'reply','ignored',{reason:'superseded_by_newer_message'});
+      return;
+    }
+    // Admin may have taken over while the AI was generating.
+    const [nowMode]:any=await db().execute('SELECT mode FROM conversations WHERE id=? LIMIT 1',[c.id]);
+    if (nowMode?.[0]?.mode !== 'ai') {
+      await markReplySkipped(inboundKey,'admin_takeover');
+      await agentEvent(c.id,m.id,'reply','ignored',{reason:'admin_takeover_during_generation'});
+      return;
+    }
     const waId=await sendWhatsApp(from, reply);
     // Mark sent immediately after Meta accepts the message, before any secondary DB work.
     // This makes webhook retries safe even if a later database insert fails.
     await markReplySent(inboundKey,waId);
     await outbound(c.id, 'ai', reply, AI_MODEL);
-    await agentEvent(c.id,m.id,'reply','ok',{whatsapp_message_id:waId,chars:reply.length});
-    await sendVehicleImages(from,d.aiText,c.id);
+    await agentEvent(c.id,m.id,'reply','ok',{whatsapp_message_id:waId,chars:reply.length,photo_plan:photoPlan?.status||null});
+    await sendPlannedPhotos(from,Number(c.id),photoPlan);
   }catch(e:any){
     const detail=e?.response?.data||e?.message||String(e);
     await markReplyFailed(inboundKey,detail).catch(()=>{});
@@ -166,18 +179,21 @@ async function handle(m: any, contacts: any[]) {
 
 export async function POST(req: Request) {
   const raw = await req.text();
-  const sigMode = whatsappSignatureMode();
-  if (!signatureOk(raw, req.headers.get('x-hub-signature-256'))) {
+  const sig = checkSignature(raw, req.headers.get('x-hub-signature-256'));
+  const sigMode = sig.mode;
+  if (!sig.accept) {
     if (dbConfigured()) await agentEvent(null,null,'webhook_rejected','failed',{reason:'bad_signature',signature_mode:sigMode}).catch(()=>{});
     return new Response('Bad signature', { status: 401 });
   }
+  // Monitor mode: signature is checked but not enforced; mismatches are recorded so Readiness can show them.
+  if (sigMode === 'monitor' && sig.valid === false && dbConfigured()) await agentEvent(null,null,'signature_mismatch','warning',{signature_mode:sigMode}).catch(()=>{});
   if (!dbConfigured()) { console.error('WHATSAPP_WEBHOOK: database not configured'); return new Response('EVENT_RECEIVED'); }
   try {
     const body = JSON.parse(raw);
     // When the app secret is not configured, only accept the exact object type Meta
     // sends for WhatsApp Cloud API. This is compatibility mode, not a substitute for
     // adding WHATSAPP_APP_SECRET.
-    if (sigMode === 'compatibility' && body?.object !== 'whatsapp_business_account') {
+    if (sig.valid !== true && body?.object !== 'whatsapp_business_account') {
       await agentEvent(null,null,'webhook_rejected','failed',{reason:'unexpected_object',object:body?.object||null,signature_mode:sigMode});
       return new Response('Bad webhook object', { status: 400 });
     }

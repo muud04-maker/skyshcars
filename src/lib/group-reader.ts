@@ -1,3 +1,4 @@
+import {createHash,timingSafeEqual} from 'crypto';
 import {db, one, rows} from './db';
 export async function ensureGroupReaderSchema(){
  await db().execute(`CREATE TABLE IF NOT EXISTS whatsapp_group_sources(
@@ -33,3 +34,18 @@ export async function touchGroup(groupName:string,messageId?:string|null,groupId
 export async function upsertBridgeHeartbeat(p:any){await ensureGroupReaderSchema();const id=String(p.bridgeId||'primary').slice(0,80);await db().execute(`INSERT INTO whatsapp_group_bridge_status(bridge_id,status,whatsapp_account,visible_groups,app_version,details,last_heartbeat_at) VALUES(?,?,?,?,?,?,NOW()) ON DUPLICATE KEY UPDATE status=VALUES(status),whatsapp_account=VALUES(whatsapp_account),visible_groups=VALUES(visible_groups),app_version=VALUES(app_version),details=VALUES(details),last_heartbeat_at=NOW()`,[id,String(p.status||'online').slice(0,40),p.whatsappAccount?String(p.whatsappAccount).slice(0,191):null,Number.isFinite(Number(p.visibleGroups))?Number(p.visibleGroups):null,String(p.version||'27').slice(0,40),JSON.stringify(p.details||{})]);return {ok:true}}
 export async function saveGroupSource(p:any){await ensureGroupReaderSchema();const name=String(p.group_name||'').trim().slice(0,191);if(!name)throw new Error('Group name required');if(p.id){await db().execute(`UPDATE whatsapp_group_sources SET group_name=?,group_external_id=?,enabled=?,notes=? WHERE id=?`,[name,String(p.group_external_id||'').trim()||null,p.enabled?1:0,String(p.notes||'').trim()||null,Number(p.id)]);return {ok:true,id:Number(p.id)}}const [r]:any=await db().execute(`INSERT INTO whatsapp_group_sources(group_name,group_external_id,enabled,notes) VALUES(?,?,?,?)`,[name,String(p.group_external_id||'').trim()||null,p.enabled===false?0:1,String(p.notes||'').trim()||null]);return {ok:true,id:Number(r.insertId)}}
 export async function deleteGroupSource(id:number){await ensureGroupReaderSchema();await db().execute(`DELETE FROM whatsapp_group_sources WHERE id=?`,[id]);return {ok:true}}
+
+/** Constant-time check of the bridge's x-sky-secret header against WHATSAPP_SERVICE_SECRET. */
+export function bridgeAuthorized(req:Request){
+ const secret=String(process.env.WHATSAPP_SERVICE_SECRET||'');const given=String(req.headers.get('x-sky-secret')||'');
+ if(!secret||!given)return false;
+ const a=createHash('sha256').update(secret).digest(),b=createHash('sha256').update(given).digest();
+ return timingSafeEqual(a,b);
+}
+/** Bridge health from the last heartbeat: online only if it reported "online" within 3 minutes. */
+export function bridgeHealth(b:any){
+ if(!b?.last_heartbeat_at)return {state:'never',online:false,minutes:null as number|null};
+ const minutes=Math.floor((Date.now()-new Date(b.last_heartbeat_at).getTime())/60000);
+ const online=minutes<3&&b.status==='online';
+ return {state:minutes>=3?'stale':String(b.status||'unknown'),online,minutes};
+}
