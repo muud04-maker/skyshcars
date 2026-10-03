@@ -4,6 +4,7 @@ import { history } from './conversations';
 import { activeKnowledge } from './knowledge';
 import { memoryForConversation, refreshCustomerMemory } from './customer-memory';
 import {ensureLast50Vehicles} from './inventory-seed';
+import { absoluteMediaUrl, exactPhotoSql, sellableVehicleSql } from './exact-photos';
 
 /*
   Grounded sales assistant. Every fact the AI may state (vehicles, prices,
@@ -30,13 +31,14 @@ export function extractTerms(text: string) {
   return { terms: terms.filter(t => !/^(19[89]\d|20[0-3]\d)$/.test(t)), stock, years, category };
 }
 
+// Only real, Available, non-demo vehicles are ever offered to customers.
 async function findVehicles(text: string) {
   try{await ensureLast50Vehicles()}catch{}
   const { terms, stock, years, category } = extractTerms(text);
   const cols = `id,stock_no,category,brand,model,trim_name,model_year,price_usd,status,transmission,mileage_km,engine,fuel_type,steering,color,location,
-    (SELECT url FROM vehicle_media m WHERE m.vehicle_id=vehicles.id AND m.media_type='image' AND m.review_status='approved' ORDER BY m.is_cover DESC,m.sort_order,id LIMIT 1) cover_url`;
+    (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=vehicles.id AND ${exactPhotoSql('m')}) exact_photo_count`;
   if (stock.length) {
-    const r = await rows<any>(`SELECT ${cols} FROM vehicles WHERE stock_no IN (${stock.map(() => '?').join(',')}) AND status IN ('available','reserved','sold')`, stock);
+    const r = await rows<any>(`SELECT ${cols} FROM vehicles WHERE stock_no IN (${stock.map(() => '?').join(',')}) AND ${sellableVehicleSql('vehicles')}`, stock);
     if (r.length) return r;
   }
   if (!terms.length) return [];
@@ -45,13 +47,21 @@ async function findVehicles(text: string) {
   let extra = '';
   if (category) { extra += ' AND category=?'; args.push(category); }
   if (years.length) { extra += ` AND model_year IN (${years.map(() => '?').join(',')})`; args.push(...years); }
-  return rows<any>(`SELECT ${cols} FROM vehicles WHERE status IN ('available','reserved') AND (${where})${extra}
-    ORDER BY status='available' DESC, price_usd LIMIT 10`, args);
+  return rows<any>(`SELECT ${cols} FROM vehicles WHERE ${sellableVehicleSql('vehicles')} AND (${where})${extra}
+    ORDER BY price_usd LIMIT 10`, args);
+}
+
+/** Stock numbers the customer named that exist but are not for sale, so the AI can say so honestly. */
+async function unavailableRequested(text: string) {
+  const { stock } = extractTerms(text);
+  if (!stock.length) return [];
+  const r = await rows<any>(`SELECT stock_no,status FROM vehicles WHERE stock_no IN (${stock.map(() => '?').join(',')}) AND NOT (${sellableVehicleSql('vehicles')})`, stock);
+  return r.map(x => ({ stock_no: x.stock_no, status: x.status === 'reserved' ? 'reserved' : x.status === 'sold' ? 'sold' : 'not_available' }));
 }
 
 async function inventorySummary() {
   return rows<any>(`SELECT category, brand, COUNT(*) n, MIN(price_usd) min_usd, MAX(price_usd) max_usd
-    FROM vehicles WHERE status='available' AND brand<>'' GROUP BY category, brand ORDER BY n DESC LIMIT 25`);
+    FROM vehicles WHERE ${sellableVehicleSql('vehicles')} AND brand<>'' GROUP BY category, brand ORDER BY n DESC LIMIT 25`);
 }
 
 async function findShipping(text: string) {
@@ -95,36 +105,44 @@ async function findTracking(text: string) {
 }
 
 function withLinks(vs: any[]) {
-  return vs.map(v => ({ ...v, link: `${SITE}/vehicles/${v.id}`, image: v.cover_url ? (String(v.cover_url).startsWith('http') ? v.cover_url : SITE + v.cover_url) : null }));
+  return vs.map(v => ({ ...v, exact_photo_count: Number(v.exact_photo_count || 0), link: `${SITE}/vehicles/${v.id}` }));
 }
 
+const PHOTO_WORDS = /\b(photos?|pictures?|pics?|images?|show me|let me see|see (it|the car|the bike))\b/i;
+export function wantsPhotos(text: string) { return PHOTO_WORDS.test(text); }
+
+/**
+ * Finds the vehicle the customer wants photos of and its EXACT approved photos (max 3).
+ * Never returns model/representative/demo images. Falls back to the last 3 customer messages
+ * for follow-ups like "send photos".
+ */
 export async function vehicleMediaForMessage(text: string, conversationId?: number) {
   let priorCustomer = '';
   if (conversationId) {
     try {
       const past = await history(conversationId, 10);
-      priorCustomer = past.filter(m => m.sender === 'customer').slice(-3).map(m => String(m.body || '')).join(' ');
+      priorCustomer = past.filter(m => m.sender === 'customer').slice(-4, -1).map(m => String(m.body || '')).join(' ');
     } catch {}
   }
   let vehicles = await findVehicles(text);
   if (!vehicles.length && priorCustomer) vehicles = await findVehicles(priorCustomer);
-  const v = vehicles.find((x:any) => x.status === 'available') || vehicles[0];
+  const v = vehicles[0];
   if (!v) return null;
-  const mediaRows = await rows<any>(`SELECT url,caption,source FROM vehicle_media WHERE vehicle_id=? AND media_type='image' AND review_status='approved'
-    AND url NOT LIKE '/demo/vehicles/%' AND COALESCE(caption,'') NOT LIKE 'MODEL PHOTO%' AND COALESCE(caption,'') NOT LIKE '%Reference image%'
-    ORDER BY is_cover DESC,sort_order,id LIMIT 3`,[v.id]);
-  let images = mediaRows.map((m:any)=>String(m.url||'')).filter(Boolean).map((u:string)=>u.startsWith('http')?u:SITE+u);
-  const exact = images.length>0;
-  // Never substitute representative/model photos for a real stock unit in customer messaging.
-  // If approved listing media is absent, return no image and let the text reply say photos are pending.
-  if (!images.length) images=[];
-  const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.trim();
+  const mediaRows = await rows<any>(`SELECT url FROM vehicle_media m WHERE m.vehicle_id=? AND ${exactPhotoSql('m')}
+    ORDER BY m.is_cover DESC,m.sort_order,m.id LIMIT 3`,[v.id]);
+  const images = mediaRows.map((m:any)=>String(m.url||'')).filter(Boolean).map(absoluteMediaUrl);
+  const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.replace(/\s+/g,' ').trim();
   return {
-    vehicleId: v.id, stockNo: v.stock_no, title, image: images[0] || null, images, exact,
-    caption: `${title}${v.stock_no ? ` • ${v.stock_no}` : ''}${v.price_usd ? ` • $${Number(v.price_usd).toLocaleString()}` : ''}\n${exact?'Stock photos':'Model photos — confirm exact unit with Sky Cars'}\n${SITE}/vehicles/${v.id}`
+    vehicleId: Number(v.id), stockNo: String(v.stock_no || ''), title, images, exact: images.length > 0,
+    caption: `${title}${v.stock_no ? ` • ${v.stock_no}` : ''}${v.price_usd ? ` • $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`
   };
 }
 
+/** What the system will do about a photo request; given to the AI so its text matches reality. */
+export type PhotoPlan = {
+  status: 'sending' | 'no_exact_photos' | 'already_sent' | 'no_vehicle';
+  vehicleId?: number; stockNo?: string; title?: string; images: string[]; caption?: string;
+};
 
 export async function buildFacts(text: string, priorCustomerText = '') {
   const safe = async <T>(f: () => Promise<T>, d: T) => { try { return await f(); } catch (e) { console.error('AI_FACTS', e); return d; } };
@@ -134,8 +152,10 @@ export async function buildFacts(text: string, priorCustomerText = '') {
   const shipping = await safe(() => findShipping(text + ' ' + priorCustomerText), null);
   const tracking = await safe(() => findTracking(text), null);
   const summary = vehicles.length ? null : await safe(() => inventorySummary(), []);
+  const unavailable = await safe(() => unavailableRequested(text), []);
   return {
     matching_vehicles: withLinks(vehicles),
+    requested_but_not_available: unavailable.length ? unavailable : undefined,
     available_inventory_by_brand: summary,
     shipping,
     tracking,
@@ -179,12 +199,18 @@ HUMAN SALES BEHAVIOR:
 - Do not push a quote form immediately. Collect the key information in chat first and only mention a quote/handoff when the customer is actually ready for shipping/price confirmation.
 - LINKS ARE OPTIONAL, NOT DEFAULT. Send a vehicle/site link only when the customer asks to see the listing, photos, more details, wants to open it, or is clearly ready to act. Maximum one useful link in a normal reply. Never repeat the same link in consecutive replies.
 - If a customer asks what cars are available, summarize a few relevant choices and ask budget/type. Do not answer mainly with a link.
-- If a customer asks for photos, the system may send verified vehicle photos separately. Do not send vehicle photos just because they asked about price or availability.
+- PHOTOS: follow DATABASE FACTS.photo_request exactly. Never paste image URLs.
+  * status "sending": say briefly that you are sending the photos of that vehicle now (the system sends them right after your text).
+  * status "no_exact_photos": say honestly that we do not have exact photos of this specific unit yet and that the team can request real photos from the yard. Never offer model, catalogue, stock or "similar" images as if they were this unit.
+  * status "already_sent": say the photos were sent just above in this chat; do not promise to send them again.
+  * status "no_vehicle": ask which vehicle (model or stock number) they want photos of.
+  * If photo_request is absent, do not promise or mention sending photos.
 - Never send a new message without a new customer message or an explicit admin action. The application enforces this too; do not create follow-up messages on your own.
 
 SALES RULES:
 - Use ONLY DATABASE FACTS for vehicles, prices, availability, shipping or tracking. Never invent a vehicle, price, rate, route, transit time, schedule, inspection, discount, condition, or tracking event.
-- A reserved vehicle is not available. Say it is reserved and offer available alternatives.
+- Only vehicles in matching_vehicles / available_inventory_by_brand are for sale. Never offer anything else.
+- If requested_but_not_available lists a stock number, say plainly that it is reserved, sold or no longer available, and offer available alternatives.
 - If the exact requested vehicle is not listed, say it is not currently listed and offer sourcing. Ask only for missing details.
 - Shipping prices may only come from confirmed_rates. If no confirmed rate exists, explain briefly that the team must confirm it; continue helping in chat instead of immediately sending the customer away to a form.
 - For payment details, bank details, discounts, inspections, finance, guarantees, or anything not in verified facts/knowledge, say the team will confirm.
@@ -217,8 +243,25 @@ function wantsLink(text:string){
   return /\b(link|website|listing|open|page|details online|send.*link|where can i see|show.*listing)\b/i.test(text);
 }
 
-function deterministicFallback(text:string,facts:any,past:any[]){
+function photoLine(plan?:PhotoPlan|null){
+  if(!plan)return '';
+  const name=plan.title?`the ${plan.title}${plan.stockNo?` (${plan.stockNo})`:''}`:'that vehicle';
+  if(plan.status==='sending')return `Sending you the photos of ${name} now.`;
+  if(plan.status==='already_sent')return `I sent the photos of ${name} just above.`;
+  if(plan.status==='no_exact_photos')return `We don't have exact photos of ${name} yet. Our team can request real photos of this unit for you.`;
+  return 'Which vehicle would you like photos of? Send me the model or stock number.';
+}
+
+function deterministicFallback(text:string,facts:any,past:any[],plan?:PhotoPlan|null){
+  const p=photoLine(plan);
+  const base=deterministicText(text,facts,past);
+  return p?`${p}\n\n${base}`:base;
+}
+
+function deterministicText(text:string,facts:any,past:any[]){
   const vehicles=Array.isArray(facts?.matching_vehicles)?facts.matching_vehicles:[];
+  const gone=Array.isArray(facts?.requested_but_not_available)?facts.requested_but_not_available:[];
+  if(gone.length&&!vehicles.length)return `${gone.map((g:any)=>g.stock_no).join(', ')} is ${gone[0].status==='sold'?'already sold':gone[0].status==='reserved'?'reserved':'no longer available'}. Tell me the type of vehicle and budget you have in mind, and I'll check what we have available now.`;
   const lower=text.toLowerCase();
   const includeLink=wantsLink(text);
   if(/(chat between us|our chat|previous chat|earlier messages|remember|what did i say|history)/i.test(text)){
@@ -244,7 +287,7 @@ What budget and type of car are you looking for?`;
   return `Yes, I can help. Tell me what car you are looking for and your budget, and I’ll check our current stock.`;
 }
 
-export async function salesReply(text: string, conversationId?: number) {
+export async function salesReply(text: string, conversationId?: number, photoPlan?: PhotoPlan | null) {
   let past: any[] = [];
   if (conversationId) { try { past = await history(conversationId, 250); } catch { } }
   // The just-stored inbound message is the last item; exclude it from context duplication.
@@ -256,13 +299,14 @@ export async function salesReply(text: string, conversationId?: number) {
   const [facts, customer, knowledge] = await Promise.all([
     buildFacts(text, priorCustomer + ' ' + String(memory?.summary||'')), customerContext(conversationId), knowledgeContext()
   ]);
+  if (photoPlan) (facts as any).photo_request = { status: photoPlan.status, vehicle: photoPlan.title || null, stock_no: photoPlan.stockNo || null, photo_count: photoPlan.images.length };
 
   // Explicit history questions are answered from the real stored transcript, not guessed by the model.
   if (/(chat between us|our chat|previous chat|earlier messages|remember|what did i say|history)/i.test(text) && past.some(m=>m.sender==='customer')) {
-    return deterministicFallback(text,facts,past);
+    return deterministicFallback(text,facts,past,photoPlan);
   }
 
-  if (!process.env.DEEPSEEK_API_KEY) return deterministicFallback(text,facts,past);
+  if (!process.env.DEEPSEEK_API_KEY) return deterministicFallback(text,facts,past,photoPlan);
   const transcript = past.slice(-120).map(m=>`${String(m.sender||'').toUpperCase()}: ${String(m.body||'')}`).join('\n');
   const messages = [
     { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
@@ -275,10 +319,10 @@ export async function salesReply(text: string, conversationId?: number) {
       { headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 25000 });
     const answer = r.data.choices?.[0]?.message?.content?.trim() || null;
     if (conversationId) { try { await refreshCustomerMemory(conversationId); } catch {} }
-    return answer || deterministicFallback(text,facts,past);
+    return answer || deterministicFallback(text,facts,past,photoPlan);
   }catch(e){
     console.error('DEEPSEEK_REPLY_FAILED_USING_FALLBACK',e);
-    return deterministicFallback(text,facts,past);
+    return deterministicFallback(text,facts,past,photoPlan);
   }
 }
 

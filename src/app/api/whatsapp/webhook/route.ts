@@ -1,10 +1,11 @@
 import { inbound, outbound, alreadyProcessed } from '../../../../lib/conversations';
-import { salesReply, AI_MODEL, vehicleMediaForMessage } from '../../../../lib/ai';
-import { signatureOk, sendWhatsApp, sendWhatsAppImage, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken, whatsappSignatureMode } from '../../../../lib/meta';
+import { salesReply, AI_MODEL } from '../../../../lib/ai';
+import { planPhotos, sendPlannedPhotos } from '../../../../lib/whatsapp-photos';
+import { signatureOk, sendWhatsApp, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken, whatsappSignatureMode } from '../../../../lib/meta';
 import { db, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
-import { claimReply, markReplySent, markReplyFailed } from '../../../../lib/reply-guard';
+import { claimReply, markReplySent, markReplyFailed, markReplySkipped } from '../../../../lib/reply-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,20 +89,13 @@ async function prepareMedia(m:any,d:Described,c:any){
   return d;
 }
 
-async function sendVehicleImages(from:string,text:string,conversationId:number){
-  try {
-    const wantsImage = /\b(photo|photos|picture|pictures|image|images|show me|let me see|send.*pic|send.*photo|car.*pic|vehicle.*pic)\b/i.test(text);
-    if (!wantsImage) return;
-    const media = await vehicleMediaForMessage(text, conversationId);
-    if (media) {
-      const imgs = Array.isArray((media as any).images) ? (media as any).images.slice(0,3) : [media.image];
-      for (let i=0;i<imgs.length;i++) await sendWhatsAppImage(from, imgs[i], i===0 ? media.caption : `${media.title} • photo ${i+1}`);
-      await outbound(conversationId, 'ai', `[${imgs.length} vehicle photo${imgs.length>1?'s':''} sent] ${media.caption}`, AI_MODEL);
-    }
-  } catch (err:any) {
-    await agentEvent(conversationId,null,'vehicle_image_send','failed',err?.message||String(err));
-    console.error('WHATSAPP_SEND_VEHICLE_IMAGE', err);
-  }
+const STALE_MESSAGE_SECONDS = 24 * 60 * 60; // Meta's customer-service window; never auto-reply to older deliveries
+
+/** True when the customer has already sent a newer text message; that message's reply will cover both (no burst spam). */
+async function supersededByNewer(conversationId:number, externalMessageId:string){
+  const [r]:any=await db().execute(`SELECT 1 FROM messages n WHERE n.conversation_id=? AND n.sender='customer' AND n.direction='inbound' AND n.message_type='text'
+    AND n.id > (SELECT MIN(x.id) FROM messages x WHERE x.external_message_id=?) LIMIT 1`,[conversationId,externalMessageId]);
+  return !!r?.length;
 }
 
 async function handle(m: any, contacts: any[]) {
@@ -139,6 +133,11 @@ async function handle(m: any, contacts: any[]) {
     await agentEvent(c.id,m.id,'reply','failed','WhatsApp send credentials not configured');
     return;
   }
+  const sentAt=Number(m.timestamp||0);
+  if (sentAt && Date.now()/1000-sentAt>STALE_MESSAGE_SECONDS) {
+    await agentEvent(c.id,m.id,'reply','ignored',{reason:'stale_delivery',age_seconds:Math.round(Date.now()/1000-sentAt)});
+    return;
+  }
 
   const inboundKey=String(m.id||'').trim();
   const claimed=await claimReply(inboundKey,Number(c.id),'webhook',false);
@@ -147,15 +146,29 @@ async function handle(m: any, contacts: any[]) {
     return;
   }
   try{
-    const reply = await salesReply(d.aiText, c.id);
+    const photoPlan = await planPhotos(d.aiText, Number(c.id)).catch(async (e:any)=>{await agentEvent(c.id,m.id,'photo_plan','failed',e?.message||String(e));return null});
+    const reply = await salesReply(d.aiText, c.id, photoPlan);
     if (!reply) throw new Error('AI returned no reply');
+    // Customer sent another text while we were thinking: let that message's reply answer both.
+    if (await supersededByNewer(Number(c.id),inboundKey)) {
+      await markReplySkipped(inboundKey,'superseded_by_newer_message');
+      await agentEvent(c.id,m.id,'reply','ignored',{reason:'superseded_by_newer_message'});
+      return;
+    }
+    // Admin may have taken over while the AI was generating.
+    const [nowMode]:any=await db().execute('SELECT mode FROM conversations WHERE id=? LIMIT 1',[c.id]);
+    if (nowMode?.[0]?.mode !== 'ai') {
+      await markReplySkipped(inboundKey,'admin_takeover');
+      await agentEvent(c.id,m.id,'reply','ignored',{reason:'admin_takeover_during_generation'});
+      return;
+    }
     const waId=await sendWhatsApp(from, reply);
     // Mark sent immediately after Meta accepts the message, before any secondary DB work.
     // This makes webhook retries safe even if a later database insert fails.
     await markReplySent(inboundKey,waId);
     await outbound(c.id, 'ai', reply, AI_MODEL);
-    await agentEvent(c.id,m.id,'reply','ok',{whatsapp_message_id:waId,chars:reply.length});
-    await sendVehicleImages(from,d.aiText,c.id);
+    await agentEvent(c.id,m.id,'reply','ok',{whatsapp_message_id:waId,chars:reply.length,photo_plan:photoPlan?.status||null});
+    await sendPlannedPhotos(from,Number(c.id),photoPlan);
   }catch(e:any){
     const detail=e?.response?.data||e?.message||String(e);
     await markReplyFailed(inboundKey,detail).catch(()=>{});

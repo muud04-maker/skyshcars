@@ -12,6 +12,16 @@ async function ensureTable(){
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX(conversation_id,status,updated_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  // 'skipped' = intentionally not sent (newer customer message or admin takeover); not a failure.
+  if(!skippedReady)skippedReady=db().execute(`ALTER TABLE whatsapp_reply_guard MODIFY status ENUM('processing','sent','failed','skipped') NOT NULL DEFAULT 'processing'`).then(()=>undefined).catch((e:any)=>{skippedReady=null;throw e});
+  await skippedReady;
+}
+let skippedReady:Promise<void>|null=null;
+
+export async function markReplySkipped(inboundKey:string, reason:string){
+  if(!inboundKey) return;
+  await ensureTable();
+  await db().execute(`UPDATE whatsapp_reply_guard SET status='skipped',error_text=? WHERE inbound_key=?`,[reason.slice(0,500),inboundKey]);
 }
 
 export async function claimReply(inboundKey:string, conversationId:number, trigger:string, allowFailedRetry=false){
@@ -20,7 +30,7 @@ export async function claimReply(inboundKey:string, conversationId:number, trigg
   const [r]:any=await db().execute(`INSERT IGNORE INTO whatsapp_reply_guard(inbound_key,conversation_id,trigger_name,status) VALUES(?,?,?,'processing')`,[inboundKey,conversationId,trigger]);
   if(Number(r?.affectedRows||0)===1) return true;
   if(!allowFailedRetry) return false;
-  const [u]:any=await db().execute(`UPDATE whatsapp_reply_guard SET status='processing',trigger_name=?,error_text=NULL WHERE inbound_key=? AND status='failed'`,[trigger,inboundKey]);
+  const [u]:any=await db().execute(`UPDATE whatsapp_reply_guard SET status='processing',trigger_name=?,error_text=NULL WHERE inbound_key=? AND status IN ('failed','skipped')`,[trigger,inboundKey]);
   return Number(u?.affectedRows||0)===1;
 }
 

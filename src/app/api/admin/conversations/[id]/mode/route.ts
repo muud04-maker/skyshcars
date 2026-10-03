@@ -6,6 +6,7 @@ import {outbound} from '../../../../../../lib/conversations';
 import {sendWhatsApp,whatsappConfigured} from '../../../../../../lib/meta';
 import {agentEvent} from '../../../../../../lib/agent-events';
 import {claimReply,markReplySent,markReplyFailed} from '../../../../../../lib/reply-guard';
+import {planPhotos,sendPlannedPhotos} from '../../../../../../lib/whatsapp-photos';
 
 export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
   const d=await adminDenied();if(d)return d;
@@ -35,11 +36,13 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
         catchUp={attempted:true,sent:false,message:'This customer message already has a reply in progress or was already sent.'};
       }else try{
         if(!whatsappConfigured()) throw new Error('WhatsApp send credentials not configured');
-        const reply=await salesReply(String(pending.body),Number(id));
+        const photoPlan=await planPhotos(String(pending.body),Number(id)).catch(()=>null);
+        const reply=await salesReply(String(pending.body),Number(id),photoPlan);
         if(!reply) throw new Error('AI returned no reply');
         const waId=await sendWhatsApp(String(c.external_user_id),reply);
         await markReplySent(inboundKey,waId);
         await outbound(Number(id),'ai',reply,AI_MODEL);
+        await sendPlannedPhotos(String(c.external_user_id),Number(id),photoPlan);
         await agentEvent(Number(id),pending.external_message_id||null,'catch_up_reply','ok',{whatsapp_message_id:waId,chars:reply.length,trigger:'return_to_ai'});
         catchUp={attempted:true,sent:true};
       }catch(e:any){
