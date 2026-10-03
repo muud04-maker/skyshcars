@@ -1,10 +1,9 @@
 import {createGroupImport} from '../../../../lib/group-import';
-import {isGroupAllowed,touchGroup} from '../../../../lib/group-reader';
+import {bridgeAuthorized,isGroupAllowed,touchGroup} from '../../../../lib/group-reader';
 import {getAutomationSettings} from '../../../../lib/automation';
 export const dynamic='force-dynamic';
 export async function POST(req:Request){
-  const secret=process.env.WHATSAPP_SERVICE_SECRET||'';const given=req.headers.get('x-sky-secret')||'';
-  if(!secret||given!==secret)return Response.json({error:'Unauthorized'},{status:401});
+  if(!bridgeAuthorized(req))return Response.json({error:'Unauthorized'},{status:401});
   try{
     const settings=await getAutomationSettings();
     if(!settings.group_reader_enabled)return Response.json({error:'Group Reader imports are disabled in Automation Center'},{status:423});

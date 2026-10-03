@@ -365,3 +365,6 @@ CREATE TABLE IF NOT EXISTS customer_accounts (
  UNIQUE KEY uq_customer_account_customer(customer_id),
  FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Phase 3: each Group Reader post owns one pending vehicle (also added automatically by the app).
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS vehicle_id BIGINT UNSIGNED NULL;

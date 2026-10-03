@@ -12,7 +12,7 @@ export default function SuppliersClient(){
  async function importAllHgm(){if(busy)return;setBusy(true);let total=34,vehicles=0,photos=0;setProgress({page:0,total,vehicles:0,photos:0});setMsg('Starting full HongGuanMa catalogue import…');try{for(let page=1;page<=total;page++){setMsg(`Importing supplier page ${page} of ${total}…`);const r=await fetch('/api/admin/suppliers/hgm-page',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({page})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||`Page ${page} failed`);total=Number(j.totalPages||total);vehicles+=Number(j.imported||0);photos+=Number(j.photos||0);setProgress({page,total,vehicles,photos});}setMsg(`FULL IMPORT COMPLETE: ${vehicles} vehicles updated with ${photos} real supplier photos. Public prices include your configured markup.`);await load()}catch(e:any){setMsg(`Import stopped: ${String(e?.message||e)}. Pages already completed are saved. Press the button again to retry.`)}finally{setBusy(false)}}
  return <>
   <div className="setupAlert"><b>Private supplier inventory</b><br/>Supplier identity, source price and source URL remain admin-only. Public pages show Sky Cars inventory and Sky Cars price only.</div>
-  <div className="card hgmImportBox">
+  <div className="card catalogImportBox">
    <h2>HongGuanMa full catalogue</h2><p>Imports every public vehicle page, each vehicle detail page, and the vehicle-specific photo gallery. It does not reuse one photo across different cars.</p>
    <div className="progressTrack"><span style={{width:`${progress.total?Math.round(progress.page/progress.total*100):0}%`}}/></div>
    <p><b>{progress.page}/{progress.total} pages</b> · {progress.vehicles} vehicles · {progress.photos} photos</p>
