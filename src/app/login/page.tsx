@@ -1,10 +1,12 @@
 import {redirect} from 'next/navigation';
-import AuthPanel from '../../components/AuthPanel';
-import {auth} from '../../auth';
+import AuthPanel,{AccountsUnavailable} from '../../components/AuthPanel';
+import {customerSession} from '../../lib/session';
+import {customerAccountsEnabled} from '../../lib/auth-providers';
 import {safeNext} from '../../lib/customer-auth';
 export const dynamic='force-dynamic';
 export default async function LoginPage({searchParams}:{searchParams:Promise<{error?:string;callbackUrl?:string;next?:string}>}){
+  if(!customerAccountsEnabled())return <main className="wrap authPage"><AccountsUnavailable/></main>;
   const sp=await searchParams;const next=safeNext(sp.next||sp.callbackUrl);
-  const session=await auth();if(session?.user)redirect(next);
+  const session=await customerSession();if(session?.user)redirect(next);
   return <main className="wrap authPage"><AuthPanel mode="login" title="Login to My Sky Cars" subtitle="Welcome back. Log in to see your saved vehicles and account." next={next} error={sp.error}/></main>
 }

@@ -1,7 +1,10 @@
-import { auth, signOut } from '../auth';
+import { signOut } from '../auth';
+import { customerSession } from '../lib/session';
+import { customerAccountsEnabled } from '../lib/auth-providers';
 
 export default async function AuthStatus(){
-  const session = await auth();
+  if(!customerAccountsEnabled()) return null; // accounts switched off: no login links
+  const session = await customerSession();
   if(!session?.user){
     return <div className="accountChip"><a href="/login">Login</a><a className="solid" href="/signup">Sign up</a></div>;
   }

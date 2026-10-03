@@ -13,6 +13,11 @@ function errorMessage(code?: string) {
   return 'Sign-in did not complete. Please try again.';
 }
 
+/** Shown when customer accounts are switched off. Neutral wording only — no setup details for customers. */
+export function AccountsUnavailable() {
+  return <section className="authPanel"><h1>My Sky Cars</h1><p>Customer accounts are not available right now. You can still browse vehicles, save favourites on this device and request a quote.</p><div className="accountLoginCta"><a className="btn" href="/vehicles">Browse vehicles</a><a className="btn alt" href="/quote">Request a quote</a></div></section>;
+}
+
 export default function AuthPanel({ mode, title, subtitle, next = '/account', error }: { mode: 'login' | 'signup'; title: string; subtitle: string; next?: string; error?: string }) {
   const providers = getEnabledAuthProviders();
   return <section className="authPanel"><h1>{title}</h1><p>{subtitle}</p>

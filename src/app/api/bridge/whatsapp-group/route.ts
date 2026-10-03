@@ -10,5 +10,5 @@ export async function POST(req:Request){
     const b=await req.json();const name=String(b.groupName||'');const gid=String(b.groupId||'');
     if(!(await isGroupAllowed(name,gid)))return Response.json({error:'Group is not authorized in Sky Cars Admin'},{status:403});
     const out=await createGroupImport(b);await touchGroup(name,String(b.messageId||''),gid);return Response.json({ok:true,...out});
-  }catch(e:any){console.error('GROUP_BRIDGE',e);return Response.json({error:e?.message||'Import failed'},{status:400})}
+  }catch(e:any){console.error('GROUP_BRIDGE',e);return Response.json({error:'Import failed temporarily; the bridge will retry.'},{status:503})}
 }

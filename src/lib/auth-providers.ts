@@ -10,8 +10,14 @@ export function googleCredentials(){
   return clientId&&clientSecret?{clientId,clientSecret}:null;
 }
 export function getEnabledAuthProviders(){return allProviders.filter(p=>{
+  if(!customerAccountsEnabled())return false;
   if(p.id==='google')return !!googleCredentials();
   if(p.id==='facebook')return !!process.env.AUTH_FACEBOOK_ID&&!!process.env.AUTH_FACEBOOK_SECRET;
   if(p.id==='github')return !!process.env.AUTH_GITHUB_ID&&!!process.env.AUTH_GITHUB_SECRET;
   return false;
 })}
+
+/** Customer accounts run only when sessions can be signed and accounts stored; otherwise they switch off quietly. */
+export function customerAccountsEnabled(){
+  return !!String(process.env.AUTH_SECRET||'').trim()&&['DB_HOST','DB_NAME','DB_USER','DB_PASSWORD'].every(k=>!!process.env[k]);
+}

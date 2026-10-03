@@ -2,7 +2,7 @@
 import {headers} from 'next/headers';
 import {AuthError} from 'next-auth';
 import {signIn} from '../auth';
-import {dbConfigured} from './db';
+import {customerAccountsEnabled} from './auth-providers';
 import {clean,clientIp,rateLimit} from './ratelimit';
 import {createPasswordAccount,normEmail,safeNext,validateSignup,type SignupInput} from './customer-auth';
 
@@ -16,7 +16,7 @@ export async function loginAction(_prev:AuthFormState,fd:FormData):Promise<AuthF
   const email=normEmail(fd.get('email')),password=String(fd.get('password')||'').slice(0,128),remember=fd.get('remember')==='on';
   const values={email};
   if(!email||!password)return {error:'Enter your email and password.',values};
-  if(!dbConfigured())return {error:UNAVAILABLE,values};
+  if(!customerAccountsEnabled())return {error:UNAVAILABLE,values};
   try{
     await signIn('credentials',{email,password,remember:remember?'1':'0',redirectTo:safeNext(fd.get('next'))});
     return {};
@@ -40,7 +40,7 @@ export async function signupAction(_prev:AuthFormState,fd:FormData):Promise<Auth
   const values={fullName:input.fullName,email:input.email,country:input.country,phone:input.phone};
   const fieldErrors=validateSignup(input);
   if(Object.keys(fieldErrors).length)return {fieldErrors,values};
-  if(!dbConfigured())return {error:UNAVAILABLE,values};
+  if(!customerAccountsEnabled())return {error:UNAVAILABLE,values};
   const ip=await requestIp();
   if(!rateLimit('customer-signup-ip:'+ip,5,60*60*1000).ok||!rateLimit('customer-signup-email:'+input.email,3,60*60*1000).ok)return {error:'Too many sign-up attempts. Please wait a while and try again.',values};
   try{
