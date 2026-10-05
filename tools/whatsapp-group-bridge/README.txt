@@ -26,3 +26,7 @@ V32 update (Phase 3)
 - Failed uploads are retried up to 3 times; the website ignores duplicates.
 - Heartbeat is sent every minute from start-up with the real state: starting, qr_required, online,
   disconnected or auth_failed. Admin -> Group Reader shows it.
+
+V33 (VPS)
+- To run on a Linux VPS without your PC, follow SETUP_VPS.md (Docker with auto-restart, or pm2).
+- Logs now have timestamps. On a fatal error the bridge exits so Docker/pm2 restarts it.

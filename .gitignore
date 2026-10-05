@@ -6,3 +6,8 @@ services/whatsapp/.wwebjs_auth
 services/whatsapp/.wwebjs_cache
 services/whatsapp/group_images
 tsconfig.tsbuildinfo
+tools/whatsapp-group-bridge/.wwebjs_auth
+tools/whatsapp-group-bridge/.wwebjs_cache
+tools/whatsapp-group-bridge/session
+tools/whatsapp-group-bridge/logs
+tools/whatsapp-group-bridge/.env
