@@ -4,7 +4,7 @@ import { history } from './conversations';
 import { activeKnowledge } from './knowledge';
 import { memoryForConversation, refreshCustomerMemory } from './customer-memory';
 import {ensureLast50Vehicles} from './inventory-seed';
-import { absoluteMediaUrl, exactPhotoSql, sellableVehicleSql } from './exact-photos';
+import { exactPhotoSql, sellableVehicleSql, whatsappPhotosForVehicle } from './exact-photos';
 
 /*
   Grounded sales assistant. Every fact the AI may state (vehicles, prices,
@@ -128,9 +128,8 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
   if (!vehicles.length && priorCustomer) vehicles = await findVehicles(priorCustomer);
   const v = vehicles[0];
   if (!v) return null;
-  const mediaRows = await rows<any>(`SELECT url FROM vehicle_media m WHERE m.vehicle_id=? AND ${exactPhotoSql('m')}
-    ORDER BY m.is_cover DESC,m.sort_order,m.id LIMIT 3`,[v.id]);
-  const images = mediaRows.map((m:any)=>String(m.url||'')).filter(Boolean).map(absoluteMediaUrl);
+  // JPEG/PNG only, supplier photos via our own proxy URL (see exact-photos.ts).
+  const images = (await whatsappPhotosForVehicle(Number(v.id), 3)).map(p => p.url);
   const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.replace(/\s+/g,' ').trim();
   return {
     vehicleId: Number(v.id), stockNo: String(v.stock_no || ''), title, images, exact: images.length > 0,
