@@ -7,6 +7,7 @@ import {sendWhatsApp,whatsappConfigured} from '../../../../../../lib/meta';
 import {agentEvent} from '../../../../../../lib/agent-events';
 import {claimReply,markReplySent,markReplyFailed} from '../../../../../../lib/reply-guard';
 import {planPhotos,sendPlannedPhotos} from '../../../../../../lib/whatsapp-photos';
+import {needsReply} from '../../../../../../lib/intent';
 
 export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
   const d=await adminDenied();if(d)return d;
@@ -28,7 +29,11 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
       WHERE m.conversation_id=? AND m.sender='customer' AND m.direction='inbound'
         AND m.id > COALESCE((SELECT MAX(x.id) FROM messages x WHERE x.conversation_id=? AND x.sender IN ('ai','human') AND x.direction='outbound'),0)
       ORDER BY m.id DESC LIMIT 1`,[id,id]);
-    if(pending?.body){
+    // Reply rule: catch up only if that last customer message was a question or a request.
+    const lastOut=pending?.body?await one<any>(`SELECT body FROM messages WHERE conversation_id=? AND direction='outbound' AND id<? ORDER BY id DESC LIMIT 1`,[id,pending.id]):null;
+    if(pending?.body&&!needsReply(String(pending.body).replace(/^PHOTO\n(Image received\.|Visual description:[\s\S]*)$/,'').replace(/^VOICE NOTE\nTranscription pending\.$/,'').replace(/^(PHOTO|VIDEO)\nCaption: |^VOICE NOTE\nTranscript: /,''),lastOut?.body)){
+      catchUp={attempted:false,sent:false,message:'The last customer message was not a question or request, so the AI did not reply.'};
+    }else if(pending?.body){
       catchUp.attempted=true;
       const inboundKey=String(pending.external_message_id||`db:${pending.id}`);
       const claimed=await claimReply(inboundKey,Number(id),'return_to_ai',true);

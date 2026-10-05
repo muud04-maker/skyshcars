@@ -6,6 +6,7 @@ import { db, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
 import { claimReply, markReplySent, markReplyFailed, markReplySkipped } from '../../../../lib/reply-guard';
+import { isGroupRecipient, needsReply } from '../../../../lib/intent';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,8 +99,23 @@ async function supersededByNewer(conversationId:number, externalMessageId:string
   return !!r?.length;
 }
 
+/** The customer's own words: text, caption, voice transcript or button title. Images without a caption have none. */
+function customerWords(m: any, d: Described) {
+  if (m.type === 'text') return String(m.text?.body || '');
+  if (m.type === 'button' || m.type === 'interactive') return 'request: ' + String(d.storedText || ''); // a button press is a request
+  if (m.type === 'image') return String(m.image?.caption || '');
+  if (m.type === 'video') return String(m.video?.caption || '');
+  if (m.type === 'audio') return String(d.storedText || '').replace(/^VOICE NOTE\nTranscript:\s*/, '').replace(/^VOICE NOTE\nTranscription pending\.$/, '');
+  return '';
+}
+
 async function handle(m: any, contacts: any[]) {
   const from = m.from;
+  // Group messages (if Meta ever delivers them) are never answered: the AI never sends anything into a group.
+  if (m.group_id || m.context?.group_id || isGroupRecipient(from)) {
+    await agentEvent(null,m.id||null,'group_message','ignored',{reason:'never_reply_in_groups'}).catch(()=>{});
+    return;
+  }
   let d = describe(m);
   if (!from || !d) return;
   if (await alreadyProcessed(m.id)) {
@@ -129,6 +145,12 @@ async function handle(m: any, contacts: any[]) {
   const [modeRows]:any=await db().execute('SELECT mode FROM conversations WHERE id=? LIMIT 1',[c.id]);
   if (modeRows?.[0]?.mode !== 'ai') return;
   if (!d.aiText) return;
+  // Reply rule: only answer a question or a request. Thanks / ok / emojis / greetings alone get no reply.
+  const lastOut:any=await db().execute(`SELECT body FROM messages WHERE conversation_id=? AND direction='outbound' ORDER BY id DESC LIMIT 1`,[c.id]).then(([r]:any)=>r?.[0]).catch(()=>null);
+  if (!needsReply(customerWords(m,d), lastOut?.body)) {
+    await agentEvent(c.id,m.id,'reply','ignored',{reason:'no_question_or_request'});
+    return;
+  }
   if (!whatsappConfigured()) {
     await agentEvent(c.id,m.id,'reply','skipped','WhatsApp sending needs setup (see Readiness)');
     return;

@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import axios from 'axios';
+import { isGroupRecipient } from './intent';
 
 const GRAPH = `https://graph.facebook.com/${process.env.WHATSAPP_GRAPH_VERSION || 'v26.0'}`;
 
@@ -121,7 +122,13 @@ export async function downloadWhatsAppMedia(mediaId: string) {
   throw last || new Error('WhatsApp media download failed');
 }
 
+/** The assistant only ever writes to one person's phone number, never to a WhatsApp group. */
+function assertIndividual(to: string) {
+  if (isGroupRecipient(to)) throw new Error('Refusing to send: recipient is not an individual phone number (groups are never messaged)');
+}
+
 export async function sendWhatsApp(to: string, body: string) {
+  assertIndividual(to);
   return withMetaCredentials(async (token, phoneId) => {
     const r = await axios.post(`${GRAPH}/${phoneId}/messages`,
       { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body: body.slice(0, 4000) } },
@@ -131,6 +138,7 @@ export async function sendWhatsApp(to: string, body: string) {
 }
 
 export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: string) {
+  assertIndividual(to);
   return withMetaCredentials(async (token, phoneId) => {
     const r = await axios.post(`${GRAPH}/${phoneId}/messages`,
       { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'image', image: { link: imageUrl, ...(caption ? { caption: caption.slice(0, 1000) } : {}) } },

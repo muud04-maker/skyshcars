@@ -58,3 +58,23 @@ export function looksLikeListing(text: string, photoCount: number) {
   if (!t || question || isAckOnly(t)) return false;
   return MAKE_MODEL.test(t) && PRICE.test(t);
 }
+
+/**
+ * Reply rule for direct WhatsApp chats: the AI replies only to a question or a request.
+ * Thanks / ok / emojis / greetings alone get no reply. A short "yes"/"ok" or a plain answer
+ * ("Mogadishu", "$5000") counts only when our previous message asked the customer a question.
+ */
+export function needsReply(customerWords: string, lastOutbound?: string | null) {
+  const t = String(customerWords || '').trim();
+  if (!t) return false;
+  const weAsked = /[?؟]\s*[\p{Extended_Pictographic}\s]*$/u.test(String(lastOutbound || '').trim());
+  if (isAckOnly(t)) return weAsked && isAffirmation(t);
+  if (isQuestion(t) || isRequest(t)) return true;
+  return weAsked;
+}
+
+/** WhatsApp group (not a person). The AI never sends anything into a group. */
+export function isGroupRecipient(id: any) {
+  const s = String(id || '');
+  return /@g\.us$/i.test(s) || /^\d+-\d+$/.test(s) || !/^\+?\d{6,15}$/.test(s);
+}
