@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "check": "node scripts-check.js",
-    "photos:import": "node tools/photo-pack/import_to_public.mjs"
+    "photos:import": "node tools/photo-pack/import_to_public.mjs",
+    "check:ai": "node scripts/check-ai/run.mjs"
   },
   "dependencies": {
     "axios": "^1.12.2",

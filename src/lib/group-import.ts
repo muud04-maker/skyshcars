@@ -175,7 +175,7 @@ export async function listGroupImports(){
     FROM inventory_import_items i LEFT JOIN vehicles v ON v.id=i.vehicle_id WHERE i.source='whatsapp_group' ORDER BY i.id DESC LIMIT 200`);
 }
 
-export type ReviewEdits={category?:string;brand?:string;model?:string;trim_name?:string;model_year?:any;price_usd?:any;mileage_km?:any;fuel_type?:string;transmission?:string;steering?:string;color?:string;description?:string};
+export type ReviewEdits={ai_enabled?:boolean;category?:string;brand?:string;model?:string;trim_name?:string;model_year?:any;price_usd?:any;mileage_km?:any;fuel_type?:string;transmission?:string;steering?:string;color?:string;description?:string};
 
 export async function reviewGroupImport(id:number,action:'approve'|'reject',edits:ReviewEdits={}){
   await ensureGroupImportSchema();
@@ -224,6 +224,8 @@ export async function reviewGroupImport(id:number,action:'approve'|'reject',edit
     await db().execute(`UPDATE inventory_import_items SET review_status='pending',reviewed_at=NULL WHERE id=?`,[id]).catch(()=>{});
     throw e;
   }
+  // "Let the AI sell this car" (default ON).
+  try{const {ensureAiCatalog}=await import('./ai-catalog');await ensureAiCatalog();await db().execute('UPDATE vehicles SET ai_enabled=? WHERE id=?',[edits.ai_enabled===false?0:1,vehicleId])}catch(e){console.error('GROUP_AI_ENABLED',e)}
   let automation:any=null;try{automation=await handleVehiclePublished(vehicleId,'group')}catch(e){console.error('GROUP_AUTOMATION',e)}
   return {ok:true,status:'approved',vehicleId,automation};
 }
