@@ -15,7 +15,7 @@ function makeStore(extra = {}) {
   return {
     conv: { id: 1, channel: 'whatsapp', external_user_id: WA, mode: 'ai', customer_id: 10 },
     messages: [], nextId: 1, answered: 0, pausedUntil: null, lock: null,
-    welcomes: new Set(), sent: [], events: [], failSend: false,
+    welcomes: new Set(), sent: [], events: [], failSend: false, currentCar: null, referralResult: null,
     reply: 'Yes, we can help. What is your budget?',
     ...extra,
   };
@@ -39,6 +39,8 @@ function makeDeps(s) {
     hasNewerCustomerMessage: async (_id, afterId) => inbound().some((m) => m.id > afterId),
     markAnswered: async (_id, through) => { s.answered = Math.max(s.answered, through); },
     channelReady: () => true,
+    resolveReferral: async () => s.referralResult,
+    setCurrentCar: async (_id, vehicleId) => { s.currentCar = vehicleId; },
     welcomeConfig: async () => ({ enabled: true, site: SITE, groupLink: GROUP, groupName: 'Sky second hand cars' }),
     welcomeAlreadySent: async (key) => s.welcomes.has(key),
     claimWelcome: async (key) => { if (s.welcomes.has(key)) return false; s.welcomes.add(key); return true; },

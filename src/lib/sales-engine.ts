@@ -8,7 +8,8 @@ import { one, rows } from './db';
 import { outbound } from './conversations';
 import { agentEvent } from './agent-events';
 import { sendWhatsApp, whatsappConfigured } from './meta';
-import { flagForStaff, getState, markAnswered, tryLock, unlock } from './conversation-state';
+import { flagForStaff, getState, markAnswered, setCurrentCar, tryLock, unlock } from './conversation-state';
+import { resolveForBurst } from './referrals';
 import { runEngine, type EngineDeps, type EngineResult, type Trigger } from './ai-rules/engine-core';
 import { claimWelcome, releaseWelcome, welcomeAlreadySent, welcomeConfig } from './welcome';
 import { composeReply } from './sales-compose';
@@ -46,6 +47,8 @@ const deps: EngineDeps = {
   hasNewerCustomerMessage: async (id, afterId) => !!(await one<any>(`SELECT id FROM messages WHERE conversation_id=? AND sender='customer' AND direction='inbound' AND id>? AND created_at >= (NOW() - INTERVAL ${STALE_HOURS} HOUR) LIMIT 1`, [id, afterId])),
   markAnswered: (id, through) => markAnswered(id, through),
   channelReady: conv => conv.channel === 'whatsapp' ? whatsappConfigured() : conv.channel === 'facebook',
+  resolveReferral: (conv, burst) => resolveForBurst({ id: conv.id, channel: conv.channel }, burst.map(b => Number(b.id))),
+  setCurrentCar: (id, vehicleId, source) => setCurrentCar(id, vehicleId, source),
   welcomeConfig: () => welcomeConfig(),
   welcomeAlreadySent: key => welcomeAlreadySent(key),
   claimWelcome: (key, cid, convId) => claimWelcome(key, cid, convId),

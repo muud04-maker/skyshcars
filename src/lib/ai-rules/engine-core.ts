@@ -9,7 +9,12 @@ import { askedForGroup, askedForWebsite, detectLanguage, stripPromoLinks, withWe
 export type Trigger = 'webhook' | 'catch_up' | 'manual' | 'sweep';
 export type Conv = { id: number; channel: string; external_user_id: string; mode: string; customer_id: number | null };
 export type BurstRow = { id: number; message_type: string; body: string; external_message_id?: string | null };
-export type ComposeIn = { conversationId: number; burst: BurstRow[]; words: string; firstContact: boolean; welcomeDue: boolean; welcomeSent: boolean; referral: boolean };
+export type ResolvedReferral = { vehicle: any; aiEnabled: boolean; method: string };
+export type ComposeIn = {
+  conversationId: number; burst: BurstRow[]; words: string; firstContact: boolean;
+  welcomeDue: boolean; welcomeSent: boolean; referral: boolean;
+  referralVehicle?: any; referralAiEnabled?: boolean;
+};
 export type ComposeOut = { text: string; lang?: Lang; model?: string | null; vehicleId?: number | null; photoPlan?: any; needsStaff?: string | null; facts?: any; notes?: string[] };
 
 export type EngineDeps = {
@@ -26,6 +31,8 @@ export type EngineDeps = {
   hasNewerCustomerMessage(id: number, afterId: number): Promise<boolean>;
   markAnswered(id: number, throughId: number): Promise<void>;
   channelReady(conv: Conv): boolean;
+  resolveReferral(conv: Conv, burst: BurstRow[]): Promise<ResolvedReferral | null>;
+  setCurrentCar(conversationId: number, vehicleId: number, source: string): Promise<void>;
   welcomeConfig(): Promise<WelcomeConfig>;
   welcomeAlreadySent(key: string): Promise<boolean>;
   claimWelcome(key: string, customerId: number | null, conversationId: number): Promise<boolean>;
@@ -85,10 +92,21 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
       if (!deps.channelReady(conv)) { await deps.event(conversationId, null, 'reply', 'skipped', 'Sending needs setup (see Readiness)'); result = { status: 'skipped', reason: 'not_configured' }; break; }
 
       const words = msgs.map(m => m.words).filter(Boolean).join('\n');
+      const hasReferral = msgs.some(m => m.referral);
+      // Part 3: resolve the exact Facebook post/ad the customer tapped and remember it as the current car.
+      let referral: ResolvedReferral | null = null;
+      if (hasReferral) {
+        referral = await deps.resolveReferral(conv, burst).catch(() => null);
+        if (referral?.vehicle?.id) await deps.setCurrentCar(conversationId, Number(referral.vehicle.id), referral.method).catch(() => {});
+        await deps.event(conversationId, burst[0].external_message_id || null,
+          referral?.vehicle ? 'referral_matched' : 'referral_unmatched', 'ok',
+          { method: referral?.method || 'none', vehicle_id: referral?.vehicle?.id || null }).catch(() => {});
+      }
       const key = customerKey(conv.channel, conv.external_user_id);
       const wcfg = await deps.welcomeConfig();
       const welcomeDue = wcfg.enabled && !(await deps.welcomeAlreadySent(key));
-      const composed = await deps.compose({ conversationId, burst, words, firstContact, welcomeDue, welcomeSent: !welcomeDue, referral: msgs.some(m => m.referral) });
+      const composed = await deps.compose({ conversationId, burst, words, firstContact, welcomeDue, welcomeSent: !welcomeDue,
+        referral: hasReferral, referralVehicle: referral?.vehicle || null, referralAiEnabled: referral ? referral.aiEnabled : false });
 
       // More messages arrived while composing: answer them together in the next round.
       if (round < 2 && await deps.hasNewerCustomerMessage(conversationId, lastId)) continue;

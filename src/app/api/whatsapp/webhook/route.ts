@@ -6,10 +6,8 @@ import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../l
 import { agentEvent } from '../../../../lib/agent-events';
 import { scheduleReply } from '../../../../lib/sales-engine';
 import { ensureConversationState, flagForStaff } from '../../../../lib/conversation-state';
+import { storeReferral } from '../../../../lib/referrals';
 import { isGroupRecipient } from '../../../../lib/intent';
-
-/** Ad/post click data (part 3 stores and resolves it). */
-async function onReferral(_c: any, _m: any, _ref: any) {}
 
 export const dynamic = 'force-dynamic';
 
@@ -118,7 +116,8 @@ async function handle(m: any, contacts: any[], referral?: any) {
     throw e;
   }
   await agentEvent(c.id,m.id,'inbound','ok',{type:m.type,mode:c.mode});
-  if (m.referral) await onReferral(c, m, m.referral).catch(e=>console.error('REFERRAL',e));
+  // Part 3: remember which Facebook ad/post the customer tapped so the reply engine can resolve it.
+  if (m.referral) await storeReferral({ id: Number(c.id), channel: 'whatsapp' }, String(m.id || ''), m.referral).catch(e=>console.error('REFERRAL',e));
 
   d=await prepareMedia(m,d,c);
   // Never switch the chat to HUMAN because of a photo, voice note or document: the AI answers or asks,

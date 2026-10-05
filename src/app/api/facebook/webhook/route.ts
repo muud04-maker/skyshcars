@@ -1,6 +1,7 @@
 import { after } from 'next/server';
 import { inbound, alreadyProcessed } from '../../../../lib/conversations';
 import { scheduleReply } from '../../../../lib/sales-engine';
+import { storeReferral } from '../../../../lib/referrals';
 import { checkSignature } from '../../../../lib/meta';
 import { dbConfigured } from '../../../../lib/db';
 
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
         if (!id || !text || m.message?.is_echo) continue;
         if (await alreadyProcessed(mid)) continue;
         const c: any = await inbound('facebook', id, text, mid);
+        if (m.referral) await storeReferral({ id: Number(c.id), channel: 'facebook' }, String(mid || ''), m.referral).catch(() => {});
         // Same reply engine as WhatsApp: AI Catalog, reply rule, one reply per burst, welcome once.
         after(() => scheduleReply(Number(c.id), 'webhook'));
       } catch (err: any) { console.error('FB_MESSAGE_ERROR', err?.response?.data || err?.message || err); }
