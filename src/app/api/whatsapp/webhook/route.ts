@@ -1,12 +1,15 @@
-import { inbound, outbound, alreadyProcessed } from '../../../../lib/conversations';
-import { salesReply, AI_MODEL } from '../../../../lib/ai';
-import { planPhotos, sendPlannedPhotos } from '../../../../lib/whatsapp-photos';
-import { checkSignature, sendWhatsApp, whatsappConfigured, downloadWhatsAppMedia, whatsappVerifyToken } from '../../../../lib/meta';
+import { after } from 'next/server';
+import { inbound, alreadyProcessed } from '../../../../lib/conversations';
+import { checkSignature, downloadWhatsAppMedia, whatsappVerifyToken } from '../../../../lib/meta';
 import { db, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
-import { claimReply, markReplySent, markReplyFailed, markReplySkipped } from '../../../../lib/reply-guard';
-import { isGroupRecipient, needsReply } from '../../../../lib/intent';
+import { scheduleReply } from '../../../../lib/sales-engine';
+import { ensureConversationState, flagForStaff } from '../../../../lib/conversation-state';
+import { isGroupRecipient } from '../../../../lib/intent';
+
+/** Ad/post click data (part 3 stores and resolves it). */
+async function onReferral(_c: any, _m: any, _ref: any) {}
 
 export const dynamic = 'force-dynamic';
 
@@ -92,24 +95,7 @@ async function prepareMedia(m:any,d:Described,c:any){
 
 const STALE_MESSAGE_SECONDS = 24 * 60 * 60; // Meta's customer-service window; never auto-reply to older deliveries
 
-/** True when the customer has already sent a newer text message; that message's reply will cover both (no burst spam). */
-async function supersededByNewer(conversationId:number, externalMessageId:string){
-  const [r]:any=await db().execute(`SELECT 1 FROM messages n WHERE n.conversation_id=? AND n.sender='customer' AND n.direction='inbound' AND n.message_type='text'
-    AND n.id > (SELECT MIN(x.id) FROM messages x WHERE x.external_message_id=?) LIMIT 1`,[conversationId,externalMessageId]);
-  return !!r?.length;
-}
-
-/** The customer's own words: text, caption, voice transcript or button title. Images without a caption have none. */
-function customerWords(m: any, d: Described) {
-  if (m.type === 'text') return String(m.text?.body || '');
-  if (m.type === 'button' || m.type === 'interactive') return 'request: ' + String(d.storedText || ''); // a button press is a request
-  if (m.type === 'image') return String(m.image?.caption || '');
-  if (m.type === 'video') return String(m.video?.caption || '');
-  if (m.type === 'audio') return String(d.storedText || '').replace(/^VOICE NOTE\nTranscript:\s*/, '').replace(/^VOICE NOTE\nTranscription pending\.$/, '');
-  return '';
-}
-
-async function handle(m: any, contacts: any[]) {
+async function handle(m: any, contacts: any[], referral?: any) {
   const from = m.from;
   // Group messages (if Meta ever delivers them) are never answered: the AI never sends anything into a group.
   if (m.group_id || m.context?.group_id || isGroupRecipient(from)) {
@@ -119,84 +105,35 @@ async function handle(m: any, contacts: any[]) {
   let d = describe(m);
   if (!from || !d) return;
   if (await alreadyProcessed(m.id)) {
-    // Meta may deliver the same webhook more than once. Never auto-send another reply
-    // for a message we already stored; this prevents unsolicited/duplicate WhatsApp texts.
+    // Meta may deliver the same webhook more than once: stored once, answered once.
     await agentEvent(null,m.id,'duplicate_inbound','ignored',{reason:'already_processed'}).catch(()=>{});
     return;
   }
-
   const name = contacts.find(c => c.wa_id === from)?.profile?.name;
-  const c: any = await inbound('whatsapp', from, d.storedText, m.id, {
-    type: d.type,
-    name,
-    mediaRef: d.mediaId ? `meta:${d.mediaId}` : undefined,
-  });
+  let c: any;
+  try {
+    c = await inbound('whatsapp', from, d.storedText, m.id, { type: d.type, name, mediaRef: d.mediaId ? `meta:${d.mediaId}` : undefined });
+  } catch (e: any) {
+    if (e?.code === 'ER_DUP_ENTRY') { await agentEvent(null,m.id,'duplicate_inbound','ignored',{reason:'parallel_delivery'}).catch(()=>{}); return; }
+    throw e;
+  }
   await agentEvent(c.id,m.id,'inbound','ok',{type:m.type,mode:c.mode});
+  if (m.referral) await onReferral(c, m, m.referral).catch(e=>console.error('REFERRAL',e));
 
   d=await prepareMedia(m,d,c);
-
+  // Never switch the chat to HUMAN because of a photo, voice note or document: the AI answers or asks,
+  // and the chat is flagged so staff can look at it.
   if (d.needsHuman) {
-    await db().execute("UPDATE conversations SET mode='human', takeover_by='media-review', takeover_at=NOW() WHERE id=?", [c.id]);
-    await agentEvent(c.id,m.id,'handoff','human',{reason:`${m.type} requires review or media AI is not configured`});
-    return;
-  }
-
-  // Re-read mode after any media processing so an admin takeover wins immediately.
-  const [modeRows]:any=await db().execute('SELECT mode FROM conversations WHERE id=? LIMIT 1',[c.id]);
-  if (modeRows?.[0]?.mode !== 'ai') return;
-  if (!d.aiText) return;
-  // Reply rule: only answer a question or a request. Thanks / ok / emojis / greetings alone get no reply.
-  const lastOut:any=await db().execute(`SELECT body FROM messages WHERE conversation_id=? AND direction='outbound' ORDER BY id DESC LIMIT 1`,[c.id]).then(([r]:any)=>r?.[0]).catch(()=>null);
-  if (!needsReply(customerWords(m,d), lastOut?.body)) {
-    await agentEvent(c.id,m.id,'reply','ignored',{reason:'no_question_or_request'});
-    return;
-  }
-  if (!whatsappConfigured()) {
-    await agentEvent(c.id,m.id,'reply','skipped','WhatsApp sending needs setup (see Readiness)');
-    return;
+    await flagForStaff(Number(c.id), `${m.type} needs a look (media could not be read automatically)`).catch(()=>{});
+    await agentEvent(c.id,m.id,'staff_flag','ok',{reason:`${m.type} could not be read automatically`}).catch(()=>{});
   }
   const sentAt=Number(m.timestamp||0);
   if (sentAt && Date.now()/1000-sentAt>STALE_MESSAGE_SECONDS) {
     await agentEvent(c.id,m.id,'reply','ignored',{reason:'stale_delivery',age_seconds:Math.round(Date.now()/1000-sentAt)});
     return;
   }
-
-  const inboundKey=String(m.id||'').trim();
-  const claimed=await claimReply(inboundKey,Number(c.id),'webhook',false);
-  if(!claimed){
-    await agentEvent(c.id,m.id,'reply','ignored',{reason:'reply_already_claimed'});
-    return;
-  }
-  try{
-    const photoPlan = await planPhotos(d.aiText, Number(c.id)).catch(async (e:any)=>{await agentEvent(c.id,m.id,'photo_plan','failed',e?.message||String(e));return null});
-    const reply = await salesReply(d.aiText, c.id, photoPlan);
-    if (!reply) throw new Error('AI returned no reply');
-    // Customer sent another text while we were thinking: let that message's reply answer both.
-    if (await supersededByNewer(Number(c.id),inboundKey)) {
-      await markReplySkipped(inboundKey,'superseded_by_newer_message');
-      await agentEvent(c.id,m.id,'reply','ignored',{reason:'superseded_by_newer_message'});
-      return;
-    }
-    // Admin may have taken over while the AI was generating.
-    const [nowMode]:any=await db().execute('SELECT mode FROM conversations WHERE id=? LIMIT 1',[c.id]);
-    if (nowMode?.[0]?.mode !== 'ai') {
-      await markReplySkipped(inboundKey,'admin_takeover');
-      await agentEvent(c.id,m.id,'reply','ignored',{reason:'admin_takeover_during_generation'});
-      return;
-    }
-    const waId=await sendWhatsApp(from, reply);
-    // Mark sent immediately after Meta accepts the message, before any secondary DB work.
-    // This makes webhook retries safe even if a later database insert fails.
-    await markReplySent(inboundKey,waId);
-    await outbound(c.id, 'ai', reply, AI_MODEL);
-    await agentEvent(c.id,m.id,'reply','ok',{whatsapp_message_id:waId,chars:reply.length,photo_plan:photoPlan?.status||null});
-    await sendPlannedPhotos(from,Number(c.id),photoPlan);
-  }catch(e:any){
-    const detail=e?.response?.data||e?.message||String(e);
-    await markReplyFailed(inboundKey,detail).catch(()=>{});
-    await agentEvent(c.id,m.id,'reply','failed',detail);
-    console.error('WHATSAPP_REPLY_ERROR',detail);
-  }
+  // The reply is produced after the 200 response, by the one reply engine (lock, burst merge, reply rule, welcome).
+  after(() => scheduleReply(Number(c.id), 'webhook'));
 }
 
 export async function POST(req: Request) {
@@ -219,6 +156,7 @@ export async function POST(req: Request) {
       await agentEvent(null,null,'webhook_rejected','failed',{reason:'unexpected_object',object:body?.object||null,signature_mode:sigMode});
       return new Response('Bad webhook object', { status: 400 });
     }
+    await ensureConversationState().catch(e=>console.error('STATE_SCHEMA',e));
     let messageCount=0, statusCount=0;
     for (const e of body.entry || []) for (const ch of e.changes || []) {
       const v = ch.value || {};

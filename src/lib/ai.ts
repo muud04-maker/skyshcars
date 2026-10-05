@@ -301,7 +301,7 @@ What budget and type of car are you looking for?`;
   return `Yes, I can help. Tell me what car you are looking for and your budget, and I’ll check our current stock.`;
 }
 
-export async function salesReply(text: string, conversationId?: number, photoPlan?: PhotoPlan | null) {
+export async function salesReply(text: string, conversationId?: number, photoPlan?: PhotoPlan | null, opts: { note?: string } = {}) {
   // AI Catalog empty: never improvise stock. Honest short message, chat flagged for staff (AI stays on).
   try {
     const { aiCount } = await catalogCounts();
@@ -331,7 +331,9 @@ export async function salesReply(text: string, conversationId?: number, photoPla
   if (!process.env.DEEPSEEK_API_KEY) return deterministicFallback(text,facts,past,photoPlan);
   const transcript = past.slice(-120).map(m=>`${String(m.sender||'').toUpperCase()}: ${String(m.body||'')}`).join('\n');
   const messages = [
-    { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
+    { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + (opts.note ? `
+
+SYSTEM NOTE: ${opts.note}` : '') + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
     ...past.slice(-120).map(m => ({ role: m.sender === 'customer' ? 'user' : 'assistant', content: String(m.body || '') })),
     { role: 'user', content: text },
   ];

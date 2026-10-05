@@ -28,7 +28,7 @@ export function ensureConversationState() {
     // Speed for the live inbox (part 7). Ignore "already exists".
     for (const sql of [
       `ALTER TABLE messages ADD INDEX idx_msg_conv_id(conversation_id,id)`,
-      `ALTER TABLE messages ADD INDEX idx_msg_ext(external_message_id)`,
+      `ALTER TABLE messages ADD UNIQUE INDEX uq_msg_ext(external_message_id)`, // parallel duplicate deliveries are stored once
       `ALTER TABLE conversations ADD INDEX idx_conv_last(last_message_at)`,
     ]) { try { await db().execute(sql); } catch (e: any) { if (e?.code !== 'ER_DUP_KEYNAME') console.error('STATE_INDEX', e?.code); } }
   })().catch(e => { ready = null; throw e; });
@@ -44,7 +44,9 @@ const parse = (v: any) => { if (!v) return {}; if (typeof v === 'object') return
 
 export async function getState(conversationId: number): Promise<ChatState> {
   await ensureConversationState();
-  await db().execute(`INSERT IGNORE INTO conversation_state(conversation_id) VALUES(?)`, [conversationId]);
+  // New state rows start "answered" up to our last outbound message, so old history is never treated as a new burst.
+  await db().execute(`INSERT IGNORE INTO conversation_state(conversation_id,answered_through_id)
+    SELECT ?, COALESCE((SELECT MAX(id) FROM messages WHERE conversation_id=? AND direction='outbound'),0)`, [conversationId, conversationId]);
   const r = await one<any>(`SELECT * FROM conversation_state WHERE conversation_id=?`, [conversationId]);
   return {
     conversation_id: conversationId, current_vehicle_id: r?.current_vehicle_id ? Number(r.current_vehicle_id) : null,

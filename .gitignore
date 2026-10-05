@@ -12,3 +12,7 @@ tools/whatsapp-group-bridge/session
 tools/whatsapp-group-bridge/logs
 tools/whatsapp-group-bridge/.env
 .check-build
+
+# Local tool artifacts (never part of the app)
+.claude/
+Microsoft/
