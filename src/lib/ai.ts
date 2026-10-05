@@ -220,7 +220,8 @@ SALES RULES:
 CUSTOMER CONTEXT (internal; never expose as internal notes):
 ${JSON.stringify(customer || {})}
 
-PERSISTENT CUSTOMER MEMORY (internal; use for continuity, never expose as internal notes):
+PERSISTENT CUSTOMER MEMORY (internal; use for continuity, never expose as internal notes).
+"said_in_whatsapp_groups" is what THIS person wrote in Sky Cars WhatsApp groups. You may refer to it naturally (for example "you asked in the group about the Hilux"). Never mention other group members, suppliers or supplier prices.
 ${JSON.stringify(memory || {})}
 
 RECENT HUMAN STAFF REPLY EXAMPLES (learn tone and decisions; do not copy blindly):

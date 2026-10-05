@@ -7,6 +7,7 @@ import { createHash } from 'crypto';
 import { db, one, rows } from './db';
 import { saveBlob } from './media-store';
 import { isQuestion } from './intent';
+import { backfillMemberLinks, linkMemberToCustomer } from './member-link';
 
 let ready: Promise<void> | null = null;
 export function ensureGroupLogSchema() {
@@ -71,18 +72,14 @@ export function safeMessageId(raw: any) {
   return r.length <= 190 ? r : 'h-' + createHash('sha256').update(r).digest('hex').slice(0, 48);
 }
 
-/** Hook so later steps can link members to customers without this module depending on them. */
-export type MemberHook = (member: { id: number; phone: string | null; name: string | null }) => Promise<void>;
-let memberHook: MemberHook | null = null;
-export function onMemberSeen(h: MemberHook) { memberHook = h; }
-
 async function upsertMember(senderId: string, phone: string | null, name: string | null, at: Date) {
   await db().execute(`INSERT INTO group_members(sender_id,phone,name,first_seen_at,last_seen_at,message_count) VALUES(?,?,?,?,?,1)
     ON DUPLICATE KEY UPDATE phone=COALESCE(VALUES(phone),phone), name=COALESCE(VALUES(name),name),
       first_seen_at=LEAST(first_seen_at,VALUES(first_seen_at)), last_seen_at=GREATEST(last_seen_at,VALUES(last_seen_at)), message_count=message_count+1`,
     [senderId, phone, name, at, at]);
   const m = await one<any>('SELECT id,phone,name FROM group_members WHERE sender_id=? LIMIT 1', [senderId]);
-  if (m && memberHook) { try { await memberHook({ id: Number(m.id), phone: m.phone, name: m.name }); } catch (e) { console.error('GROUP_MEMBER_HOOK', e); } }
+  // One person = one customer record across groups and direct chats (linked by phone).
+  if (m) { try { await linkMemberToCustomer({ id: Number(m.id), phone: m.phone, name: m.name }); } catch (e) { console.error('GROUP_MEMBER_LINK', e); } }
   return m ? Number(m.id) : null;
 }
 
@@ -144,6 +141,7 @@ export async function markMessages(messageIds: string[], fields: { is_listing?: 
 
 export async function listMembers(opts: { q?: string; page?: number; size?: number }) {
   await ensureGroupLogSchema();
+  try { await backfillMemberLinks(200); } catch (e) { console.error('MEMBER_BACKFILL', e); }
   const size = Math.min(100, Math.max(10, Number(opts.size) || 50)), page = Math.max(1, Number(opts.page) || 1);
   const q = String(opts.q || '').trim();
   const where = q ? 'WHERE (gm.name LIKE ? OR gm.phone LIKE ? OR gm.sender_id LIKE ?)' : '';
