@@ -1,4 +1,4 @@
-import {waLink} from '../lib/site';
+import {waLink,vehicleEnquiryMessage} from '../lib/site';
 import {FavoriteButton,CompareButton} from './MarketplaceTools';
 function specsOf(v:any){if(!v?.specs)return{};if(typeof v.specs==='object')return v.specs;try{return JSON.parse(v.specs)}catch{return{}}}
 export default function VehicleCard({v}:{v:any}){
@@ -7,7 +7,7 @@ export default function VehicleCard({v}:{v:any}){
  const representative=v.photo_kind==='representative'||String(image||'').includes('/api/model-photo/')||String(image||'').includes('/api/representative-photo/');
  const status=String(v.status||'available');
  const statusText=status==='pending_verification'?'Check availability':status==='available'?'In stock':status.replaceAll('_',' ');
- const s=specsOf(v);const mileage=s.mileage_range||(v.mileage_km?Number(String(v.mileage_km).replace(/[^\d.]/g,'')||0).toLocaleString()+' km':null);const fuel=v.fuel_type?String(v.fuel_type).toLowerCase():null;const trans=v.transmission?String(v.transmission).toLowerCase():null;const msg=`Hi Sky Cars, I am interested in ${v.stock_no} ${title}.`;
+ const s=specsOf(v);const mileage=s.mileage_range||(v.mileage_km?Number(String(v.mileage_km).replace(/[^\d.]/g,'')||0).toLocaleString()+' km':null);const fuel=v.fuel_type?String(v.fuel_type).toLowerCase():null;const trans=v.transmission?String(v.transmission).toLowerCase():null;const msg=vehicleEnquiryMessage(v.stock_no,title);
  const lite={id:v.id,stock_no:v.stock_no,brand:v.brand,model:v.model,model_year:v.model_year,price_usd:v.price_usd,cover_url:image};
  return <article className="vehicleCard stockCard">
    <div className="cardMediaActions"><FavoriteButton vehicle={lite} compact/><CompareButton vehicle={lite} compact/></div>
@@ -16,6 +16,7 @@ export default function VehicleCard({v}:{v:any}){
       ? <>
           <img className="vehiclePhoto" src={image} alt={title} loading="lazy"/>
           {representative && <span className="repPhotoTag">Representative image</span>}
+          {!representative && <span className="repPhotoTag" style={{background:'#0b7a3b'}}>Exact stock photo</span>}
         </>
       : <div className="vehicleNoPhoto"><span>SKY CARS</span><strong>Photo coming soon</strong><small>Ask us for current vehicle photos</small></div>}
      {v.steering&&v.steering!=='unknown'&&<span className="steeringTag">{v.steering}</span>}
