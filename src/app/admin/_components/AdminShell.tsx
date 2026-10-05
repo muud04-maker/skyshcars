@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';import {useRouter} from 'next/navigation';
 const groups=[
- {name:'Sales',links:[['/admin/launch','Sell Now / Readiness'],['/admin/vehicles','Vehicles'],['/admin/media','Vehicle Photos'],['/admin/photo-check','Photo Check'],['/admin/imports','Inventory Review'],['/admin/suppliers','Private Suppliers'],['/admin/customers','Customers'],['/admin/leads','Leads'],['/admin/quotes','Quotes']]},
+ {name:'Sales',links:[['/admin/launch','Sell Now / Readiness'],['/admin/vehicles','Vehicles'],['/admin/media','Vehicle Photos'],['/admin/ai-catalog','AI Catalog'],['/admin/ai-test','Test the AI'],['/admin/photo-check','Photo Check'],['/admin/imports','Inventory Review'],['/admin/suppliers','Private Suppliers'],['/admin/customers','Customers'],['/admin/leads','Leads'],['/admin/quotes','Quotes']]},
  {name:'Shipping',links:[['/admin/shipments','Shipments'],['/admin/documents','Documents'],['/admin/countries','Countries'],['/admin/ports','Ports'],['/admin/routes','Routes'],['/admin/rates','Rates']]},
  {name:'Communications',links:[['/admin/whatsapp','Inbox / Sales Assistant'],['/admin/agent-health','AI Agent Health'],['/admin/whatsapp-health','WhatsApp Diagnostics'],['/admin/knowledge','Sales Knowledge']]},
  {name:'Automation',links:[['/admin/automation','Automation Center'],['/admin/group-reader','Group Reader'],['/admin/group','Group Chat & Members'],['/admin/campaigns','Campaigns'],['/admin/social','Social Publishing']]},

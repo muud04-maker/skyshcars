@@ -36,10 +36,10 @@ export async function inbound(channel: Channel, externalId: string, text: string
   return c;
 }
 
-export async function outbound(conversationId: number, sender: 'ai' | 'human', text: string, model?: string) {
+export async function outbound(conversationId: number, sender: 'ai' | 'human' | 'system', text: string, model?: string, opts: { externalId?: string | null; status?: string | null; type?: MsgType; mediaUrl?: string | null; error?: string | null } = {}) {
   await db().execute(
-    'INSERT INTO messages(conversation_id,sender,direction,message_type,body,ai_model) VALUES(?,?,?,?,?,?)',
-    [conversationId, sender, 'outbound', 'text', text, model || null]);
+    'INSERT INTO messages(conversation_id,external_message_id,sender,direction,message_type,body,media_url,ai_model,delivery_status,delivery_error) VALUES(?,?,?,?,?,?,?,?,?,?)',
+    [conversationId, opts.externalId || null, sender, 'outbound', opts.type || 'text', text, opts.mediaUrl || null, model || null, opts.status || (opts.externalId ? 'sent' : null), opts.error ? String(opts.error).slice(0, 500) : null]);
   await db().execute('UPDATE conversations SET last_message_at=NOW() WHERE id=?', [conversationId]);
 }
 

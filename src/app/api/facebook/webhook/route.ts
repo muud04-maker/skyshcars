@@ -1,9 +1,9 @@
-import axios from 'axios';
-import { inbound, outbound, alreadyProcessed } from '../../../../lib/conversations';
-import { salesReply, AI_MODEL } from '../../../../lib/ai';
+import { after } from 'next/server';
+import { inbound, alreadyProcessed } from '../../../../lib/conversations';
+import { scheduleReply } from '../../../../lib/sales-engine';
+import { storeReferral } from '../../../../lib/referrals';
 import { checkSignature } from '../../../../lib/meta';
 import { dbConfigured } from '../../../../lib/db';
-import { GRAPH, facebookConfigured, resolvePageToken } from '../../../../lib/facebook';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   return new Response('Forbidden', { status: 403 });
 }
 
-// Messenger replies. Without a database or Page token this endpoint accepts the event and does nothing (never errors).
+// Messenger replies go through the shared reply engine. Without a database or Page token this endpoint accepts the event and does nothing (never errors).
 export async function POST(req: Request) {
   const raw = await req.text();
   const sig = checkSignature(raw, req.headers.get('x-hub-signature-256'));
@@ -30,12 +30,9 @@ export async function POST(req: Request) {
         if (!id || !text || m.message?.is_echo) continue;
         if (await alreadyProcessed(mid)) continue;
         const c: any = await inbound('facebook', id, text, mid);
-        if (c.mode !== 'ai' || !facebookConfigured()) continue;
-        const reply = await salesReply(text, c.id);
-        if (!reply) continue;
-        const token = await resolvePageToken();
-        await axios.post(`${GRAPH}/me/messages`, { recipient: { id }, messaging_type: 'RESPONSE', message: { text: reply } }, { params: { access_token: token }, timeout: 20000 });
-        await outbound(c.id, 'ai', reply, AI_MODEL);
+        if (m.referral) await storeReferral({ id: Number(c.id), channel: 'facebook' }, String(mid || ''), m.referral).catch(() => {});
+        // Same reply engine as WhatsApp: AI Catalog, reply rule, one reply per burst, welcome once.
+        after(() => scheduleReply(Number(c.id), 'webhook'));
       } catch (err: any) { console.error('FB_MESSAGE_ERROR', err?.response?.data || err?.message || err); }
     }
   } catch (e) { console.error('FB_WEBHOOK', e); }

@@ -2,6 +2,9 @@ import {db,rows,one} from '../../../../lib/db';
 import {isAdmin} from '../../../../lib/admin';
 import {handleVehiclePublished} from '../../../../lib/automation';
 import {ensureLast50Vehicles} from '../../../../lib/inventory-seed';
+import {ensureAiCatalog} from '../../../../lib/ai-catalog';
+/** "Let the AI sell this car": ON unless the form explicitly unticks it. */
+async function setAiEnabled(id:number,v:any){try{await ensureAiCatalog();await db().execute('UPDATE vehicles SET ai_enabled=? WHERE id=?',[v===false||v===0||v==='0'?0:1,id])}catch(e){console.error('AI_ENABLED_SAVE',e)}}
 const allowed=['category','brand','model','trim_name','model_year','manufacturing_date','mileage_km','engine','transmission','fuel_type','drivetrain','steering','color','price_usd','location','status','description'];
 
 async function ensureVehicleSchema(){
@@ -25,6 +28,7 @@ export async function POST(req:Request){
   const b=await req.json();const stock=String(b.stock_no||'').trim();if(!stock)return Response.json({error:'Stock number is required'},{status:400});
   const defaults:any={category:'car',steering:'LHD',location:'China',status:'pending_verification'};const vals=allowed.map(k=>b[k]===undefined||b[k]===''?(defaults[k]??null):b[k]);let r:any;
   try{[r]=await db().execute(`INSERT INTO vehicles(stock_no,${allowed.join(',')},source,published_at) VALUES(?,${allowed.map(()=>'?').join(',')},'manual',?)`,[stock,...vals,b.status==='available'?new Date():null])}catch(e:any){if(e?.code==='ER_DUP_ENTRY')return Response.json({error:'That stock number already exists'},{status:409});console.error('ADMIN_VEHICLE_CREATE',e);return Response.json({error:'Could not save vehicle: '+(e?.sqlMessage||e?.message||'database error')},{status:500})}
+  await setAiEnabled(Number(r.insertId),b.ai_enabled);
   const image=String(b.image_url||'').trim();if(image)await db().execute("INSERT INTO vehicle_media(vehicle_id,url,source,is_cover,review_status,caption) VALUES(?,?,'admin',1,'approved','Exact stock photo added by admin')",[r.insertId,image]);
   let social:any=null;if(b.status==='available'){try{social=await handleVehiclePublished(Number(r.insertId),'manual')}catch(e){console.error('AUTO_PUBLISH_NEW_VEHICLE',e)}}return Response.json({ok:true,id:r.insertId,social});
 }
@@ -33,6 +37,7 @@ export async function PATCH(req:Request){
   try{
     const b=await req.json();const id=Number(b.id);if(!id)return Response.json({error:'id required'},{status:400});
     const before:any=await one('SELECT status FROM vehicles WHERE id=? LIMIT 1',[id]);if(!before)return Response.json({error:'Vehicle not found'},{status:404});
+    if(Object.prototype.hasOwnProperty.call(b,'ai_enabled'))await setAiEnabled(id,b.ai_enabled);
     const keys=allowed.filter(k=>Object.prototype.hasOwnProperty.call(b,k));
     if(keys.length){const vals=keys.map(k=>b[k]===undefined||b[k]===''?null:b[k]);await db().execute(`UPDATE vehicles SET ${keys.map(k=>`${k}=?`).join(',')}${b.status==='available'?',published_at=COALESCE(published_at,NOW())':''} WHERE id=?`,[...vals,id])}
     if(Object.prototype.hasOwnProperty.call(b,'image_url')&&String(b.image_url||'').trim()){await db().execute('UPDATE vehicle_media SET is_cover=0 WHERE vehicle_id=?',[id]);await db().execute("INSERT INTO vehicle_media(vehicle_id,url,source,is_cover,review_status,caption) VALUES(?,?,'admin',1,'approved','Exact stock photo added by admin')",[id,String(b.image_url).trim()])}

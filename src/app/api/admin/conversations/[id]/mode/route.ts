@@ -1,63 +1,36 @@
 import {NextResponse} from 'next/server';
 import {db,one} from '../../../../../../lib/db';
 import {adminDenied} from '../../../../../../lib/admin-guard';
-import {salesReply,AI_MODEL} from '../../../../../../lib/ai';
-import {outbound} from '../../../../../../lib/conversations';
-import {sendWhatsApp,whatsappConfigured} from '../../../../../../lib/meta';
-import {agentEvent} from '../../../../../../lib/agent-events';
-import {claimReply,markReplySent,markReplyFailed} from '../../../../../../lib/reply-guard';
-import {planPhotos,sendPlannedPhotos} from '../../../../../../lib/whatsapp-photos';
-import {needsReply} from '../../../../../../lib/intent';
+import {pauseAi,resumeAi,clearStaffFlag} from '../../../../../../lib/conversation-state';
+import {runReplyEngine} from '../../../../../../lib/sales-engine';
+import {staffPauseMinutes} from '../../../../../../lib/staff';
 
+/*
+  Take over (human) / Return to AI (ai) / Pause (AI paused for N minutes, then returns by itself).
+  Returning to AI answers the customer's still-unanswered messages through the one reply engine
+  (same reply rule, lock and welcome-once guarantee as the webhook).
+*/
 export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
   const d=await adminDenied();if(d)return d;
-  const {id}=await params;
-  const b=await req.json();
+  const {id:raw}=await params;const id=Number(raw);
+  const b=await req.json().catch(()=>({}));
   if(!['ai','human','paused'].includes(b.mode))return NextResponse.json({error:'Invalid mode'},{status:400});
-  const c=await one<any>('SELECT id,channel,external_user_id FROM conversations WHERE id=?',[id]);
+  const c=await one<any>('SELECT id,channel FROM conversations WHERE id=?',[id]);
   if(!c)return NextResponse.json({error:'Not found'},{status:404});
-
-  await db().execute(`UPDATE conversations SET mode=?,takeover_by=?,takeover_at=${b.mode==='human'?'NOW()':'NULL'} WHERE id=?`,[b.mode,b.mode==='human'?'admin':null,id]);
-  await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)',[id,'system','outbound','text',b.mode==='human'?'Admin took over conversation.':b.mode==='ai'?'Conversation returned to AI.':'Conversation paused.']);
-
-  // Critical catch-up: if a customer messaged while Human/Paused mode was active,
-  // returning to AI must answer the newest still-unanswered customer message.
-  let catchUp:{attempted:boolean;sent:boolean;message?:string}={attempted:false,sent:false};
-  if(b.mode==='ai' && c.channel==='whatsapp'){
-    const pending=await one<any>(`SELECT m.id,m.body,m.external_message_id
-      FROM messages m
-      WHERE m.conversation_id=? AND m.sender='customer' AND m.direction='inbound'
-        AND m.id > COALESCE((SELECT MAX(x.id) FROM messages x WHERE x.conversation_id=? AND x.sender IN ('ai','human') AND x.direction='outbound'),0)
-      ORDER BY m.id DESC LIMIT 1`,[id,id]);
-    // Reply rule: catch up only if that last customer message was a question or a request.
-    const lastOut=pending?.body?await one<any>(`SELECT body FROM messages WHERE conversation_id=? AND direction='outbound' AND id<? ORDER BY id DESC LIMIT 1`,[id,pending.id]):null;
-    if(pending?.body&&!needsReply(String(pending.body).replace(/^PHOTO\n(Image received\.|Visual description:[\s\S]*)$/,'').replace(/^VOICE NOTE\nTranscription pending\.$/,'').replace(/^(PHOTO|VIDEO)\nCaption: |^VOICE NOTE\nTranscript: /,''),lastOut?.body)){
-      catchUp={attempted:false,sent:false,message:'The last customer message was not a question or request, so the AI did not reply.'};
-    }else if(pending?.body){
-      catchUp.attempted=true;
-      const inboundKey=String(pending.external_message_id||`db:${pending.id}`);
-      const claimed=await claimReply(inboundKey,Number(id),'return_to_ai',true);
-      if(!claimed){
-        catchUp={attempted:true,sent:false,message:'This customer message already has a reply in progress or was already sent.'};
-      }else try{
-        if(!whatsappConfigured()) throw new Error('WhatsApp sending needs setup (see Readiness)');
-        const photoPlan=await planPhotos(String(pending.body),Number(id)).catch(()=>null);
-        const reply=await salesReply(String(pending.body),Number(id),photoPlan);
-        if(!reply) throw new Error('AI returned no reply');
-        const waId=await sendWhatsApp(String(c.external_user_id),reply);
-        await markReplySent(inboundKey,waId);
-        await outbound(Number(id),'ai',reply,AI_MODEL);
-        await sendPlannedPhotos(String(c.external_user_id),Number(id),photoPlan);
-        await agentEvent(Number(id),pending.external_message_id||null,'catch_up_reply','ok',{whatsapp_message_id:waId,chars:reply.length,trigger:'return_to_ai'});
-        catchUp={attempted:true,sent:true};
-      }catch(e:any){
-        const msg=e?.response?.data||e?.message||String(e);
-        await markReplyFailed(inboundKey,msg).catch(()=>{});
-        await agentEvent(Number(id),pending.external_message_id||null,'catch_up_reply','failed',msg);
-        catchUp={attempted:true,sent:false,message:typeof msg==='string'?msg:JSON.stringify(msg)};
-      }
-    }
+  if(b.mode==='paused'){
+    const minutes=Number(b.minutes)||await staffPauseMinutes();
+    await db().execute(`UPDATE conversations SET mode='ai',takeover_by=NULL,takeover_at=NULL WHERE id=?`,[id]);
+    await pauseAi(id,minutes,'admin');
+    await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)',[id,'system','outbound','text',`AI paused for ${minutes} min.`]);
+    return NextResponse.json({ok:true,mode:'paused',minutes});
   }
-
+  await db().execute(`UPDATE conversations SET mode=?,takeover_by=?,takeover_at=${b.mode==='human'?'NOW()':'NULL'} WHERE id=?`,[b.mode,b.mode==='human'?'admin':null,id]);
+  await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)',[id,'system','outbound','text',b.mode==='human'?'Admin took over conversation.':'Conversation returned to AI.']);
+  let catchUp:any={attempted:false,sent:false};
+  if(b.mode==='ai'){
+    await resumeAi(id);await clearStaffFlag(id).catch(()=>{});
+    const r=await runReplyEngine(id,{trigger:'catch_up'});
+    catchUp={attempted:r.status!=='skipped'||r.reason!=='nothing_new',sent:r.status==='sent',message:r.status==='sent'?undefined:r.reason==='nothing_new'?'No unanswered customer message.':r.reason==='ack_only'?'The last customer message did not need a reply.':r.reason};
+  }
   return NextResponse.json({ok:true,mode:b.mode,catchUp});
 }

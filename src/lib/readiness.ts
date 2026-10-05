@@ -6,6 +6,9 @@ import {ensureAutomationSchema} from './automation';
 import {facebookStatus} from './facebook';
 import {googleCredentials} from './auth-providers';
 import {exactPhotoSql, sellableVehicleSql} from './exact-photos';
+import {catalogCounts} from './ai-catalog';
+import {welcomesSentToday} from './welcome';
+import {referralStats} from './referrals';
 
 /*
   Sell Now readiness — the ONLY place that names missing settings ("needs setup: VARIABLE_NAME").
@@ -117,6 +120,28 @@ export async function launchReadiness(){
       add({id:'photos',area:'Inventory',label:'Vehicles with exact photos',status:inventory.realPhotoVehicles?'ok':'warn',detail:`${inventory.realPhotoVehicles} of ${total} available vehicles have an exact photo. Only these can be auto-posted to Facebook or sent as WhatsApp photos.`});
       add({id:'fb_last',area:'Facebook',label:'Last Facebook post attempt',status:!lastFb?'info':lastFb.status==='sent'?'ok':lastFb.status==='failed'?'fail':'info',detail:!lastFb?'No posts yet. Post one real vehicle from Social Auto-Post to test.':`${lastFb.status} ${ago(Number(lastFb.age))}${lastFb.status!=='sent'?` — ${String(lastFb.details||'').slice(0,160)}`:''}`,link:'/admin/social'});
       add({id:'campaigns',area:'Facebook',label:'Campaigns waiting',status:automation.approvedDue?'warn':'info',detail:`${automation.campaigns} draft/approved campaign(s)${automation.approvedDue?`, ${automation.approvedDue} overdue`:''}`,link:'/admin/campaigns'});
+      // Part 9: real AI, welcome, referral, waiting-chat and business metrics (never green just because an env var exists).
+      const [cat,welcomeToday,refs]=await Promise.all([
+        catalogCounts().catch(()=>({mode:'selected',aiCount:0,availableCount:0})),
+        welcomesSentToday().catch(()=>null),
+        referralStats(7).catch(()=>({total:0,matched:0,rate:null as number|null})),
+      ]);
+      add({id:'ai_catalog',area:'WhatsApp AI',label:'AI Catalog',status:cat.aiCount?'ok':'warn',link:'/admin/ai-catalog',detail:`AI sells ${cat.aiCount} of ${cat.availableCount} Available vehicles (mode: ${cat.mode}).${cat.aiCount?'':' Turn cars on in the AI Catalog.'}`});
+      add({id:'welcome_today',area:'WhatsApp AI',label:'Welcome messages sent today',status:'info',detail:welcomeToday==null?'Unknown (welcome log not reachable).':`${welcomeToday} first-contact welcome(s) sent today.`});
+      add({id:'referral_rate',area:'Facebook',label:'Ad/post referral match rate (7 days)',status:refs.total?(refs.matched?'ok':'warn'):'info',detail:refs.total?`${refs.matched} of ${refs.total} referrals matched to a vehicle (${refs.rate}%).`:'No Facebook ad/post referrals in the last 7 days.'});
+      const echo=await one<any>("SELECT TIMESTAMPDIFF(SECOND,MAX(created_at),NOW()) age FROM ai_agent_events WHERE event_type='staff_echo' AND status='ok'").catch(()=>null);
+      add({id:'staff_echo',area:'WhatsApp AI',label:'Last staff message from the phone',status:echo?.age==null?'info':'ok',detail:echo?.age==null?'None recorded yet. Meta must deliver message_echoes for this to work.':`${ago(Number(echo.age))}.`});
+      const waiting=await one<any>(`SELECT COUNT(*) n FROM conversations c
+        WHERE (SELECT COALESCE(MAX(m1.id),0) FROM messages m1 WHERE m1.conversation_id=c.id AND m1.sender='customer' AND m1.direction='inbound')
+            > (SELECT COALESCE(MAX(m2.id),0) FROM messages m2 WHERE m2.conversation_id=c.id AND m2.sender IN ('ai','human') AND m2.direction='outbound')
+          AND (SELECT MAX(m3.created_at) FROM messages m3 WHERE m3.conversation_id=c.id AND m3.sender='customer' AND m3.direction='inbound') <= (NOW() - INTERVAL 10 MINUTE)`).catch(()=>null);
+      add({id:'waiting10',area:'WhatsApp AI',label:'Chats waiting more than 10 minutes',status:Number(waiting?.n||0)?'warn':'ok',link:'/admin/whatsapp',detail:`${Number(waiting?.n||0)} conversation(s) have an unanswered customer message older than 10 minutes.`});
+      const aiErr=await one<any>("SELECT details,TIMESTAMPDIFF(SECOND,created_at,NOW()) age FROM ai_agent_events WHERE event_type='reply' AND status='failed' ORDER BY id DESC LIMIT 1").catch(()=>null);
+      add({id:'ai_last_error',area:'WhatsApp AI',label:'Last AI reply error',status:aiErr?'fail':'ok',link:'/admin/agent-health',detail:aiErr?`${ago(Number(aiErr.age))}: ${String(aiErr.details||'').slice(0,160)}`:'No AI reply failures recorded.'});
+      const biz=await one<any>(`SELECT (SELECT COUNT(*) FROM quote_requests WHERE status IN ('new','reviewing')) quotes,
+        (SELECT COUNT(*) FROM shipments WHERE current_status<>'completed') shipments,
+        (SELECT COUNT(*) FROM leads WHERE status IN ('new','contacted','qualified')) leads`).catch(()=>null);
+      add({id:'business',area:'Business',label:'Open quotes, shipments and leads',status:'info',link:'/admin/quotes',detail:`${Number(biz?.quotes||0)} open quote(s), ${Number(biz?.shipments||0)} active shipment(s), ${Number(biz?.leads||0)} unresolved lead(s).`});
     }catch(e:any){add({id:'db_checks',area:'Website',label:'Database checks',status:'fail',detail:e?.message||String(e)})}
   }else{
     add({id:'group_reader',area:'Group Reader',label:'Group Reader bridge (PC)',status:'warn',needs:[...bridgeMissing,...dbMissing],detail:`Off until the database is connected.${bridgeMissing.length?` ${needsText(bridgeMissing)}`:''}`});

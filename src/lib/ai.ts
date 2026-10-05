@@ -5,6 +5,12 @@ import { activeKnowledge } from './knowledge';
 import { memoryForConversation, refreshCustomerMemory } from './customer-memory';
 import {ensureLast50Vehicles} from './inventory-seed';
 import { exactPhotoSql, sellableVehicleSql, whatsappPhotosForVehicle } from './exact-photos';
+import { aiCarSql, aiCarById, catalogCounts, loadAiCars, loadDisabledCars } from './ai-catalog';
+import { flagForStaff, getState, saveSlots, setCurrentCar } from './conversation-state';
+import { matchVehicles } from './ai-rules/match';
+import { refersToCurrentCar } from './ai-rules/vehicle-intent';
+import { transcriptLines, CONTEXT_LIMIT, roleOf } from './ai-rules/context';
+import { extractSlots, missingSlots, type Slots } from './ai-rules/slots';
 
 /*
   Grounded sales assistant. Every fact the AI may state (vehicles, prices,
@@ -31,37 +37,75 @@ export function extractTerms(text: string) {
   return { terms: terms.filter(t => !/^(19[89]\d|20[0-3]\d)$/.test(t)), stock, years, category };
 }
 
-// Only real, Available, non-demo vehicles are ever offered to customers.
+/**
+ * Part 4: STRICT matching. Only cars in the AI Catalog can ever match. A match needs brand and/or
+ * model evidence (or an exact stock number). Generic words ("hybrid", "SUV", "automatic") never
+ * match on their own, and an ambiguous query returns a short candidate list instead of forcing a
+ * wrong car (this is the fix for "Harrier hybrid" sending Haval Raptor specs).
+ */
 async function findVehicles(text: string) {
   try{await ensureLast50Vehicles()}catch{}
-  const { terms, stock, years, category } = extractTerms(text);
-  const cols = `id,stock_no,category,brand,model,trim_name,model_year,price_usd,status,transmission,mileage_km,engine,fuel_type,steering,color,location,
-    (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=vehicles.id AND ${exactPhotoSql('m')}) exact_photo_count`;
+  const aiCond = await aiCarSql('vehicles'); // AI Catalog: only cars the AI may sell
+  const { stock } = extractTerms(text);
   if (stock.length) {
-    const r = await rows<any>(`SELECT ${cols} FROM vehicles WHERE stock_no IN (${stock.map(() => '?').join(',')}) AND ${sellableVehicleSql('vehicles')}`, stock);
+    const cols = `id,stock_no,category,brand,model,trim_name,model_year,price_usd,status,transmission,mileage_km,engine,fuel_type,steering,color,location,
+      (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=vehicles.id AND ${exactPhotoSql('m')}) exact_photo_count`;
+    const r = await rows<any>(`SELECT ${cols} FROM vehicles WHERE stock_no IN (${stock.map(() => '?').join(',')}) AND ${aiCond}`, stock);
     if (r.length) return r;
   }
+  const cars = await loadAiCars(400);
+  const m = matchVehicles(text, cars as any);
+  if (m.kind === 'one' && m.vehicle) return cars.filter(c => c.id === Number(m.vehicle!.id));
+  if (m.kind === 'candidates' && m.list?.length) {
+    const ids = new Set(m.list.map(x => Number(x.id)));
+    return cars.filter(c => ids.has(c.id)).slice(0, 10);
+  }
+  return [];
+}
+
+/** The car this chat is currently discussing (Part 4). */
+async function currentCarFor(conversationId?: number) {
+  if (!conversationId) return null;
+  try { const s = await getState(conversationId); return s.current_vehicle_id ? await aiCarById(Number(s.current_vehicle_id)) : null; } catch { return null; }
+}
+async function rememberCurrentCar(conversationId: number | undefined, vehicleId?: number | null) {
+  if (!conversationId || !vehicleId) return;
+  try { await setCurrentCar(Number(conversationId), Number(vehicleId), 'match'); } catch {}
+}
+
+/**
+ * Titles of the cars this message is really about (current car, matched stock, plus any extra such as
+ * a referred vehicle). Used by the reply guard so invented history is removed deterministically.
+ */
+export async function allowedVehicleNames(text: string, conversationId?: number, extra: any[] = []) {
+  const names: string[] = [];
+  const push = (v: any) => { const t = [v?.model_year, v?.brand, v?.model, v?.trim_name].filter(Boolean).join(' ').trim(); if (t) names.push(t); };
+  (extra || []).forEach(push);
+  try { const cur = await currentCarFor(conversationId); if (cur) push(cur); } catch {}
+  try { (await findVehicles(text)).slice(0, 8).forEach(push); } catch {}
+  return [...new Set(names)];
+}
+
+/** Disabled (not in AI Catalog) cars the customer named by make/model. Names only. */
+async function disabledCarsNamed(text: string) {
+  const { terms } = extractTerms(text);
   if (!terms.length) return [];
-  const where = terms.map(() => `(brand LIKE ? OR model LIKE ? OR trim_name LIKE ?)`).join(' OR ');
-  const args: any[] = terms.flatMap(t => [`%${t}%`, `%${t}%`, `%${t}%`]);
-  let extra = '';
-  if (category) { extra += ' AND category=?'; args.push(category); }
-  if (years.length) { extra += ` AND model_year IN (${years.map(() => '?').join(',')})`; args.push(...years); }
-  return rows<any>(`SELECT ${cols} FROM vehicles WHERE ${sellableVehicleSql('vehicles')} AND (${where})${extra}
-    ORDER BY price_usd LIMIT 10`, args);
+  const off = await loadDisabledCars();
+  const hit = off.filter(c => terms.some(t => t.length >= 3 && [c.brand, c.model].some(x => String(x || '').toLowerCase() === t)));
+  return [...new Set(hit.map(c => [c.model_year, c.brand, c.model].filter(Boolean).join(' ')))].slice(0, 3);
 }
 
 /** Stock numbers the customer named that exist but are not for sale, so the AI can say so honestly. */
 async function unavailableRequested(text: string) {
   const { stock } = extractTerms(text);
   if (!stock.length) return [];
-  const r = await rows<any>(`SELECT stock_no,status FROM vehicles WHERE stock_no IN (${stock.map(() => '?').join(',')}) AND NOT (${sellableVehicleSql('vehicles')})`, stock);
+  const r = await rows<any>(`SELECT stock_no,status FROM vehicles WHERE stock_no IN (${stock.map(() => '?').join(',')}) AND NOT (${await aiCarSql('vehicles')})`, stock);
   return r.map(x => ({ stock_no: x.stock_no, status: x.status === 'reserved' ? 'reserved' : x.status === 'sold' ? 'sold' : 'not_available' }));
 }
 
 async function inventorySummary() {
   return rows<any>(`SELECT category, brand, COUNT(*) n, MIN(price_usd) min_usd, MAX(price_usd) max_usd
-    FROM vehicles WHERE ${sellableVehicleSql('vehicles')} AND brand<>'' GROUP BY category, brand ORDER BY n DESC LIMIT 25`);
+    FROM vehicles WHERE ${await aiCarSql('vehicles')} AND brand<>'' GROUP BY category, brand ORDER BY n DESC LIMIT 25`);
 }
 
 async function findShipping(text: string) {
@@ -125,9 +169,16 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
     } catch {}
   }
   let vehicles = await findVehicles(text);
+  // Part 4: "send photos" (no car named) applies to the CURRENT CAR of this chat.
+  if (!vehicles.length && conversationId) {
+    const cur = await currentCarFor(conversationId);
+    if (cur && refersToCurrentCar(text)) vehicles = [cur];
+  }
   if (!vehicles.length && priorCustomer) vehicles = await findVehicles(priorCustomer);
+  // Never send photos of an arbitrary car when the request is ambiguous.
+  const { stock } = extractTerms(text);
+  if (!vehicles.length || (vehicles.length > 1 && !stock.length)) return null;
   const v = vehicles[0];
-  if (!v) return null;
   // JPEG/PNG only, supplier photos via our own proxy URL (see exact-photos.ts).
   const images = (await whatsappPhotosForVehicle(Number(v.id), 3)).map(p => p.url);
   const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.replace(/\s+/g,' ').trim();
@@ -143,17 +194,39 @@ export type PhotoPlan = {
   vehicleId?: number; stockNo?: string; title?: string; images: string[]; caption?: string;
 };
 
-export async function buildFacts(text: string, priorCustomerText = '') {
+export async function buildFacts(text: string, priorCustomerText = '', conversationId?: number) {
   const safe = async <T>(f: () => Promise<T>, d: T) => { try { return await f(); } catch (e) { console.error('AI_FACTS', e); return d; } };
-  let vehicles = await safe(() => findVehicles(text), []);
-  // Follow-up questions ("how much is it?") fall back to what they asked about earlier
+  let vehicles = await safe(() => findVehicles(text), [] as any[]);
+  // Part 4: the per-chat CURRENT CAR answers follow-ups ("how much is it?", "send photos", "still available?").
+  let current: any = await safe(() => currentCarFor(conversationId), null);
+  if (!vehicles.length && current && refersToCurrentCar(text)) vehicles = [current];
+  // Then fall back to what the customer asked about earlier in this chat.
   if (!vehicles.length && priorCustomerText) vehicles = await safe(() => findVehicles(priorCustomerText), []);
+  // A single confident match becomes the current car for the follow-ups that come next.
+  if (vehicles.length === 1) { current = vehicles[0]; await rememberCurrentCar(conversationId, Number(vehicles[0]?.id)); }
+  // Part 5: remember the customer's answers (destination, budget, body, steering, fuel, transmission).
+  let slots: Slots = {};
+  if (conversationId) {
+    slots = await safe(async () => ((await getState(conversationId)).slots || {}) as Slots, {} as Slots);
+    const hints = await safe(async () => ({
+      countries: (await rows<any>('SELECT name FROM countries WHERE active=1')).map((c: any) => String(c.name)),
+      ports: (await rows<any>('SELECT name FROM ports WHERE active=1')).map((p: any) => String(p.name)),
+    }), { countries: [] as string[], ports: [] as string[] });
+    const next = extractSlots(`${text} ${priorCustomerText}`, hints, slots || {});
+    if (JSON.stringify(next) !== JSON.stringify(slots)) { slots = next; await safe(() => saveSlots(Number(conversationId), next as any), undefined as any); }
+  }
   const shipping = await safe(() => findShipping(text + ' ' + priorCustomerText), null);
   const tracking = await safe(() => findTracking(text), null);
   const summary = vehicles.length ? null : await safe(() => inventorySummary(), []);
-  const unavailable = await safe(() => unavailableRequested(text), []);
+  const unavailable: any[] = await safe(() => unavailableRequested(text), []);
+  // Cars that exist but are not in the AI Catalog: say "not available right now" (no price, no photos).
+  if (!vehicles.length) { const named = await safe(() => disabledCarsNamed(text), [] as any[]); for (const n of named) unavailable.push({ name: n, status: 'not_available' }); }
   return {
-    matching_vehicles: withLinks(vehicles),
+    current_vehicle: current || undefined,
+    // Facts block stays small: the current car plus at most 8 cars we may sell, nothing else.
+    matching_vehicles: withLinks(vehicles.slice(0, 8)),
+    known_slots: Object.keys(slots || {}).length ? slots : undefined,
+    missing_slots: missingSlots(slots || {}),
     requested_but_not_available: unavailable.length ? unavailable : undefined,
     available_inventory_by_brand: summary,
     shipping,
@@ -230,6 +303,15 @@ ${JSON.stringify(humanExamples || [])}
 SKY CARS BUSINESS KNOWLEDGE TAUGHT BY ADMIN:
 ${JSON.stringify(knowledge || [])}
 
+REPLY RULES (Part 5 - follow these exactly):
+- Use ONLY the DATABASE FACTS and the REAL STORED CONVERSATION TRANSCRIPT. Never invent prices, stock, shipping, availability or history.
+- [STAFF] messages are your colleagues and override you: if staff said a car is sold, reserved or unavailable, never claim otherwise.
+- Memory is only a hint. Never say "you were looking at X" unless X appears in this conversation, in a referral, or in current_vehicle.
+- Answer the customer's actual question FIRST, then ask at most ONE question. Normally no more than 3 short sentences.
+- Reply in the customer's language.
+- known_slots are already answered - never ask about them again (destination, budget, body type, steering, fuel, transmission).
+- Only talk about current_vehicle and the cars in matching_vehicles (at most 8). Never mention any other vehicle.
+
 DATABASE FACTS:
 ${JSON.stringify(facts)}`;
 
@@ -261,7 +343,7 @@ function deterministicFallback(text:string,facts:any,past:any[],plan?:PhotoPlan|
 function deterministicText(text:string,facts:any,past:any[]){
   const vehicles=Array.isArray(facts?.matching_vehicles)?facts.matching_vehicles:[];
   const gone=Array.isArray(facts?.requested_but_not_available)?facts.requested_but_not_available:[];
-  if(gone.length&&!vehicles.length)return `${gone.map((g:any)=>g.stock_no).join(', ')} is ${gone[0].status==='sold'?'already sold':gone[0].status==='reserved'?'reserved':'no longer available'}. Tell me the type of vehicle and budget you have in mind, and I'll check what we have available now.`;
+  if(gone.length&&!vehicles.length)return `${gone.map((g:any)=>g.stock_no||g.name).join(', ')} is ${gone[0].status==='sold'?'already sold':gone[0].status==='reserved'?'reserved':'no longer available'}. Tell me the type of vehicle and budget you have in mind, and I'll check what we have available now.`;
   const lower=text.toLowerCase();
   const includeLink=wantsLink(text);
   if(/(chat between us|our chat|previous chat|earlier messages|remember|what did i say|history)/i.test(text)){
@@ -287,7 +369,15 @@ What budget and type of car are you looking for?`;
   return `Yes, I can help. Tell me what car you are looking for and your budget, and I’ll check our current stock.`;
 }
 
-export async function salesReply(text: string, conversationId?: number, photoPlan?: PhotoPlan | null) {
+export async function salesReply(text: string, conversationId?: number, photoPlan?: PhotoPlan | null, opts: { note?: string } = {}) {
+  // AI Catalog empty: never improvise stock. Honest short message, chat flagged for staff (AI stays on).
+  try {
+    const { aiCount } = await catalogCounts();
+    if (!aiCount) {
+      if (conversationId) await flagForStaff(conversationId, 'AI Catalog has no cars enabled').catch(() => {});
+      return 'Thanks for your message. Our team will reply shortly with the cars we have available right now.';
+    }
+  } catch {}
   let past: any[] = [];
   if (conversationId) { try { past = await history(conversationId, 250); } catch { } }
   // The just-stored inbound message is the last item; exclude it from context duplication.
@@ -297,7 +387,7 @@ export async function salesReply(text: string, conversationId?: number, photoPla
   if (conversationId) { try { memory = await memoryForConversation(conversationId); } catch {} }
   const humanExamples = past.filter(m => m.sender === 'human').slice(-30).map(m => String(m.body||'')).filter(Boolean);
   const [facts, customer, knowledge] = await Promise.all([
-    buildFacts(text, priorCustomer + ' ' + String(memory?.summary||'')), customerContext(conversationId), knowledgeContext()
+    buildFacts(text, priorCustomer + ' ' + String(memory?.summary||''), conversationId), customerContext(conversationId), knowledgeContext()
   ]);
   if (photoPlan) (facts as any).photo_request = { status: photoPlan.status, vehicle: photoPlan.title || null, stock_no: photoPlan.stockNo || null, photo_count: photoPlan.images.length };
 
@@ -307,10 +397,14 @@ export async function salesReply(text: string, conversationId?: number, photoPla
   }
 
   if (!process.env.DEEPSEEK_API_KEY) return deterministicFallback(text,facts,past,photoPlan);
-  const transcript = past.slice(-120).map(m=>`${String(m.sender||'').toUpperCase()}: ${String(m.body||'')}`).join('\n');
+  // Part 5: only the LAST 25 messages of THIS conversation, labelled [CUSTOMER]/[STAFF]/[AI].
+  const recent = past.slice(-CONTEXT_LIMIT);
+  const transcript = transcriptLines(recent, CONTEXT_LIMIT).join('\n');
   const messages = [
-    { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
-    ...past.slice(-120).map(m => ({ role: m.sender === 'customer' ? 'user' : 'assistant', content: String(m.body || '') })),
+    { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + (opts.note ? `
+
+SYSTEM NOTE: ${opts.note}` : '') + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
+    ...recent.map(m => ({ role: roleOf(m), content: String(m.body || '') })),
     { role: 'user', content: text },
   ];
   try{

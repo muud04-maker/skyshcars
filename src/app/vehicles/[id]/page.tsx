@@ -2,7 +2,7 @@ import {notFound} from 'next/navigation';
 import type {Metadata} from 'next';
 import {getVehicle,getVehicleMedia,getVehicles} from '../../../lib/vehicles';
 import VehicleGallery from '../../../components/VehicleGallery';
-import {SITE_URL,waLink} from '../../../lib/site';
+import {SITE_URL,waLink,vehicleEnquiryMessage} from '../../../lib/site';
 import ShippingEstimator from '../../../components/ShippingEstimator';
 import VehicleGrid from '../../../components/VehicleGrid';
 import {FavoriteButton,CompareButton,RecentlyViewedTracker} from '../../../components/MarketplaceTools';
@@ -45,7 +45,7 @@ export default async function Detail({params}:{params:Promise<{id:string}>}){
       <div><small>Engine</small><b>{v.engine||'On request'}</b></div><div><small>Steering</small><b>{v.steering||'On request'}</b></div>
       <div><small>Body type</small><b>{sx.body_type||'On request'}</b></div><div><small>Stock status</small><b>{sx.stock_status||statusText}</b></div><div><small>Color</small><b>{v.color||'On request'}</b></div><div><small>Location</small><b>{v.location||'China'}</b></div>
     </div>
-    <div className="detailTools"><FavoriteButton vehicle={lite}/><CompareButton vehicle={lite}/></div><div className="detailActions"><a className="btn" href={'/quote?vehicle='+v.id}>Get Total Quote</a><a className="btn wa" href={waLink(`Hi Sky Cars, I am interested in ${v.stock_no} ${title} - ${SITE_URL}/vehicles/${v.id}`)} target="_blank" rel="noreferrer">Ask on WhatsApp</a></div>
+    <div className="detailTools"><FavoriteButton vehicle={lite}/><CompareButton vehicle={lite}/></div><div className="detailActions"><a className="btn" href={'/quote?vehicle='+v.id}>Get Total Quote</a><a className="btn wa" href={waLink(vehicleEnquiryMessage(v.stock_no,title,`${SITE_URL}/vehicles/${v.id}`))} target="_blank" rel="noreferrer">Chat on WhatsApp</a></div>
    </section>
   </div>
   <ShippingEstimator vehiclePrice={v.price_usd?Number(v.price_usd):undefined}/>
