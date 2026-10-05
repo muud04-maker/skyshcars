@@ -1,12 +1,14 @@
 import { after } from 'next/server';
 import { inbound, alreadyProcessed } from '../../../../lib/conversations';
 import { checkSignature, downloadWhatsAppMedia, whatsappVerifyToken } from '../../../../lib/meta';
-import { db, dbConfigured } from '../../../../lib/db';
+import { db, one, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
 import { scheduleReply } from '../../../../lib/sales-engine';
-import { ensureConversationState, flagForStaff } from '../../../../lib/conversation-state';
+import { ensureConversationState, flagForStaff, pauseAi } from '../../../../lib/conversation-state';
 import { storeReferral } from '../../../../lib/referrals';
+import { staffPauseMinutes } from '../../../../lib/staff';
+import { isStaffEcho } from '../../../../lib/ai-rules/staff';
 import { isGroupRecipient } from '../../../../lib/intent';
 
 export const dynamic = 'force-dynamic';
@@ -93,6 +95,32 @@ async function prepareMedia(m:any,d:Described,c:any){
 
 const STALE_MESSAGE_SECONDS = 24 * 60 * 60; // Meta's customer-service window; never auto-reply to older deliveries
 
+/** Our own phone numbers, used to recognise staff replies echoed back by Meta. */
+function ownWhatsAppNumbers() {
+  return [process.env.WHATSAPP_PHONE_NUMBER_ID, process.env.WHATSAPP_DISPLAY_PHONE, process.env.WHATSAPP_BUSINESS_NUMBER].filter(Boolean) as string[];
+}
+
+/**
+ * Part 6: a message staff sent from the WhatsApp app, echoed back by Meta (message_echoes).
+ * Stored as a [STAFF] message, never answered, and the AI is paused so it does not talk over them.
+ */
+async function handleEcho(m: any) {
+  const customer = String(m?.to || '').trim();
+  const id = String(m?.id || '').trim();
+  const text = String(m?.text?.body || m?.button?.text || m?.interactive?.button_reply?.title || '').trim();
+  if (!customer || !id) return 0;
+  if (await alreadyProcessed(id)) return 0;
+  const c: any = await one<any>('SELECT id,channel FROM conversations WHERE channel=? AND external_user_id=? LIMIT 1', ['whatsapp', customer]).catch(() => null);
+  if (!c?.id) return 0; // staff wrote to someone we have no chat with yet
+  await db().execute('INSERT IGNORE INTO messages(conversation_id,external_message_id,sender,direction,message_type,body) VALUES(?,?,?,?,?,?)',
+    [c.id, id, 'human', 'outbound', 'text', text || '[staff message]']).catch(() => {});
+  await db().execute('UPDATE conversations SET last_message_at=NOW() WHERE id=?', [c.id]).catch(() => {});
+  const minutes = await staffPauseMinutes().catch(() => 15);
+  await pauseAi(Number(c.id), minutes, 'staff').catch(() => {});
+  await agentEvent(Number(c.id), id, 'staff_echo', 'ok', { minutes, chars: text.length });
+  return 1;
+}
+
 async function handle(m: any, contacts: any[], referral?: any) {
   const from = m.from;
   // Group messages (if Meta ever delivers them) are never answered: the AI never sends anything into a group.
@@ -156,14 +184,22 @@ export async function POST(req: Request) {
       return new Response('Bad webhook object', { status: 400 });
     }
     await ensureConversationState().catch(e=>console.error('STATE_SCHEMA',e));
-    let messageCount=0, statusCount=0;
+    let messageCount=0, statusCount=0, echoCount=0;
     for (const e of body.entry || []) for (const ch of e.changes || []) {
       const v = ch.value || {};
       for(const s of v.statuses||[]){
         statusCount++;
         if(s.id) await db().execute('UPDATE messages SET delivery_status=? WHERE external_message_id=?',[String(s.status||''),String(s.id)]).catch(()=>{});
       }
+      // Part 6: staff replies from the WhatsApp app (Meta echoes them back to us).
+      for (const echo of v.message_echoes || []) {
+        try { echoCount += await handleEcho(echo); } catch (err:any) { console.error('WHATSAPP_ECHO_ERROR', err?.message || err); }
+      }
       for (const m of v.messages || []) {
+        if (isStaffEcho(m, ownWhatsAppNumbers())) {
+          try { echoCount += await handleEcho(m); } catch (err:any) { console.error('WHATSAPP_ECHO_ERROR', err?.message || err); }
+          continue;
+        }
         messageCount++;
         try { await handle(m, v.contacts || []); }
         catch (err: any) {
@@ -172,7 +208,7 @@ export async function POST(req: Request) {
         }
       }
     }
-    await agentEvent(null,null,'webhook_received','ok',{messages:messageCount,statuses:statusCount,signature_mode:sigMode});
+    await agentEvent(null,null,'webhook_received','ok',{messages:messageCount,statuses:statusCount,echoes:echoCount,signature_mode:sigMode});
   } catch (err:any) {
     await agentEvent(null,null,'webhook_parse_error','failed',err?.message||String(err));
     console.error('WHATSAPP_WEBHOOK', err);

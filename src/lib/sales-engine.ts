@@ -77,3 +77,18 @@ export function runReplyEngine(conversationId: number, opts: { trigger: Trigger;
 export function scheduleReply(conversationId: number, trigger: Trigger = 'webhook') {
   return runReplyEngine(conversationId, { trigger }).catch(e => { console.error('REPLY_ENGINE', e); return { status: 'failed' } as EngineResult; });
 }
+
+/**
+ * Part 6: after a staff pause expires, let the AI answer a customer who is still waiting.
+ * Run from the automation cron so the AI returns by itself without waiting for a new message.
+ */
+export async function sweepDuePauses(limit = 25) {
+  const due = await rows<any>(`SELECT c.id FROM conversations c
+    JOIN conversation_state s ON s.conversation_id=c.id
+    WHERE c.mode='ai' AND s.ai_paused_until IS NOT NULL AND s.ai_paused_until <= NOW()
+      AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.sender='customer' AND m.direction='inbound' AND m.id > s.answered_through_id)
+    ORDER BY s.ai_paused_until ASC LIMIT ${Math.max(1, Math.min(100, limit))}`).catch(() => []);
+  const results: any[] = [];
+  for (const r of due) results.push({ conversation_id: Number(r.id), result: await runReplyEngine(Number(r.id), { trigger: 'sweep' }).catch(e => ({ status: 'failed', reason: String(e) })) });
+  return results;
+}
