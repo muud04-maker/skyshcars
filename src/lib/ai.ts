@@ -5,8 +5,10 @@ import { activeKnowledge } from './knowledge';
 import { memoryForConversation, refreshCustomerMemory } from './customer-memory';
 import {ensureLast50Vehicles} from './inventory-seed';
 import { exactPhotoSql, sellableVehicleSql, whatsappPhotosForVehicle } from './exact-photos';
-import { aiCarSql, catalogCounts, loadDisabledCars } from './ai-catalog';
-import { flagForStaff } from './conversation-state';
+import { aiCarSql, aiCarById, catalogCounts, loadAiCars, loadDisabledCars } from './ai-catalog';
+import { flagForStaff, getState, setCurrentCar } from './conversation-state';
+import { matchVehicles } from './ai-rules/match';
+import { refersToCurrentCar } from './ai-rules/vehicle-intent';
 
 /*
   Grounded sales assistant. Every fact the AI may state (vehicles, prices,
@@ -33,25 +35,40 @@ export function extractTerms(text: string) {
   return { terms: terms.filter(t => !/^(19[89]\d|20[0-3]\d)$/.test(t)), stock, years, category };
 }
 
-// Only real, Available, non-demo vehicles are ever offered to customers.
+/**
+ * Part 4: STRICT matching. Only cars in the AI Catalog can ever match. A match needs brand and/or
+ * model evidence (or an exact stock number). Generic words ("hybrid", "SUV", "automatic") never
+ * match on their own, and an ambiguous query returns a short candidate list instead of forcing a
+ * wrong car (this is the fix for "Harrier hybrid" sending Haval Raptor specs).
+ */
 async function findVehicles(text: string) {
   try{await ensureLast50Vehicles()}catch{}
   const aiCond = await aiCarSql('vehicles'); // AI Catalog: only cars the AI may sell
-  const { terms, stock, years, category } = extractTerms(text);
-  const cols = `id,stock_no,category,brand,model,trim_name,model_year,price_usd,status,transmission,mileage_km,engine,fuel_type,steering,color,location,
-    (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=vehicles.id AND ${exactPhotoSql('m')}) exact_photo_count`;
+  const { stock } = extractTerms(text);
   if (stock.length) {
+    const cols = `id,stock_no,category,brand,model,trim_name,model_year,price_usd,status,transmission,mileage_km,engine,fuel_type,steering,color,location,
+      (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=vehicles.id AND ${exactPhotoSql('m')}) exact_photo_count`;
     const r = await rows<any>(`SELECT ${cols} FROM vehicles WHERE stock_no IN (${stock.map(() => '?').join(',')}) AND ${aiCond}`, stock);
     if (r.length) return r;
   }
-  if (!terms.length) return [];
-  const where = terms.map(() => `(brand LIKE ? OR model LIKE ? OR trim_name LIKE ?)`).join(' OR ');
-  const args: any[] = terms.flatMap(t => [`%${t}%`, `%${t}%`, `%${t}%`]);
-  let extra = '';
-  if (category) { extra += ' AND category=?'; args.push(category); }
-  if (years.length) { extra += ` AND model_year IN (${years.map(() => '?').join(',')})`; args.push(...years); }
-  return rows<any>(`SELECT ${cols} FROM vehicles WHERE ${aiCond} AND (${where})${extra}
-    ORDER BY price_usd LIMIT 10`, args);
+  const cars = await loadAiCars(400);
+  const m = matchVehicles(text, cars as any);
+  if (m.kind === 'one' && m.vehicle) return cars.filter(c => c.id === Number(m.vehicle!.id));
+  if (m.kind === 'candidates' && m.list?.length) {
+    const ids = new Set(m.list.map(x => Number(x.id)));
+    return cars.filter(c => ids.has(c.id)).slice(0, 10);
+  }
+  return [];
+}
+
+/** The car this chat is currently discussing (Part 4). */
+async function currentCarFor(conversationId?: number) {
+  if (!conversationId) return null;
+  try { const s = await getState(conversationId); return s.current_vehicle_id ? await aiCarById(Number(s.current_vehicle_id)) : null; } catch { return null; }
+}
+async function rememberCurrentCar(conversationId: number | undefined, vehicleId?: number | null) {
+  if (!conversationId || !vehicleId) return;
+  try { await setCurrentCar(Number(conversationId), Number(vehicleId), 'match'); } catch {}
 }
 
 /** Disabled (not in AI Catalog) cars the customer named by make/model. Names only. */
@@ -137,9 +154,16 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
     } catch {}
   }
   let vehicles = await findVehicles(text);
+  // Part 4: "send photos" (no car named) applies to the CURRENT CAR of this chat.
+  if (!vehicles.length && conversationId) {
+    const cur = await currentCarFor(conversationId);
+    if (cur && refersToCurrentCar(text)) vehicles = [cur];
+  }
   if (!vehicles.length && priorCustomer) vehicles = await findVehicles(priorCustomer);
+  // Never send photos of an arbitrary car when the request is ambiguous.
+  const { stock } = extractTerms(text);
+  if (!vehicles.length || (vehicles.length > 1 && !stock.length)) return null;
   const v = vehicles[0];
-  if (!v) return null;
   // JPEG/PNG only, supplier photos via our own proxy URL (see exact-photos.ts).
   const images = (await whatsappPhotosForVehicle(Number(v.id), 3)).map(p => p.url);
   const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.replace(/\s+/g,' ').trim();
@@ -155,11 +179,16 @@ export type PhotoPlan = {
   vehicleId?: number; stockNo?: string; title?: string; images: string[]; caption?: string;
 };
 
-export async function buildFacts(text: string, priorCustomerText = '') {
+export async function buildFacts(text: string, priorCustomerText = '', conversationId?: number) {
   const safe = async <T>(f: () => Promise<T>, d: T) => { try { return await f(); } catch (e) { console.error('AI_FACTS', e); return d; } };
-  let vehicles = await safe(() => findVehicles(text), []);
-  // Follow-up questions ("how much is it?") fall back to what they asked about earlier
+  let vehicles = await safe(() => findVehicles(text), [] as any[]);
+  // Part 4: the per-chat CURRENT CAR answers follow-ups ("how much is it?", "send photos", "still available?").
+  let current: any = await safe(() => currentCarFor(conversationId), null);
+  if (!vehicles.length && current && refersToCurrentCar(text)) vehicles = [current];
+  // Then fall back to what the customer asked about earlier in this chat.
   if (!vehicles.length && priorCustomerText) vehicles = await safe(() => findVehicles(priorCustomerText), []);
+  // A single confident match becomes the current car for the follow-ups that come next.
+  if (vehicles.length === 1) { current = vehicles[0]; await rememberCurrentCar(conversationId, Number(vehicles[0]?.id)); }
   const shipping = await safe(() => findShipping(text + ' ' + priorCustomerText), null);
   const tracking = await safe(() => findTracking(text), null);
   const summary = vehicles.length ? null : await safe(() => inventorySummary(), []);
@@ -167,6 +196,7 @@ export async function buildFacts(text: string, priorCustomerText = '') {
   // Cars that exist but are not in the AI Catalog: say "not available right now" (no price, no photos).
   if (!vehicles.length) { const named = await safe(() => disabledCarsNamed(text), [] as any[]); for (const n of named) unavailable.push({ name: n, status: 'not_available' }); }
   return {
+    current_vehicle: current || undefined,
     matching_vehicles: withLinks(vehicles),
     requested_but_not_available: unavailable.length ? unavailable : undefined,
     available_inventory_by_brand: summary,
@@ -319,7 +349,7 @@ export async function salesReply(text: string, conversationId?: number, photoPla
   if (conversationId) { try { memory = await memoryForConversation(conversationId); } catch {} }
   const humanExamples = past.filter(m => m.sender === 'human').slice(-30).map(m => String(m.body||'')).filter(Boolean);
   const [facts, customer, knowledge] = await Promise.all([
-    buildFacts(text, priorCustomer + ' ' + String(memory?.summary||'')), customerContext(conversationId), knowledgeContext()
+    buildFacts(text, priorCustomer + ' ' + String(memory?.summary||''), conversationId), customerContext(conversationId), knowledgeContext()
   ]);
   if (photoPlan) (facts as any).photo_request = { status: photoPlan.status, vehicle: photoPlan.title || null, stock_no: photoPlan.stockNo || null, photo_count: photoPlan.images.length };
 

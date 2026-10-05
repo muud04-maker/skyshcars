@@ -25,6 +25,13 @@ const GENERIC_WORDS = new Set([
   'drive', 'lhd', 'rhd', 'seats', 'seater', 'sunroof', 'engine', 'transmission', 'fuel', 'and', 'the',
   'for', 'with', 'please', 'send', 'show', 'share', 'give', 'want', 'need', 'looking', 'this', 'that',
   'both', 'ok', 'okay', 'yes', 'no', 'hello', 'hi', 'hey', 'good', 'more', 'about', 'any', 'have', 'you',
+  // question / function words: never brand or model evidence on their own
+  'how', 'much', 'many', 'is', 'are', 'am', 'was', 'were', 'be', 'been', 'being', 'it', 'do', 'does',
+  'did', 'will', 'would', 'can', 'could', 'should', 'shall', 'may', 'might', 'must', 'my', 'our', 'your',
+  'me', 'us', 'we', 'they', 'them', 'he', 'she', 'him', 'her', 'his', 'who', 'whose', 'what', 'when',
+  'where', 'which', 'why', 'there', 'here', 'if', 'then', 'than', 'so', 'too', 'also', 'just', 'now',
+  'still', 'really', 'very', 'sir', 'madam', 'bro', 'brother', 'sister', 'friend', 'get', 'tell', 'know',
+  'let', 'see', 'look', 'like', 'help',
 ]);
 
 export function normalize(s: unknown) {

@@ -4,6 +4,7 @@
 */
 import { salesReply, AI_MODEL } from './ai';
 import { planPhotos } from './whatsapp-photos';
+import { loadAiCars } from './ai-catalog';
 import { detectLanguage } from './ai-rules/welcome';
 import type { ComposeIn, ComposeOut } from './ai-rules/engine-core';
 
@@ -30,9 +31,22 @@ export function referralNote(i: ComposeIn) {
 }
 
 export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise<ComposeOut> {
+  const hasMedia = (i.burst || []).some(b => ['image', 'audio', 'video', 'document'].includes(String(b.message_type)));
   const text = i.words || 'The customer sent a photo/voice note/document without words. Reply briefly and ask what they are looking for.';
   const lang = detectLanguage(i.words);
   const photoPlan = i.dryRun ? null : await planPhotos(text, i.conversationId).catch(() => null);
-  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + ` Reply in ${lang === 'ar' ? 'Arabic' : lang === 'so' ? 'Somali' : 'English'}.` });
+  // Part 4: media we cannot read never causes silence - ask a short, honest clarification.
+  const mediaNote = (!i.words && hasMedia) ? await mediaClarificationNote() : '';
+  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + ` Reply in ${lang === 'ar' ? 'Arabic' : lang === 'so' ? 'Somali' : 'English'}.` });
   return { text: String(reply || ''), lang, model: AI_MODEL, vehicleId: photoPlan?.vehicleId || null, photoPlan };
+}
+
+/** Part 4: the customer sent a photo/voice note/document we cannot see or hear ourselves. */
+async function mediaClarificationNote() {
+  try {
+    const cars = (await loadAiCars(6)).slice(0, 6).map(v => [v.model_year, v.brand, v.model].filter(Boolean).join(' ')).filter(Boolean);
+    return ` The customer sent a photo/voice note/document that you cannot see or hear. Never claim to see it. Reply in one short line, and if it helps ask which of these they mean: ${cars.length ? cars.join(', ') : 'our available cars'}. A colleague will also take a look.`;
+  } catch {
+    return ' The customer sent a photo/voice note/document that you cannot see or hear. Never claim to see it. Reply in one short line, ask a brief clarifying question, and say a colleague will also take a look.';
+  }
 }
