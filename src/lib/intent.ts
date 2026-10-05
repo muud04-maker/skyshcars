@@ -52,8 +52,9 @@ const MAKE_MODEL = new RegExp(VEHICLE_HINT.source + '|\\b(19[89]\\d|20[0-3]\\d)\
  */
 export function looksLikeListing(text: string, photoCount: number) {
   const t = String(text || '').trim();
-  const question = isQuestion(t) && !PRICE.test(t);
-  if (photoCount > 0) return !question || MAKE_MODEL.test(t) && PRICE.test(t);
+  const question = isQuestion(t);
+  // Photos with a question are a listing only if they also carry make/model and a price (a supplier caption).
+  if (photoCount > 0) return !question || (MAKE_MODEL.test(t) && PRICE.test(t));
   if (!t || question || isAckOnly(t)) return false;
   return MAKE_MODEL.test(t) && PRICE.test(t);
 }
