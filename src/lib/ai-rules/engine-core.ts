@@ -5,6 +5,7 @@
 */
 import { decideReply, wordsFromStored, type BurstMsg } from './reply-policy';
 import { askedForGroup, askedForWebsite, detectLanguage, stripPromoLinks, withWelcome, type Lang, type WelcomeConfig } from './welcome';
+import { stripInventedHistory } from './reply-guard';
 
 export type Trigger = 'webhook' | 'catch_up' | 'manual' | 'sweep';
 export type Conv = { id: number; channel: string; external_user_id: string; mode: string; customer_id: number | null };
@@ -15,7 +16,7 @@ export type ComposeIn = {
   welcomeDue: boolean; welcomeSent: boolean; referral: boolean;
   referralVehicle?: any; referralAiEnabled?: boolean;
 };
-export type ComposeOut = { text: string; lang?: Lang; model?: string | null; vehicleId?: number | null; photoPlan?: any; needsStaff?: string | null; facts?: any; notes?: string[] };
+export type ComposeOut = { text: string; lang?: Lang; model?: string | null; vehicleId?: number | null; photoPlan?: any; needsStaff?: string | null; facts?: any; notes?: string[]; allowedNames?: string[] };
 
 export type EngineDeps = {
   sleep(ms: number): Promise<void>;
@@ -118,6 +119,8 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
 
       // Code-level link filter on every AI reply (staff messages never pass here).
       let text = stripPromoLinks(composed.text, { site: wcfg.site, allowSite: askedForWebsite(words), allowGroup: askedForGroup(words) });
+      // Never let the AI invent a car the customer "was looking at" (failure E).
+      text = stripInventedHistory(text, composed.allowedNames || []);
       let welcome = false;
       // Atomic claim BEFORE sending: only one caller can ever add the welcome for this person.
       if (welcomeDue && await deps.claimWelcome(key, conv.customer_id, conversationId)) {

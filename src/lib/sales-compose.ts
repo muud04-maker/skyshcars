@@ -2,7 +2,7 @@
   Builds the reply text for a customer burst (no sending). Used by the sales engine and the admin
   "Test the AI" box. Parts 3-5 extend this: referral, strict matching, context, slots.
 */
-import { salesReply, AI_MODEL } from './ai';
+import { salesReply, AI_MODEL, allowedVehicleNames } from './ai';
 import { planPhotos } from './whatsapp-photos';
 import { loadAiCars } from './ai-catalog';
 import { detectLanguage } from './ai-rules/welcome';
@@ -38,7 +38,9 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
   // Part 4: media we cannot read never causes silence - ask a short, honest clarification.
   const mediaNote = (!i.words && hasMedia) ? await mediaClarificationNote() : '';
   const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + ` Reply in ${lang === 'ar' ? 'Arabic' : lang === 'so' ? 'Somali' : 'English'}.` });
-  return { text: String(reply || ''), lang, model: AI_MODEL, vehicleId: photoPlan?.vehicleId || null, photoPlan };
+  // Part 9: the cars this reply is allowed to remember (used by the invented-history guard).
+  const allowedNames = await allowedVehicleNames(text, i.conversationId, i.referralVehicle ? [i.referralVehicle] : []).catch(() => []);
+  return { text: String(reply || ''), lang, model: AI_MODEL, vehicleId: photoPlan?.vehicleId || null, photoPlan, allowedNames };
 }
 
 /** Part 4: the customer sent a photo/voice note/document we cannot see or hear ourselves. */

@@ -73,6 +73,19 @@ async function rememberCurrentCar(conversationId: number | undefined, vehicleId?
   try { await setCurrentCar(Number(conversationId), Number(vehicleId), 'match'); } catch {}
 }
 
+/**
+ * Titles of the cars this message is really about (current car, matched stock, plus any extra such as
+ * a referred vehicle). Used by the reply guard so invented history is removed deterministically.
+ */
+export async function allowedVehicleNames(text: string, conversationId?: number, extra: any[] = []) {
+  const names: string[] = [];
+  const push = (v: any) => { const t = [v?.model_year, v?.brand, v?.model, v?.trim_name].filter(Boolean).join(' ').trim(); if (t) names.push(t); };
+  (extra || []).forEach(push);
+  try { const cur = await currentCarFor(conversationId); if (cur) push(cur); } catch {}
+  try { (await findVehicles(text)).slice(0, 8).forEach(push); } catch {}
+  return [...new Set(names)];
+}
+
 /** Disabled (not in AI Catalog) cars the customer named by make/model. Names only. */
 async function disabledCarsNamed(text: string) {
   const { terms } = extractTerms(text);

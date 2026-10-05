@@ -1,0 +1,3 @@
+import {redirect} from 'next/navigation';import {isAdmin} from '../../../lib/admin';import AdminShell from '../_components/AdminShell';import AiTestClient from './AiTestClient';
+export const dynamic='force-dynamic';
+export default async function Page(){if(!(await isAdmin()))redirect('/admin/login');return <AdminShell><main className="adminPage"><div className="adminTitle"><div><h1>Test the AI (dry run)</h1><p>Runs the real reply path - catalog, strict matching, referral resolver, slots, welcome - without sending anything or changing any conversation.</p></div><div className="livePill">● ADMIN ONLY</div></div><AiTestClient/></main></AdminShell>}
