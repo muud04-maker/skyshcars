@@ -39,7 +39,7 @@ export type EngineDeps = {
   releaseWelcome(key: string): Promise<void>;
   compose(i: ComposeIn): Promise<ComposeOut>;
   sendText(conv: Conv, text: string): Promise<string | null>;
-  storeOutbound(id: number, text: string, o: { externalId?: string | null; status?: string; model?: string | null }): Promise<void>;
+  storeOutbound(id: number, text: string, o: { externalId?: string | null; status?: string; model?: string | null; error?: string | null }): Promise<void>;
   sendPhotos(conv: Conv, id: number, plan: any): Promise<void>;
   flagStaff(id: number, reason: string): Promise<void>;
   event(id: number | null, extId: string | null, type: string, status: string, details?: any): Promise<void>;
@@ -136,7 +136,7 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
         result = { status: 'sent', reason: decision.reason, reply: text, welcome, composed };
       } catch (e: any) {
         const detail = e?.response?.data?.error || e?.response?.data || e?.message || String(e);
-        await deps.storeOutbound(conversationId, text, { status: 'failed', model: composed.model || null }).catch(() => {});
+        await deps.storeOutbound(conversationId, text, { status: 'failed', model: composed.model || null, error: typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 300) }).catch(() => {});
         // Delivery failed: release the welcome claim so the one-time welcome is never burned
         // for a message the customer never received (it will ride the next successful reply).
         if (welcome) await deps.releaseWelcome(key).catch(() => {});

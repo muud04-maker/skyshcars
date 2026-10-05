@@ -189,7 +189,7 @@ export async function POST(req: Request) {
       const v = ch.value || {};
       for(const s of v.statuses||[]){
         statusCount++;
-        if(s.id) await db().execute('UPDATE messages SET delivery_status=? WHERE external_message_id=?',[String(s.status||''),String(s.id)]).catch(()=>{});
+        if(s.id) await db().execute('UPDATE messages SET delivery_status=?,status_updated_at=NOW() WHERE external_message_id=?',[String(s.status||''),String(s.id)]).catch(()=>{});
       }
       // Part 6: staff replies from the WhatsApp app (Meta echoes them back to us).
       for (const echo of v.message_echoes || []) {

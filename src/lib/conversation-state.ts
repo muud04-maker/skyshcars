@@ -21,10 +21,18 @@ export function ensureConversationState() {
       lock_token VARCHAR(64) NULL,
       lock_until DATETIME NULL,
       answered_through_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+      last_read_message_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
       last_staff_at DATETIME NULL,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX(needs_staff), INDEX(ai_paused_until), INDEX(current_vehicle_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    // Columns added after the first release (ignore "already exists").
+    for (const sql of [
+      `ALTER TABLE conversation_state ADD COLUMN last_read_message_id BIGINT UNSIGNED NOT NULL DEFAULT 0`,
+      `ALTER TABLE conversation_state ADD COLUMN ai_paused_until DATETIME NULL`,
+      `ALTER TABLE messages ADD COLUMN status_updated_at DATETIME NULL`,
+      `ALTER TABLE messages ADD COLUMN delivery_error VARCHAR(500) NULL`,
+    ]) { try { await db().execute(sql); } catch (e: any) { if (e?.code !== 'ER_DUP_FIELDNAME') console.error('STATE_COLUMN', e?.code); } }
     // Speed for the live inbox (part 7). Ignore "already exists".
     for (const sql of [
       `ALTER TABLE messages ADD INDEX idx_msg_conv_id(conversation_id,id)`,
@@ -76,6 +84,12 @@ export async function clearStaffFlag(conversationId: number) {
 
 export async function markAnswered(conversationId: number, throughId: number) {
   await db().execute(`UPDATE conversation_state SET answered_through_id=GREATEST(answered_through_id,?) WHERE conversation_id=?`, [throughId, conversationId]);
+}
+
+/** Admin has seen the thread up to this message (the unread dot in the inbox). */
+export async function markRead(conversationId: number, throughId: number) {
+  await getState(conversationId);
+  await db().execute(`UPDATE conversation_state SET last_read_message_id=GREATEST(last_read_message_id,?) WHERE conversation_id=?`, [Number(throughId) || 0, conversationId]);
 }
 
 /** Atomic per-chat lock: only one reply can be produced for a chat at a time (across workers). */
