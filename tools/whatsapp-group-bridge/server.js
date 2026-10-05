@@ -55,11 +55,27 @@ async function upload(payload,attempt=1){
   }
 }
 
-function flush(key,x){
+/** Logs ONE group message (text, photos, sender, time) to the website. Resolves true once stored. */
+async function logMessage(entry,attempt=1){
+  try{
+    const r=await api('/api/bridge/whatsapp-group/log',{method:'POST',body:JSON.stringify(entry)});
+    if(r.ok)return true;
+    if(r.status>=400&&r.status<500){warn('Website refused message log',r.status,(await r.text()).slice(0,200));return false}
+    throw new Error(`HTTP ${r.status}`);
+  }catch(e){
+    if(attempt>=4){fail('Message log failed permanently:',e.message);return false}
+    await new Promise(res=>setTimeout(res,attempt*15000));
+    return logMessage(entry,attempt+1); // the website ignores duplicates, so retries are safe
+  }
+}
+
+async function flush(key,x){
   if(pending.get(key)!==x)return;
   if(x.inflight>0){x.timer=setTimeout(()=>flush(key,x),2000);return} // a photo is still downloading
   pending.delete(key);
-  const payload={messageId:[...x.ids].sort().join('+'),messageIds:x.ids,groupName:x.groupName,groupId:x.groupId,sender:x.sender,senderName:x.senderName,text:x.texts.filter(Boolean).join('\n'),receivedAt:x.receivedAt,media:x.media};
+  // Photos were stored by the message log; the website reuses them. Only re-send photo data if a log failed.
+  const logged=(await Promise.all(x.logs)).every(Boolean);
+  const payload={messageId:[...x.ids].sort().join('+'),messageIds:x.ids,groupName:x.groupName,groupId:x.groupId,sender:x.sender,senderPhone:x.senderPhone,senderName:x.senderName,text:x.texts.filter(Boolean).join('\n'),receivedAt:x.receivedAt,photoCount:x.media.length,media:logged?[]:x.media};
   upload(payload);
 }
 
@@ -83,18 +99,23 @@ client.on('message_create',async msg=>{
     const chat=await msg.getChat();if(!chat.isGroup||!groupAllowed(chat))return;
     const body=String(msg.body||'').trim();if(!body&&!msg.hasMedia)return;
     const groupId=String(chat.id?._serialized||'');const sender=String(msg.author||msg.from||'');const key=groupId+'|'+sender;
-    let senderName=null;try{const c=await msg.getContact();senderName=c?.pushname||c?.name||null}catch{}
+    const messageId=msg.id?._serialized||`${groupId}-${sender}-${msg.timestamp||Date.now()}`;
+    let senderName=null,senderPhone=null;try{const c=await msg.getContact();senderName=c?.pushname||c?.name||null;senderPhone=c?.number||null}catch{}
     // Register the message synchronously (before any download) so the post cannot be flushed without it.
     let x=pending.get(key);
-    if(!x){x={ids:[],groupName:chat.name,groupId,sender,senderName,texts:[],media:[],receivedAt:new Date().toISOString(),timer:null,inflight:0};pending.set(key,x)}
+    if(!x){x={ids:[],logs:[],groupName:chat.name,groupId,sender,senderPhone,senderName,texts:[],media:[],receivedAt:new Date().toISOString(),timer:null,inflight:0};pending.set(key,x)}
     clearTimeout(x.timer);
-    x.ids.push(msg.id?._serialized||String(Date.now()));if(body)x.texts.push(body);
+    x.ids.push(messageId);if(body)x.texts.push(body);
+    const photos=[];
     if(msg.hasMedia){
       x.inflight++;
-      try{const m=await msg.downloadMedia();if(m?.data&&/^image\//i.test(m.mimetype||''))x.media.push({data:m.data,mimeType:m.mimetype||'image/jpeg',filename:m.filename||null})}
+      try{const m=await msg.downloadMedia();if(m?.data&&/^image\//i.test(m.mimetype||'')){const p={data:m.data,mimeType:m.mimetype||'image/jpeg',filename:m.filename||null};photos.push(p);x.media.push(p)}}
       catch(e){warn('Photo download failed:',e.message)}
       finally{x.inflight--}
     }
+    // Every message is logged on its own (questions and chat too); listing detection happens on the website.
+    x.logs.push(logMessage({messageId,groupName:chat.name,groupId,sender,senderPhone,senderName,fromMe:!!msg.fromMe,type:msg.type||'chat',text:body,timestamp:msg.timestamp||null,receivedAt:new Date().toISOString(),media:photos}));
+    log(`Group message: ${chat.name} · ${senderName||sender} · ${body?body.slice(0,60).replace(/\s+/g,' '):''}${photos.length?` [${photos.length} photo]`:''}`);
     clearTimeout(x.timer);x.timer=setTimeout(()=>flush(key,x),POST_WINDOW_MS);
   }catch(e){fail('Group message error:',e?.message||e)}
 });

@@ -3,6 +3,7 @@ import {createHash} from 'crypto';
 import { db, one, rows } from './db';
 import { saveBlob } from './media-store';
 import { handleVehiclePublished } from './automation';
+import { loggedMediaFor } from './group-log';
 
 /*
   Group Reader → inventory.
@@ -77,7 +78,7 @@ async function saveMedia(itemId:number,vehicleId:number|null,media:any[],startIn
         blobName=`grp-${itemId}-${hash}`;
         url=await saveBlob(blobName,mime,buf);
       }
-    }else if(m.url&&/^https?:\/\//i.test(String(m.url))){ url=String(m.url); }
+    }else if(m.url&&(/^https?:\/\//i.test(String(m.url))||/^\/media\/grp-[A-Za-z0-9._-]+$/.test(String(m.url)))){ url=String(m.url); } // http, or a photo already stored by the group log
     if(!url)continue;
     // Same photo uploaded twice (bridge retry) is attached once.
     const dup=await one<any>('SELECT id FROM inventory_import_media WHERE import_item_id=? AND url=? LIMIT 1',[itemId,url]);
@@ -110,7 +111,9 @@ export async function createGroupImport(payload:any){
   const text=String(payload.text||payload.caption||'').trim();
   const groupName=String(payload.groupName||'');
   const sender=String(payload.sender||'');
-  const media=Array.isArray(payload.media)?payload.media.slice(0,20):[];
+  let media=Array.isArray(payload.media)?payload.media.slice(0,20):[];
+  // Current bridge: photos were already stored by the group log; reuse them instead of a second upload.
+  if(!media.some((m:any)=>m?.data)&&Array.isArray(payload.messageIds)&&payload.messageIds.length){try{const logged=await loggedMediaFor(payload.messageIds.map(String));if(logged.length)media=logged.map((m:any)=>({url:m.url,mimeType:m.mime_type}))}catch(e){console.error('GROUP_IMPORT_LOGGED_MEDIA',e)}}
   const motoGroup=/motorcycle|motorbike|moto|bike/i.test(groupName);
 
   // Merge into the same supplier's pending post when photos and caption arrived separately.
