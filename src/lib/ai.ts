@@ -6,9 +6,11 @@ import { memoryForConversation, refreshCustomerMemory } from './customer-memory'
 import {ensureLast50Vehicles} from './inventory-seed';
 import { exactPhotoSql, sellableVehicleSql, whatsappPhotosForVehicle } from './exact-photos';
 import { aiCarSql, aiCarById, catalogCounts, loadAiCars, loadDisabledCars } from './ai-catalog';
-import { flagForStaff, getState, setCurrentCar } from './conversation-state';
+import { flagForStaff, getState, saveSlots, setCurrentCar } from './conversation-state';
 import { matchVehicles } from './ai-rules/match';
 import { refersToCurrentCar } from './ai-rules/vehicle-intent';
+import { transcriptLines, CONTEXT_LIMIT, roleOf } from './ai-rules/context';
+import { extractSlots, missingSlots, type Slots } from './ai-rules/slots';
 
 /*
   Grounded sales assistant. Every fact the AI may state (vehicles, prices,
@@ -189,6 +191,17 @@ export async function buildFacts(text: string, priorCustomerText = '', conversat
   if (!vehicles.length && priorCustomerText) vehicles = await safe(() => findVehicles(priorCustomerText), []);
   // A single confident match becomes the current car for the follow-ups that come next.
   if (vehicles.length === 1) { current = vehicles[0]; await rememberCurrentCar(conversationId, Number(vehicles[0]?.id)); }
+  // Part 5: remember the customer's answers (destination, budget, body, steering, fuel, transmission).
+  let slots: Slots = {};
+  if (conversationId) {
+    slots = await safe(async () => ((await getState(conversationId)).slots || {}) as Slots, {} as Slots);
+    const hints = await safe(async () => ({
+      countries: (await rows<any>('SELECT name FROM countries WHERE active=1')).map((c: any) => String(c.name)),
+      ports: (await rows<any>('SELECT name FROM ports WHERE active=1')).map((p: any) => String(p.name)),
+    }), { countries: [] as string[], ports: [] as string[] });
+    const next = extractSlots(`${text} ${priorCustomerText}`, hints, slots || {});
+    if (JSON.stringify(next) !== JSON.stringify(slots)) { slots = next; await safe(() => saveSlots(Number(conversationId), next as any), undefined as any); }
+  }
   const shipping = await safe(() => findShipping(text + ' ' + priorCustomerText), null);
   const tracking = await safe(() => findTracking(text), null);
   const summary = vehicles.length ? null : await safe(() => inventorySummary(), []);
@@ -197,7 +210,10 @@ export async function buildFacts(text: string, priorCustomerText = '', conversat
   if (!vehicles.length) { const named = await safe(() => disabledCarsNamed(text), [] as any[]); for (const n of named) unavailable.push({ name: n, status: 'not_available' }); }
   return {
     current_vehicle: current || undefined,
-    matching_vehicles: withLinks(vehicles),
+    // Facts block stays small: the current car plus at most 8 cars we may sell, nothing else.
+    matching_vehicles: withLinks(vehicles.slice(0, 8)),
+    known_slots: Object.keys(slots || {}).length ? slots : undefined,
+    missing_slots: missingSlots(slots || {}),
     requested_but_not_available: unavailable.length ? unavailable : undefined,
     available_inventory_by_brand: summary,
     shipping,
@@ -273,6 +289,15 @@ ${JSON.stringify(humanExamples || [])}
 
 SKY CARS BUSINESS KNOWLEDGE TAUGHT BY ADMIN:
 ${JSON.stringify(knowledge || [])}
+
+REPLY RULES (Part 5 - follow these exactly):
+- Use ONLY the DATABASE FACTS and the REAL STORED CONVERSATION TRANSCRIPT. Never invent prices, stock, shipping, availability or history.
+- [STAFF] messages are your colleagues and override you: if staff said a car is sold, reserved or unavailable, never claim otherwise.
+- Memory is only a hint. Never say "you were looking at X" unless X appears in this conversation, in a referral, or in current_vehicle.
+- Answer the customer's actual question FIRST, then ask at most ONE question. Normally no more than 3 short sentences.
+- Reply in the customer's language.
+- known_slots are already answered - never ask about them again (destination, budget, body type, steering, fuel, transmission).
+- Only talk about current_vehicle and the cars in matching_vehicles (at most 8). Never mention any other vehicle.
 
 DATABASE FACTS:
 ${JSON.stringify(facts)}`;
@@ -359,12 +384,14 @@ export async function salesReply(text: string, conversationId?: number, photoPla
   }
 
   if (!process.env.DEEPSEEK_API_KEY) return deterministicFallback(text,facts,past,photoPlan);
-  const transcript = past.slice(-120).map(m=>`${String(m.sender||'').toUpperCase()}: ${String(m.body||'')}`).join('\n');
+  // Part 5: only the LAST 25 messages of THIS conversation, labelled [CUSTOMER]/[STAFF]/[AI].
+  const recent = past.slice(-CONTEXT_LIMIT);
+  const transcript = transcriptLines(recent, CONTEXT_LIMIT).join('\n');
   const messages = [
     { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + (opts.note ? `
 
 SYSTEM NOTE: ${opts.note}` : '') + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
-    ...past.slice(-120).map(m => ({ role: m.sender === 'customer' ? 'user' : 'assistant', content: String(m.body || '') })),
+    ...recent.map(m => ({ role: roleOf(m), content: String(m.body || '') })),
     { role: 'user', content: text },
   ];
   try{
