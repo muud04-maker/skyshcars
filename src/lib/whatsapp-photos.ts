@@ -30,14 +30,15 @@ export async function planPhotos(text: string, conversationId: number): Promise<
 export async function sendPlannedPhotos(to: string, conversationId: number, plan: PhotoPlan | null) {
   if (!plan || plan.status !== 'sending' || !plan.images.length) return { sent: 0 };
   let sent = 0;
-  try {
-    for (let i = 0; i < plan.images.length; i++) {
-      await sendWhatsAppImage(to, plan.images[i], i === 0 ? plan.caption : `${plan.title} • photo ${i + 1}`);
+  // Each photo is tried on its own: one bad image must not stop the others.
+  for (let i = 0; i < plan.images.length; i++) {
+    try {
+      await sendWhatsAppImage(to, plan.images[i], sent === 0 ? plan.caption : `${plan.title} • photo ${i + 1}`);
       sent++;
+    } catch (err: any) {
+      await agentEvent(conversationId, null, 'vehicle_image_send', 'failed', { url: plan.images[i], error: err?.response?.data || err?.message || String(err) });
+      console.error('WHATSAPP_SEND_VEHICLE_IMAGE', err?.response?.data || err);
     }
-  } catch (err: any) {
-    await agentEvent(conversationId, null, 'vehicle_image_send', 'failed', err?.response?.data || err?.message || String(err));
-    console.error('WHATSAPP_SEND_VEHICLE_IMAGE', err?.response?.data || err);
   }
   if (sent) {
     await outbound(conversationId, 'ai', `${sentMarker(plan.stockNo || '')} ${sent} photo${sent > 1 ? 's' : ''}\n${plan.caption || ''}`, AI_MODEL);

@@ -3,6 +3,8 @@ import {createHash} from 'crypto';
 import { db, one, rows } from './db';
 import { saveBlob } from './media-store';
 import { handleVehiclePublished } from './automation';
+import { loggedMediaFor, markMessages } from './group-log';
+import { isAckOnly, isQuestion, looksLikeListing } from './intent';
 
 /*
   Group Reader → inventory.
@@ -77,7 +79,7 @@ async function saveMedia(itemId:number,vehicleId:number|null,media:any[],startIn
         blobName=`grp-${itemId}-${hash}`;
         url=await saveBlob(blobName,mime,buf);
       }
-    }else if(m.url&&/^https?:\/\//i.test(String(m.url))){ url=String(m.url); }
+    }else if(m.url&&(/^https?:\/\//i.test(String(m.url))||/^\/media\/grp-[A-Za-z0-9._-]+$/.test(String(m.url)))){ url=String(m.url); } // http, or a photo already stored by the group log
     if(!url)continue;
     // Same photo uploaded twice (bridge retry) is attached once.
     const dup=await one<any>('SELECT id FROM inventory_import_media WHERE import_item_id=? AND url=? LIMIT 1',[itemId,url]);
@@ -110,8 +112,15 @@ export async function createGroupImport(payload:any){
   const text=String(payload.text||payload.caption||'').trim();
   const groupName=String(payload.groupName||'');
   const sender=String(payload.sender||'');
-  const media=Array.isArray(payload.media)?payload.media.slice(0,20):[];
+  let media=Array.isArray(payload.media)?payload.media.slice(0,20):[];
+  // Current bridge: photos were already stored by the group log; reuse them instead of a second upload.
+  if(!media.some((m:any)=>m?.data)&&Array.isArray(payload.messageIds)&&payload.messageIds.length){try{const logged=await loggedMediaFor(payload.messageIds.map(String));if(logged.length)media=logged.map((m:any)=>({url:m.url,mimeType:m.mime_type}))}catch(e){console.error('GROUP_IMPORT_LOGGED_MEDIA',e)}}
   const motoGroup=/motorcycle|motorbike|moto|bike/i.test(groupName);
+  const msgIds:string[]=Array.isArray(payload.messageIds)&&payload.messageIds.length?payload.messageIds.map(String):[messageId];
+  const photoCount=Math.max(media.length,Number(payload.photoCount)||0);
+  // Only listings (photos, or make/model with a price) create a Pending vehicle. Chat and questions are only logged.
+  const listing=looksLikeListing(text,photoCount);
+  const captionLike=!!text&&!isQuestion(text)&&!isAckOnly(text);
 
   // Merge into the same supplier's pending post when photos and caption arrived separately.
   const recent:any=await one(`SELECT i.id,i.vehicle_id,i.raw_payload,(SELECT COUNT(*) FROM inventory_import_media m WHERE m.import_item_id=i.id) media_count
@@ -122,7 +131,7 @@ export async function createGroupImport(payload:any){
   if(recent){
     const prev=parse(recent.raw_payload);const prevText=String(prev.text||'').trim();
     const canMerge=!text||!prevText||!media.length||!Number(recent.media_count);
-    if(canMerge){
+    if(canMerge&&(listing||captionLike)){
       const added=await saveMedia(Number(recent.id),recent.vehicle_id?Number(recent.vehicle_id):null,media,Number(recent.media_count||0));
       const ids=[...(Array.isArray(prev.mergedMessageIds)?prev.mergedMessageIds:[]),messageId];
       const mergedText=[prevText,text].filter(Boolean).join('\n');
@@ -134,9 +143,12 @@ export async function createGroupImport(payload:any){
         await db().execute('UPDATE inventory_import_items SET proposed_vehicle=? WHERE id=?',[JSON.stringify(proposed),recent.id]);
         if(recent.vehicle_id){const f=pendingVehicleFields(proposed);await db().execute(`UPDATE vehicles SET category=?,brand=?,model=?,trim_name=?,model_year=?,mileage_km=?,engine=?,transmission=?,fuel_type=?,steering=?,color=? WHERE id=? AND status='pending_verification'`,[f.category,f.brand,f.model,f.trim_name,f.model_year,f.mileage_km,f.engine,f.transmission,f.fuel_type,f.steering,f.color,recent.vehicle_id])}
       }
-      return {created:false,merged:true,id:Number(recent.id),photosAdded:added,status:'pending'};
+      await markMessages(msgIds,{is_listing:true,import_item_id:Number(recent.id)}).catch(()=>{});
+      return {created:false,merged:true,listing:true,id:Number(recent.id),photosAdded:added,status:'pending'};
     }
   }
+
+  if(!listing){await markMessages(msgIds,{is_listing:false}).catch(()=>{});return {created:false,listing:false,logged:true};}
 
   const proposed:any=await extractVehicle(text);
   // The authorized motorcycle group is a strong category signal, but we still never invent make/model/specs.
@@ -150,7 +162,8 @@ export async function createGroupImport(payload:any){
   const vehicleId=Number(vr.insertId);
   await db().execute('UPDATE inventory_import_items SET vehicle_id=? WHERE id=?',[vehicleId,itemId]);
   const photos=await saveMedia(itemId,vehicleId,media,0);
-  return {created:true,id:itemId,vehicleId,photos,status:'pending'};
+  await markMessages(msgIds,{is_listing:true,import_item_id:itemId}).catch(()=>{});
+  return {created:true,listing:true,id:itemId,vehicleId,photos,status:'pending'};
 }
 
 export async function listGroupImports(){

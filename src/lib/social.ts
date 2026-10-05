@@ -206,7 +206,15 @@ export async function publishVehicleToFacebook(vehicleId: number, mode: Facebook
 
 async function ensureMarketingColumns(){try{await db().execute(`ALTER TABLE customers ADD COLUMN marketing_opt_in BOOLEAN NOT NULL DEFAULT FALSE`)}catch{};try{await db().execute(`ALTER TABLE customers ADD COLUMN marketing_opt_out_at DATETIME NULL`)}catch{}}
 
+/*
+  Reply rule: Sky Cars never sends an unprompted WhatsApp message. New-vehicle broadcasts to chats
+  are switched off here (auto-publish, campaigns and the admin button all go through this function).
+  The original code is kept below for reference if the rule is ever changed on purpose.
+*/
+const WHATSAPP_BROADCASTS_ALLOWED = false;
+
 export async function publishVehicleToActiveWhatsAppChats(vehicleId: number, force = false) {
+  if (!WHATSAPP_BROADCASTS_ALLOWED) return { ok: true, sent: 0, skipped: 'WhatsApp broadcasts are off: Sky Cars only replies when a customer asks' };
   const settings = await getSocialSettings();
   await ensureMarketingColumns();
   const v: any = await getVehicleForSocial(vehicleId);
