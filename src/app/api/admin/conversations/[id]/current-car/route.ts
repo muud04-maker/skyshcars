@@ -10,7 +10,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id: raw } = await params; const id = Number(raw);
   const b = await req.json().catch(() => ({}));
   const vehicleId = Number(b.vehicle_id);
-  if (!vehicleId) return NextResponse.json({ error: 'vehicle_id is required' }, { status: 400 });
+  // Clearing the current car is allowed (staff correction), as is pointing it at a real vehicle.
+  if (!vehicleId || b.clear) {
+    try { await setCurrentCar(id, null, 'staff'); return NextResponse.json({ ok: true, vehicle_id: null }); }
+    catch (e: any) { return NextResponse.json({ error: e?.message || 'Could not clear the current car' }, { status: 500 }); }
+  }
   const v = await one<any>('SELECT id,stock_no FROM vehicles WHERE id=? LIMIT 1', [vehicleId]);
   if (!v) return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
   try {

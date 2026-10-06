@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   try {
     const f = u.searchParams.get('filter');
-    const list = await listCatalogForAdmin({ q: u.searchParams.get('q') || '', filter: f === 'on' || f === 'off' ? f : 'all', days: Number(u.searchParams.get('days')) || undefined });
+    const list = await listCatalogForAdmin({ q: u.searchParams.get('q') || '', filter: f === 'on' || f === 'off' ? f : 'all', days: Number(u.searchParams.get('days')) || undefined, status: u.searchParams.get('status') || undefined });
     const s = await getCatalogSetting();
     return Response.json({ list, counts: await catalogCounts(), migration: { at: s.migrated_at || null, enabled: s.migration_enabled || [] } });
   } catch { return needsSetupJson(); }

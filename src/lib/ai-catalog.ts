@@ -109,18 +109,25 @@ export async function catalogCounts() {
 
 // ---------- admin ----------
 
-export async function listCatalogForAdmin(opts: { q?: string; filter?: 'all' | 'on' | 'off'; days?: number }) {
+/**
+ * Admin list for the AI Catalog. Shows EVERY vehicle (any status) so the owner can always find and
+ * switch on the cars they want. A car only becomes sellable by the AI when its status is Available
+ * (the AI queries still require status='available' AND ai_enabled=1).
+ */
+export async function listCatalogForAdmin(opts: { q?: string; filter?: 'all' | 'on' | 'off'; days?: number; status?: string } = {}) {
   await ensureAiCatalog();
-  const w = [sellableVehicleSql('v')], a: any[] = [];
+  const w: string[] = ['1=1'], a: any[] = [];
+  const status = String(opts.status || '').trim();
+  if (['available', 'reserved', 'sold', 'pending_verification', 'hidden'].includes(status)) { w.push('v.status=?'); a.push(status); }
   if (opts.q) { w.push(`(v.brand LIKE ? OR v.model LIKE ? OR v.stock_no LIKE ? OR CAST(v.model_year AS CHAR) LIKE ?)`); const q = `%${opts.q}%`; a.push(q, q, q, q); }
   if (opts.filter === 'on') w.push('v.ai_enabled=1');
   if (opts.filter === 'off') w.push('v.ai_enabled=0');
   if (opts.days) { w.push('v.created_at >= (NOW() - INTERVAL ? DAY)'); a.push(Number(opts.days)); }
-  const list = await rows<any>(`SELECT ${CAR_COLS('v')}, v.ai_enabled,
+  const list = await rows<any>(`SELECT ${CAR_COLS('v')}, v.ai_enabled, v.status,
       (SELECT m.url FROM vehicle_media m WHERE m.vehicle_id=v.id AND m.review_status='approved' AND m.media_type='image' ORDER BY m.is_cover DESC,m.sort_order,m.id LIMIT 1) cover_url,
       (SELECT m.id FROM vehicle_media m WHERE m.vehicle_id=v.id AND m.review_status='approved' AND m.media_type='image' ORDER BY m.is_cover DESC,m.sort_order,m.id LIMIT 1) cover_id
     FROM vehicles v WHERE ${w.join(' AND ')} ORDER BY v.created_at DESC, v.id DESC LIMIT 1000`, a);
-  return list.map(r => ({ ...norm(r), ai_enabled: !!Number(r.ai_enabled), cover: r.cover_url ? (String(r.cover_url).startsWith('http') ? `/api/photo/${r.cover_id}` : r.cover_url) : null }));
+  return list.map(r => ({ ...norm(r), ai_enabled: !!Number(r.ai_enabled), status: String(r.status || ''), sellable: String(r.status) === 'available', cover: r.cover_url ? (String(r.cover_url).startsWith('http') ? `/api/photo/${r.cover_id}` : r.cover_url) : null }));
 }
 
 export async function setCarsEnabled(ids: number[], enabled: boolean) {

@@ -1,4 +1,5 @@
 import './globals.css';
+import './inbox.css';
 import type {Metadata,Viewport} from 'next';
 import {SITE_URL,waLink} from '../lib/site';
 import {MiniMarketBar} from '../components/MarketplaceTools';

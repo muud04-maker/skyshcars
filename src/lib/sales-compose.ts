@@ -6,6 +6,8 @@ import { salesReply, AI_MODEL, allowedVehicleNames } from './ai';
 import { planPhotos } from './whatsapp-photos';
 import { loadAiCars } from './ai-catalog';
 import { detectLanguage } from './ai-rules/welcome';
+import { shouldHold } from './ai-rules/hold';
+import { isQuestion, isRequest } from './intent';
 import type { ComposeIn, ComposeOut } from './ai-rules/engine-core';
 
 export function welcomeNote(i: { welcomeDue: boolean }) {
@@ -40,7 +42,12 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
   const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + ` Reply in ${lang === 'ar' ? 'Arabic' : lang === 'so' ? 'Somali' : 'English'}.` });
   // Part 9: the cars this reply is allowed to remember (used by the invented-history guard).
   const allowedNames = await allowedVehicleNames(text, i.conversationId, i.referralVehicle ? [i.referralVehicle] : []).catch(() => []);
-  return { text: String(reply || ''), lang, model: AI_MODEL, vehicleId: photoPlan?.vehicleId || null, photoPlan, allowedNames };
+  // No verified answer for a real question/request: hold, flag for the owner, and wait instead of guessing.
+  const wantsAnswer = !!i.words && (isQuestion(i.words) || isRequest(i.words));
+  const needsStaff = shouldHold({ grounded: allowedNames.length > 0, question: isQuestion(i.words || ''), request: isRequest(i.words || '') }) && wantsAnswer
+    ? 'No verified answer in the database for this request - confirm before replying'
+    : null;
+  return { text: String(reply || ''), lang, model: AI_MODEL, vehicleId: photoPlan?.vehicleId || null, photoPlan, allowedNames, needsStaff };
 }
 
 /** Part 4: the customer sent a photo/voice note/document we cannot see or hear ourselves. */

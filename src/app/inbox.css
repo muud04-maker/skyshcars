@@ -1,0 +1,69 @@
+/* Sky Cars — admin inbox + global responsive fixes (loaded after globals.css). */
+
+/* No page-level sideways scrolling anywhere in the admin. */
+html, body { max-width: 100%; overflow-x: hidden; }
+.adminMain, .adminPage { max-width: 100%; min-width: 0; }
+.adminPage { overflow-x: clip; }
+.adminTitle { flex-wrap: wrap; gap: 10px; }
+.adminActionBar { flex-wrap: wrap; }
+.adminPage .tableWrap { overflow-x: auto; max-width: 100%; }
+.adminPage img, .adminPage video { max-width: 100%; }
+.memorySummary p, .refCard p, .bubble div, .codeTab { overflow-wrap: anywhere; word-break: break-word; }
+
+/* ---------- inbox: list | conversation | customer drawer ---------- */
+.inbox { grid-template-columns: 320px minmax(0, 1fr) 320px; position: relative; }
+.inbox.noDrawer { grid-template-columns: 320px minmax(0, 1fr); }
+.inbox.noDrawer .contextDrawer { display: none; }
+
+.inboxTools { display: flex; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #dce8f2; flex-wrap: wrap; }
+.inboxTools input, .inboxTools select { margin: 0; flex: 1 1 120px; min-width: 0; width: auto; }
+
+.bulkBar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid #dce8f2; background: #f2f8ff; }
+.bulkBar label { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; margin: 0; }
+.bulkBar input[type=checkbox] { width: auto; margin: 0; }
+
+.chatRowWrap { display: flex; align-items: flex-start; gap: 6px; border-bottom: 1px solid #e5eef5; padding: 6px 8px; }
+.chatRowWrap.active { background: #dff1ff; }
+.chatPick { width: auto; margin: 14px 0 0 4px; flex: 0 0 auto; }
+.chatRowWrap .chatRow { border-bottom: 0; padding: 8px 6px; flex: 1; min-width: 0; }
+.chatRow { border: 0; background: transparent; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
+.chatRow b, .chatRow small, .chatRow span { overflow-wrap: anywhere; white-space: normal; max-width: 100%; }
+.chatRow span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.chatDesk .messages { min-height: 180px; }
+.daySep { text-align: center; margin: 10px 0; color: #6b7c8c; font-size: 12px; font-weight: 700; }
+.messages img, .messages video { display: block; max-width: min(320px, 100%); max-height: 260px; border-radius: 10px; margin: 8px 0; background: #0b1f35; }
+.messages audio { display: block; max-width: min(320px, 100%); margin: 8px 0; }
+
+.replyBox { align-items: stretch; }
+.replyCol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.replyCol textarea { margin: 0; }
+.quickChips { display: flex; gap: 6px; overflow-x: auto; }
+.quickChip { white-space: nowrap; font-size: 12px; }
+.quickMenu { position: relative; }
+.quickMenu > div { position: absolute; bottom: 34px; left: 0; z-index: 6; background: #fff; border: 1px solid #cbd6e1; border-radius: 10px; box-shadow: 0 8px 24px #0b2d4622; padding: 6px; min-width: 200px; }
+.quickMenu button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: 7px; cursor: pointer; font-weight: 700; }
+.quickMenu button:hover { background: #eef6ff; }
+
+.contextDrawer { border-left: 1px solid #dce8f2; background: #fbfdff; overflow-y: auto; padding: 12px 14px; min-width: 0; }
+.contextDrawer h3 { margin: 2px 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #5c7184; }
+.contextRow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.contextRow select, .contextRow input { margin: 0; flex: 1 1 160px; min-width: 0; width: auto; }
+.refCard { border: 1px solid #dce5ec; border-radius: 8px; padding: 8px; margin-top: 6px; }
+.contextBlock { border-top: 1px solid #e6eef5; padding-top: 10px; margin-top: 10px; }
+.customerSummary { display: flex; flex-direction: column; gap: 2px; }
+.customerSummary b { font-size: 15px; }
+.customerSummary small { color: #5c7184; }
+
+.drawerToggle { border: 1px solid #b8cddd; background: #fff; border-radius: 8px; padding: 7px 10px; font-weight: 750; cursor: pointer; }
+
+@media (max-width: 1200px) {
+  .inbox, .inbox.noDrawer { grid-template-columns: 300px minmax(0, 1fr); }
+  .contextDrawer { position: absolute; inset: 0 0 0 auto; width: min(360px, 90vw); z-index: 40; box-shadow: -8px 0 30px #0c33502e; }
+}
+@media (max-width: 900px) {
+  .inbox, .inbox.noDrawer { grid-template-columns: 1fr; }
+  .chatDesk { min-height: 72vh; }
+  .inboxTools input, .inboxTools select { flex: 1 1 100%; }
+  .modeButtons button { padding: 9px 12px; }
+}
