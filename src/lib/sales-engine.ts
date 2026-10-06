@@ -59,8 +59,13 @@ const deps: EngineDeps = {
   turnState: async (id) => {
     const r = await one<any>(`SELECT
       (SELECT COALESCE(MAX(m.id),0) FROM messages m WHERE m.conversation_id=? AND m.sender='customer' AND m.direction='inbound') last_in,
-      (SELECT COALESCE(MAX(m.id),0) FROM messages m WHERE m.conversation_id=? AND m.sender IN ('ai','human') AND m.direction='outbound') last_out`, [id, id]).catch(() => null);
-    return { lastInboundId: Number(r?.last_in || 0), lastOutboundId: Number(r?.last_out || 0) };
+      (SELECT COALESCE(MAX(m.id),0) FROM messages m WHERE m.conversation_id=? AND m.sender IN ('ai','human') AND m.direction='outbound') last_out,
+      (SELECT UNIX_TIMESTAMP(MAX(m.created_at)) FROM messages m WHERE m.conversation_id=? AND m.sender='customer' AND m.direction='inbound') last_in_at,
+      (SELECT UNIX_TIMESTAMP(s2.last_staff_at) FROM conversation_state s2 WHERE s2.conversation_id=?) staff_at`, [id, id, id, id]).catch(() => null);
+    return {
+      lastInboundId: Number(r?.last_in || 0), lastOutboundId: Number(r?.last_out || 0),
+      lastInboundAtMs: Number(r?.last_in_at || 0) * 1000, lastStaffAtMs: Number(r?.staff_at || 0) * 1000,
+    };
   },
   welcomeConfig: () => welcomeConfig(),
   welcomeAlreadySent: key => welcomeAlreadySent(key),

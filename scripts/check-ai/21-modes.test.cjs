@@ -40,6 +40,8 @@ function makeDeps(s) {
     turnState: async () => ({
       lastInboundId: Math.max(0, ...inbound().map((m) => m.id)),
       lastOutboundId: Math.max(0, ...outbound().map((m) => m.id)),
+      lastInboundAtMs: Math.max(0, ...inbound().map((m) => Number(m.at || 0))),
+      lastStaffAtMs: Math.max(0, ...s.messages.filter((m) => m.sender === 'human').map((m) => Number(m.at || 0))),
     }),
     welcomeConfig: async () => ({ enabled: true, site: SITE, groupLink: GROUP, groupName: 'Sky second hand cars' }),
     welcomeAlreadySent: async (key) => s.welcomes.has(key),
@@ -51,8 +53,8 @@ function makeDeps(s) {
     sendPhotos: async () => {}, flagStaff: async () => {}, event: async () => {},
   };
 }
-function inbound(s, body) { const id = s.nextId++; s.messages.push({ id, type: 'text', body, sender: 'customer', direction: 'inbound' }); return id; }
-function human(s, body) { const id = s.nextId++; s.messages.push({ id, type: 'text', body, sender: 'human', direction: 'outbound' }); return id; }
+function inbound(s, body, at = Date.now()) { const id = s.nextId++; s.messages.push({ id, type: 'text', body, sender: 'customer', direction: 'inbound', at }); return id; }
+function human(s, body, at = Date.now()) { const id = s.nextId++; s.messages.push({ id, type: 'text', body, sender: 'human', direction: 'outbound', at }); return id; }
 
 test('1. AI mode: a customer message schedules the 60s AI reply (nothing sent instantly)', () => {
   assert.equal(REPLY_DELAY_SECONDS, 60);
@@ -175,4 +177,35 @@ test('20. the header has ONE compact mode control (AI / TAKE OVER / BOTH)', () =
   assert.ok(desk.includes('Pause AI for 15 min'), 'pause is confined to the More menu');
   const css = read('src/app/inbox.css');
   assert.ok(css.includes('.modeSeg'));
+});
+
+test('21. a staff PAUSE silences only the answered turn, not the next customer message', async () => {
+  const T = Date.now();
+  const s = makeStore({ pausedUntil: new Date(T + 10 * 60 * 1000) });   // staff pause still running
+  inbound(s, 'Do you have Toyota?', T);
+  human(s, 'Yes, we have Toyota available.', T + 1000);                // staff answered this turn
+  inbound(s, 'Send me pictures of it.', T + 3 * 60 * 1000);            // customer speaks again (inside 15 min)
+  const r = await runEngine(makeDeps(s), 1, { trigger: 'sweep' });
+  assert.equal(r.status, 'sent', 'a new customer message re-arms the AI even while a staff pause runs');
+  assert.equal(s.sent.length, 1);
+});
+
+test('22. a staff pause DOES silence the turn the human answered', async () => {
+  const T = Date.now();
+  const s = makeStore({ pausedUntil: new Date(T + 10 * 60 * 1000) });
+  inbound(s, 'Do you have Toyota?', T);
+  human(s, 'Yes, we have Toyota available.', T + 1000);
+  const r = await runEngine(makeDeps(s), 1, { trigger: 'sweep' });
+  assert.ok(['ai_paused', 'waiting_for_customer'].includes(r.reason));
+  assert.equal(s.sent.length, 0);
+});
+
+test('23. the queue worker applies the same pause rule', () => {
+  const now = Date.now();
+  // customer spoke AFTER the staff reply -> the queued AI reply must NOT be cancelled
+  assert.equal(shouldCancelQueued({ mode: 'ai', paused: true, lastInboundId: 3, lastOutboundId: 2, lastInboundAtMs: now, lastStaffAtMs: now - 5 * 60 * 1000 }).cancel, false);
+  // no customer message since the staff reply -> cancelled
+  assert.deepEqual(shouldCancelQueued({ mode: 'ai', paused: true, lastInboundId: 1, lastOutboundId: 2, lastInboundAtMs: now - 5 * 60 * 1000, lastStaffAtMs: now }), { cancel: true, reason: 'ai_paused' });
+  // and with no pause at all, a staff reply still silences the turn
+  assert.equal(shouldCancelQueued({ mode: 'ai', paused: false, lastInboundId: 1, lastOutboundId: 2 }).reason, 'staff_replied');
 });

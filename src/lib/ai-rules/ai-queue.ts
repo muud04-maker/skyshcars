@@ -37,12 +37,18 @@ export function countdownLabel(left: number) {
 export function shouldCancelQueued(input: {
   mode?: string | null; paused?: boolean; archived?: boolean;
   lastInboundId?: number | null; lastOutboundId?: number | null;
+  lastInboundAtMs?: number | null; lastStaffAtMs?: number | null;
 }) {
   if (input.archived) return { cancel: true, reason: 'archived' };
   const mode = String(input.mode || 'ai');
   // 'ai' and 'both' allow the AI; 'human' (take over) and 'paused' never do.
   if (mode !== 'ai' && mode !== 'both') return { cancel: true, reason: mode === 'human' ? 'human_takeover' : 'paused_mode' };
-  if (input.paused) return { cancel: true, reason: 'ai_paused' };
+  if (input.paused) {
+    // A staff pause silences only the turn the human answered. If the customer wrote AFTER the staff
+    // reply, the AI is eligible again and the queued reply must go ahead.
+    const spokeAfterStaff = !!(input.lastInboundAtMs && (!input.lastStaffAtMs || Number(input.lastInboundAtMs) > Number(input.lastStaffAtMs)));
+    if (!spokeAfterStaff) return { cancel: true, reason: 'ai_paused' };
+  }
   const inbound = Number(input.lastInboundId || 0);
   const outbound = Number(input.lastOutboundId || 0);
   if (outbound > 0 && outbound > inbound) return { cancel: true, reason: 'staff_replied' };
