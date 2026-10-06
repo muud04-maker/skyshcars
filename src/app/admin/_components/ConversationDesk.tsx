@@ -227,11 +227,11 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
             <option value="">Send vehicle...</option>
             {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
           </select>
-          <button disabled={busy} onClick={() => setMode('paused')}>Pause 15m</button>
-          <button disabled={busy} onClick={aiNow}>AI Reply Now</button>
+          <button className="btn-warning" disabled={busy} onClick={() => setMode('paused')}>Pause 15m</button>
+          <button className="btn-success" disabled={busy} onClick={aiNow}>AI Reply Now</button>
           <button type="button" className="drawerToggle" onClick={() => setShowDrawer((s) => !s)}>{showDrawer ? 'Hide customer' : 'Customer details'}</button>
           <div className="quickMenu">
-            <button type="button" onClick={() => setShowMore((s) => !s)}>...</button>
+            <button type="button" className="btn-neutral" onClick={() => setShowMore((s) => !s)}>...</button>
             {showMore ? <div>
               <button type="button" onClick={() => { setShowMore(false); void markRead(); }}>Mark read</button>
               <button type="button" onClick={() => { setShowMore(false); void markUnread(); }}>Mark unread</button>

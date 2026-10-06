@@ -146,3 +146,18 @@ test('20. the old inline create form is gone (one creation path only)', () => {
   assert.ok(!/method: 'POST'/.test(manager), 'the list must not POST to create vehicles');
   assert.ok(read(ADD_CLIENT).includes('Save vehicle'));
 });
+
+test('21. every admin button is styled: semantic class or a container rule (no raw browser buttons)', () => {
+  // Containers that legitimately style their own buttons.
+  const css = read('src/app/inbox.css');
+  const globals = read('src/app/globals.css');
+  for (const sel of ['.modeButtons button', '.quickMenu button', '.adminLogout']) {
+    assert.ok(css.includes(sel) || globals.includes(sel), `missing button styling for ${sel}`);
+  }
+  assert.ok(globals.includes('.codeExplorer button'), 'dev explorer buttons styled');
+  assert.ok(globals.includes('.adminMobileBar button'), 'mobile bar button styled');
+  // The inbox header uses the semantic palette explicitly.
+  assert.ok(css.includes('.modeButtons button.btn-warning') && css.includes('.modeButtons button.btn-success'));
+  const desk = read('src/app/admin/_components/ConversationDesk.tsx');
+  assert.ok(desk.includes('className="btn-warning"') && desk.includes('className="btn-success"') && desk.includes('className="btn-neutral"'));
+});

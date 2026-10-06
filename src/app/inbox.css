@@ -128,6 +128,13 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .dupAlert { background: #fff4f4; border: 1px solid #f0b7b7; border-radius: 10px; padding: 12px; margin: 10px 0; color: #8a1c1c; }
 .dupAlert b { display: block; margin-bottom: 4px; }
 .dupAlert .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+/* the inbox header buttons live inside .modeButtons - keep the semantic palette visible there */
+.modeButtons button.btn-primary { background: #ffb400; color: #071d32; border-color: #e3a000; }
+.modeButtons button.btn-success { background: #0b7a3b; color: #fff; border-color: #096630; }
+.modeButtons button.btn-info { background: #1e6fd9; color: #fff; border-color: #1a61bd; }
+.modeButtons button.btn-warning { background: #f59e0b; color: #3a2600; border-color: #d98a06; }
+.modeButtons button.btn-danger { background: #c81e1e; color: #fff; border-color: #ac1717; }
+.modeButtons button.btn-neutral { background: #e6edf3; color: #10263b; border-color: #cbd6e1; }
 
 @media (max-width: 700px) {
   .grid, .vehicleGrid, .catalogGrid, .vehicleDetailGrid { grid-template-columns: 1fr !important; }
