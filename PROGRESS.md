@@ -3,7 +3,7 @@
 Resume rule: parts are done in order 1 -> 9. Each part = one commit.
 Offline tests: `npm run check:ai` (compiles src/lib/ai-rules with tsconfig.check.json, then runs scripts/check-ai/*.test.cjs).
 
-Last verified on this branch: `npx tsc --noEmit` PASS | `npm run build` PASS (next build --webpack) | `npm run check:ai` PASS (74 tests).
+Last verified on this branch: `npx tsc --noEmit` PASS | `npm run build` PASS (next build --webpack) | `npm run check:ai` PASS (80 tests).
 
 | Part | Status | Wired into the live flow | Tested offline | Needs manual live test |
 |---|---|---|---|---|
@@ -27,3 +27,15 @@ Last verified on this branch: `npx tsc --noEmit` PASS | `npm run build` PASS (ne
 
 - `Microsoft/` (a PowerShell ModuleAnalysisCache folder) and `.claude/` are now in .gitignore; they are local tool artifacts, not application code.
 - PROGRESS.md is the source of truth for what is wired vs. what only exists.
+
+## Part 10 - owner UX, AI behaviour and phone admin (this round)
+
+- AI Catalog: lists EVERY vehicle (any status) with a Status column/filter and "Turn ON all shown", so the owner can always find and enable the cars they want. A car is only *sold* by the AI when its status is Available (the AI queries still require available + ai_enabled); enabling does not change public visibility.
+- Admin inbox: rebuilt as list | conversation | customer drawer. The conversation keeps the space; the customer details (current car, photos, referral, slots, memory) live in a collapsible right drawer; quick replies are one dropdown that only inserts text; the header uses compact controls with a "..." menu (archive, mark unread, clear current car, vehicle sold / not available, delete).
+- Bulk chat management: tick conversations (or select all shown) then Take over / Return to AI / Pause / Mark unread / Archive / Delete. Archive hides a chat from the inbox but keeps history and it stays searchable under the "Archived" view. Delete is owner-only, requires confirmation, removes the conversation + its messages and never touches the customer record.
+- Responsive: `src/app/inbox.css` removes page-level horizontal overflow, contains tables, wraps long text and collapses the drawer/inbox on tablets and phones.
+- AI behaviour: when there is no grounded answer for a real question/request the AI sends ONE short holding line ("Let me confirm that for you." / "Waan kuu xaqiijinayaa." / Arabic), flags the chat for staff and PAUSES so it waits for the owner; the holding message is never repeated. The prompt is capped at 1-2 short sentences (3 only if the customer asks for details) and must never guess a price, shipping cost or availability.
+- Welcome/links: the first-contact welcome (answer + website + group invitation, once per customer) is unchanged. Staff can always send the website / group link manually from the inbox Quick replies dropdown; staff messages are never filtered.
+- Phone admin (PWA): `manifest-admin.webmanifest` + `icon-admin.svg` + admin layout metadata make /admin installable to the home screen in standalone mode with a 6-tab mobile bar (Dashboard, Inbox, Inventory, Add car, Quotes, More). See MOBILE_ADMIN_BUILD.md.
+- Android APK: NOT created here (no Android SDK/Gradle/network in this environment). The PWA is the supported phone path; MOBILE_ADMIN_BUILD.md has the exact Capacitor steps for the owner to build the wrapper locally.
+- Still open from the request: full admin dashboard redesign (owner KPIs/quick actions), the marketing website polish pass, and per-vehicle step-by-step add form.
