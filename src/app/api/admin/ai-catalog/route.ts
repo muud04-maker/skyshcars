@@ -1,6 +1,6 @@
 import { adminDenied } from '../../../../lib/admin-guard';
 import { needsSetupJson } from '../../../../lib/setup';
-import { bulkCatalog, catalogCounts, getCatalogSetting, listCatalogForAdmin, setCarsEnabled, setCatalogMode } from '../../../../lib/ai-catalog';
+import { bulkCatalog, catalogBrands, catalogCounts, getCatalogSetting, listCatalogForAdmin, setCarsEnabled, setCatalogMode } from '../../../../lib/ai-catalog';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
@@ -8,9 +8,20 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   try {
     const f = u.searchParams.get('filter');
-    const list = await listCatalogForAdmin({ q: u.searchParams.get('q') || '', filter: f === 'on' || f === 'off' ? f : 'all', days: Number(u.searchParams.get('days')) || undefined, status: u.searchParams.get('status') || undefined });
+    const list = await listCatalogForAdmin({
+      q: u.searchParams.get('q') || '',
+      filter: f === 'on' || f === 'off' ? f : 'all',
+      days: Number(u.searchParams.get('days')) || undefined,
+      status: u.searchParams.get('status') || undefined,
+      category: u.searchParams.get('category') || undefined,
+      brand: u.searchParams.get('brand') || undefined,
+      noPhotos: u.searchParams.get('noPhotos') === '1',
+      sort: u.searchParams.get('sort') || undefined,
+      page: Number(u.searchParams.get('page')) || 1,
+      limit: Number(u.searchParams.get('limit')) || 50,
+    });
     const s = await getCatalogSetting();
-    return Response.json({ list, counts: await catalogCounts(), migration: { at: s.migrated_at || null, enabled: s.migration_enabled || [] } });
+    return Response.json({ ...list, counts: await catalogCounts(), brands: await catalogBrands(), migration: { at: s.migrated_at || null, enabled: s.migration_enabled || [] } });
   } catch { return needsSetupJson(); }
 }
 

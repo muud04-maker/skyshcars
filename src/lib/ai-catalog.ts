@@ -104,7 +104,9 @@ export async function catalogCounts() {
   const s = await getCatalogSetting();
   const total = await one<any>(`SELECT COUNT(*) n FROM vehicles v WHERE ${sellableVehicleSql('v')}`);
   const ai = await one<any>(`SELECT COUNT(*) n FROM vehicles v WHERE ${aiCarSqlFor(s.mode, 'v')}`);
-  return { mode: s.mode, aiCount: Number(ai?.n || 0), availableCount: Number(total?.n || 0) };
+  const cars = await one<any>(`SELECT COUNT(*) n FROM vehicles v WHERE ${sellableVehicleSql('v')} AND v.category='car'`).catch(() => null);
+  const motos = await one<any>(`SELECT COUNT(*) n FROM vehicles v WHERE ${sellableVehicleSql('v')} AND v.category='motorcycle'`).catch(() => null);
+  return { mode: s.mode, aiCount: Number(ai?.n || 0), availableCount: Number(total?.n || 0), carCount: Number(cars?.n || 0), motorcycleCount: Number(motos?.n || 0) };
 }
 
 // ---------- admin ----------
@@ -114,20 +116,41 @@ export async function catalogCounts() {
  * switch on the cars they want. A car only becomes sellable by the AI when its status is Available
  * (the AI queries still require status='available' AND ai_enabled=1).
  */
-export async function listCatalogForAdmin(opts: { q?: string; filter?: 'all' | 'on' | 'off'; days?: number; status?: string } = {}) {
+export async function listCatalogForAdmin(opts: {
+  q?: string; filter?: 'all' | 'on' | 'off'; days?: number; status?: string;
+  category?: string; brand?: string; noPhotos?: boolean; sort?: string; page?: number; limit?: number;
+} = {}) {
   await ensureAiCatalog();
   const w: string[] = ['1=1'], a: any[] = [];
   const status = String(opts.status || '').trim();
   if (['available', 'reserved', 'sold', 'pending_verification', 'hidden'].includes(status)) { w.push('v.status=?'); a.push(status); }
-  if (opts.q) { w.push(`(v.brand LIKE ? OR v.model LIKE ? OR v.stock_no LIKE ? OR CAST(v.model_year AS CHAR) LIKE ?)`); const q = `%${opts.q}%`; a.push(q, q, q, q); }
+  if (opts.q) { w.push(`(v.brand LIKE ? OR v.model LIKE ? OR v.stock_no LIKE ? OR v.trim_name LIKE ? OR CAST(v.model_year AS CHAR) LIKE ?)`); const q = `%${opts.q}%`; a.push(q, q, q, q, q); }
   if (opts.filter === 'on') w.push('v.ai_enabled=1');
   if (opts.filter === 'off') w.push('v.ai_enabled=0');
+  if (opts.category === 'car' || opts.category === 'motorcycle') { w.push('v.category=?'); a.push(opts.category); }
+  if (opts.brand) { w.push('v.brand=?'); a.push(String(opts.brand)); }
+  if (opts.noPhotos) w.push(`(SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql('m')})=0`);
   if (opts.days) { w.push('v.created_at >= (NOW() - INTERVAL ? DAY)'); a.push(Number(opts.days)); }
+  const order = opts.sort === 'price_asc' ? 'v.price_usd ASC, v.id DESC' : opts.sort === 'price_desc' ? 'v.price_usd DESC, v.id DESC'
+    : opts.sort === 'year_desc' ? 'v.model_year DESC, v.id DESC' : 'v.created_at DESC, v.id DESC';
+  const limit = Math.max(10, Math.min(200, Number(opts.limit) || 50));
+  const page = Math.max(1, Number(opts.page) || 1);
+  const where = w.join(' AND ');
+  const total = Number((await one<any>(`SELECT COUNT(*) n FROM vehicles v WHERE ${where}`, a).catch(() => null))?.n || 0);
   const list = await rows<any>(`SELECT ${CAR_COLS('v')}, v.ai_enabled, v.status,
       (SELECT m.url FROM vehicle_media m WHERE m.vehicle_id=v.id AND m.review_status='approved' AND m.media_type='image' ORDER BY m.is_cover DESC,m.sort_order,m.id LIMIT 1) cover_url,
       (SELECT m.id FROM vehicle_media m WHERE m.vehicle_id=v.id AND m.review_status='approved' AND m.media_type='image' ORDER BY m.is_cover DESC,m.sort_order,m.id LIMIT 1) cover_id
-    FROM vehicles v WHERE ${w.join(' AND ')} ORDER BY v.created_at DESC, v.id DESC LIMIT 1000`, a);
-  return list.map(r => ({ ...norm(r), ai_enabled: !!Number(r.ai_enabled), status: String(r.status || ''), sellable: String(r.status) === 'available', cover: r.cover_url ? (String(r.cover_url).startsWith('http') ? `/api/photo/${r.cover_id}` : r.cover_url) : null }));
+    FROM vehicles v WHERE ${where} ORDER BY ${order} LIMIT ${limit} OFFSET ${(page - 1) * limit}`, a);
+  return {
+    list: list.map(r => ({ ...norm(r), ai_enabled: !!Number(r.ai_enabled), status: String(r.status || ''), sellable: String(r.status) === 'available', cover: r.cover_url ? (String(r.cover_url).startsWith('http') ? `/api/photo/${r.cover_id}` : r.cover_url) : null })),
+    total, page, limit, pages: Math.max(1, Math.ceil(total / limit)),
+  };
+}
+
+/** Brands present in inventory, for the AI Catalog brand filter. */
+export async function catalogBrands() {
+  try { return (await rows<any>(`SELECT DISTINCT brand FROM vehicles WHERE COALESCE(brand,'')<>'' ORDER BY brand LIMIT 300`)).map((r: any) => String(r.brand)); }
+  catch { return [] as string[]; }
 }
 
 export async function setCarsEnabled(ids: number[], enabled: boolean) {
