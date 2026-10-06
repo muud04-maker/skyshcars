@@ -29,6 +29,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const [archived, setArchived] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [showDrawer, setShowDrawer] = useState(true);
+  const [mobileChat, setMobileChat] = useState(false);
   const [showQuick, setShowQuick] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -124,6 +125,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   async function quick(action: 'sold' | 'not_available') { if (!activeId) return; const j = await post(`/api/admin/conversations/${activeId}/quick-action`, { action }); if (j) { setOk(action === 'sold' ? 'Vehicle marked sold.' : 'Vehicle marked not available.'); await poll(); } }
   async function archiveOne() { if (!activeId) return; const j = await post('/api/admin/conversations/bulk', { ids: [activeId], action: 'archive' }); if (j) { setOk('Conversation archived.'); setActiveId(null); await poll(); } }
   async function markUnread() { if (!activeId) return; const j = await post('/api/admin/conversations/bulk', { ids: [activeId], action: 'unread' }); if (j) { setOk('Marked unread.'); await poll(); } }
+  async function markRead() { if (!activeId) return; const j = await post(`/api/admin/conversations/${activeId}/read`); if (j) { setOk('Marked read.'); await poll(); } }
   async function deleteOne() {
     if (!activeId) return;
     if (!confirm('Permanently delete this conversation and its messages? The customer record is kept. Only the owner can do this.')) return;
@@ -172,7 +174,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     if (near) setNewBelow(0);
   }
 
-  return <div className={'inbox' + (showDrawer ? '' : ' noDrawer')}>
+  return <div className={'inbox' + (showDrawer ? '' : ' noDrawer') + (mobileChat ? ' mobileChat' : '')}>
     <aside className="chatList">
       <div className="chatListTitle">{archived ? 'Archived' : 'Conversations'} <span>{list.length}</span>
         <small style={{ display: 'block', fontWeight: 700, color: waiting && !archived ? '#9b3d00' : '#39745a', marginTop: 4 }}>{archived ? 'history kept, hidden from inbox' : `${waiting} waiting for a reply`}</small>
@@ -201,7 +203,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         const paused = isPaused(c, now); const locked = isLocked(c, now);
         return <div key={c.id} className={'chatRowWrap' + (activeId === c.id ? ' active' : '')}>
           <input className="chatPick" type="checkbox" checked={selected.includes(c.id)} onChange={() => toggleSelect(c.id)} />
-          <button className="chatRow" onClick={() => setActiveId(c.id)}>
+          <button className="chatRow" onClick={() => { setActiveId(c.id); setMobileChat(true); }}>
             <b>{computeUnread(c) ? <i style={{ color: '#1e88e5', marginRight: 6 }} title="Unread">*</i> : null}{c.full_name || c.phone || c.external_user_id}</b>
             {Number(c.needs_reply) > 0 ? <em style={{ color: '#b3261e', fontStyle: 'normal', fontWeight: 800 }}> NEEDS REPLY</em> : null}
             <small>{modeChip(c.mode)}{paused ? ` | PAUSED ${countdown(pauseSecondsLeft(c, now))}` : ''}{locked ? ' | REPLYING' : ''}{Number(c.needs_staff) ? ' | needs staff' : ''}{c.current_stock_no ? ` | ${c.current_stock_no}` : ''}</small>
@@ -215,11 +217,15 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
 
     <section className="chatDesk">{!active ? <div className="emptyChat">Select a conversation on the left.</div> : <>
       <div className="chatHead">
-        <div><h2>{active.full_name || active.phone || active.external_user_id}</h2>
+        <div><h2><button type="button" className="chatBack miniBtn" onClick={() => setMobileChat(false)}>&lt; Back</button> {active.full_name || active.phone || active.external_user_id}</h2>
           <small>{active.channel} | {active.external_user_id}{state?.current_stock_no ? ` | current car ${state.current_stock_no}` : ''}{isPaused(active, now) ? ` | AI paused ${countdown(pauseSecondsLeft(active, now))}` : ''}</small></div>
         <div className="modeButtons">
           <select value={active.mode === 'paused' ? 'paused' : active.mode} onChange={(e) => setMode(e.target.value as Mode)} style={{ width: 'auto', margin: 0 }}>
             <option value="ai">AI active</option><option value="human">Human takeover</option><option value="paused">Paused</option>
+          </select>
+          <select value="" onChange={(e) => { const v = Number(e.target.value); if (v) sendPhotos(v); }} onFocus={openPicker} style={{ width: 'auto', margin: 0 }} title="Send exact vehicle photos">
+            <option value="">Send vehicle...</option>
+            {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
           </select>
           <button disabled={busy} onClick={() => setMode('paused')}>Pause 15m</button>
           <button disabled={busy} onClick={aiNow}>AI Reply Now</button>
@@ -227,6 +233,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
           <div className="quickMenu">
             <button type="button" onClick={() => setShowMore((s) => !s)}>...</button>
             {showMore ? <div>
+              <button type="button" onClick={() => { setShowMore(false); void markRead(); }}>Mark read</button>
               <button type="button" onClick={() => { setShowMore(false); void markUnread(); }}>Mark unread</button>
               <button type="button" onClick={() => { setShowMore(false); void archiveOne(); }}>{archived ? 'Restore to inbox' : 'Archive conversation'}</button>
               <button type="button" onClick={() => { setShowMore(false); void clearCurrentCar(); }}>Clear current vehicle</button>

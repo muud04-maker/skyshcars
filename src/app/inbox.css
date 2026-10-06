@@ -66,7 +66,13 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .chatDesk { min-height: 72vh; }
   .inboxTools input, .inboxTools select { flex: 1 1 100%; }
   .modeButtons button { padding: 9px 12px; }
+  /* single-pane messaging on phones: list OR conversation */
+  .inbox.mobileChat .chatList { display: none; }
+  .inbox:not(.mobileChat) .chatDesk { display: none; }
+  .inbox:not(.mobileChat) .contextDrawer { display: none; }
 }
+.chatBack { display: none; }
+@media (max-width: 900px) { .chatBack { display: inline-block; } }
 
 /* ---------- admin phone navigation (PWA) ---------- */
 .dashGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 1450px; margin: 0 auto; }
