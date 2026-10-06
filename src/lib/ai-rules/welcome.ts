@@ -3,12 +3,21 @@
   and appended to the first reply only after the database claim succeeded (see src/lib/welcome.ts).
 */
 
-export type Lang = 'en' | 'ar' | 'so';
+import { detectLanguageCode } from './language';
+
+export type Lang = 'en' | 'ar' | 'so' | 'zh';
 
 const SOMALI = /\b(waxaan|waxaad|ma (haysaa|haysataan|jiraa)|imisa|meeqa|baabuur|gaari|gaadhi|fadlan|mahadsanid|haa|maya|iga|ii soo|sawir|qiimaha|qiimo|xagee|goorma|salaan|nabad|walaal|soo dir|rabaa|doonayaa|iyo|waa|ka|ku|la|aan|aad|tahay|yahay)\b/gi;
 
 /** Customer's language from their own words: Arabic script → ar, enough Somali words → so, else en. */
+/** Shared detector (src/lib/ai-rules/language.ts). One distinctive Somali word is enough now. */
 export function detectLanguage(text: string, fallback: Lang = 'en'): Lang {
+  const code = detectLanguageCode(String(text || ''));
+  return (code || fallback) as Lang;
+}
+
+/** Previous heuristic, kept for reference (no longer used). */
+function detectLanguageLegacy(text: string, fallback: Lang = 'en'): Lang {
   const t = String(text || '');
   if (!t.trim()) return fallback;
   const arabic = (t.match(/[؀-ۿ]/g) || []).length;
@@ -32,6 +41,7 @@ export function welcomeBlock(lang: Lang, cfg: WelcomeConfig) {
     en: [`See all our cars: ${site}`, `Join our WhatsApp group "${cfg.groupName}" for new arrivals: ${cfg.groupLink}`],
     ar: [`شاهد جميع سياراتنا: ${site}`, `انضم إلى مجموعتنا على واتساب "${cfg.groupName}" لأحدث السيارات: ${cfg.groupLink}`],
     so: [`Arag dhammaan baabuurtayada: ${site}`, `Ku biir kooxdayada WhatsApp "${cfg.groupName}" si aad u aragto baabuurta cusub: ${cfg.groupLink}`],
+    zh: [`\u67e5\u770b\u6211\u4eec\u6240\u6709\u7684\u8f66: ${site}`, `\u52a0\u5165\u6211\u4eec\u7684 WhatsApp \u7fa4 "${cfg.groupName}"\uff0c\u53ca\u65f6\u770b\u5230\u65b0\u8f66: ${cfg.groupLink}`],
   };
   return lines[lang].join('\n');
 }
@@ -40,6 +50,14 @@ export function welcomeBlock(lang: Lang, cfg: WelcomeConfig) {
 export function withWelcome(answer: string, lang: Lang, cfg: WelcomeConfig) {
   const a = String(answer || '').trim();
   return a ? `${a}\n\n${welcomeBlock(lang, cfg)}` : welcomeBlock(lang, cfg);
+}
+
+/** Append an already-built welcome block (used when it was generated for the customer's language). */
+export function withBlock(answer: string, block: string) {
+  const a = String(answer || '').trim();
+  const b = String(block || '').trim();
+  if (!b) return a;
+  return a ? `${a}\n\n${b}` : b;
 }
 
 export function askedForWebsite(text: string) {

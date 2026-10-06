@@ -4,6 +4,8 @@ import {
   computeUnread, countdown, dayLabel, deliveryState, filterRows, isLocked, isPaused,
   maxId, mergeMessages, pauseSecondsLeft, waitingLabel, type InboxFilter, type InboxMsg, type InboxRow,
 } from '../../../lib/ai-rules/inbox';
+import { languageName, preferredToCode, type LangCode } from '../../../lib/ai-rules/language';
+import { countdownLabel, secondsLeft } from '../../../lib/ai-rules/ai-queue';
 
 type Mode = 'ai' | 'human' | 'paused';
 const field = (v: any) => (v == null ? '' : String(v));
@@ -15,6 +17,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const [msgs, setMsgs] = useState<InboxMsg[]>([]);
   const [state, setState] = useState<any>(null);
   const [referrals, setReferrals] = useState<any[]>([]);
+  const [welcome, setWelcome] = useState<any>(null);
   const [memory, setMemory] = useState<any>({ country: '', preferred_language: '', notes: '', memory_summary: '' });
   const [memoryMsg, setMemoryMsg] = useState('');
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -35,6 +38,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const [atBottom, setAtBottom] = useState(true);
   const [newBelow, setNewBelow] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [lightbox, setLightbox] = useState<string>('');
 
   const cursor = useRef('');
   const msgCursor = useRef(0);
@@ -56,6 +60,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     ]);
     if (mr?.customer) { const c = mr.customer; setMemory({ country: field(c.country), preferred_language: field(c.preferred_language), notes: field(c.notes), memory_summary: field(c.memory_summary) }); }
     if (rr?.referrals) setReferrals(rr.referrals);
+    if (cr) setWelcome(cr.welcome || null);
     if (cr?.messages) {
       setMsgs(cr.messages);
       msgCursor.current = maxId(cr.messages);
@@ -126,6 +131,17 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   async function archiveOne() { if (!activeId) return; const j = await post('/api/admin/conversations/bulk', { ids: [activeId], action: 'archive' }); if (j) { setOk('Conversation archived.'); setActiveId(null); await poll(); } }
   async function markUnread() { if (!activeId) return; const j = await post('/api/admin/conversations/bulk', { ids: [activeId], action: 'unread' }); if (j) { setOk('Marked unread.'); await poll(); } }
   async function markRead() { if (!activeId) return; const j = await post(`/api/admin/conversations/${activeId}/read`); if (j) { setOk('Marked read.'); await poll(); } }
+  async function cancelAiReply() {
+    if (!activeId) return;
+    const j = await post(`/api/admin/conversations/${activeId}/cancel-reply`);
+    if (j) { setOk('Queued AI reply cancelled.'); await poll(); }
+  }
+  async function resetWelcome() {
+    if (!activeId) return;
+    if (!confirm('The website and WhatsApp group invitation will be eligible to send again on this customer\'s next AI response.')) return;
+    const j = await post(`/api/admin/conversations/${activeId}/reset-welcome`);
+    if (j) { setOk('Welcome reset - the next AI reply for this customer will include the website and group link.'); setWelcome(null); }
+  }
   async function deleteOne() {
     if (!activeId) return;
     if (!confirm('Permanently delete this conversation and its messages? The customer record is kept. Only the owner can do this.')) return;
@@ -165,6 +181,8 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     setVehicles(r?.vehicles || []);
   }
   const pickList = useMemo(() => vehicles.slice(0, 400), [vehicles]);
+  const pendingAt = state?.pending_ai_reply_at ? Date.parse(String(state.pending_ai_reply_at).replace(' ', 'T')) : 0;
+  const replyLeft = secondsLeft(pendingAt, now);
   function insert(t: string) { setText((cur) => (cur ? cur + ' ' + t : t)); setShowQuick(false); }
 
   function onScroll() {
@@ -227,16 +245,18 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
             <option value="">Send vehicle...</option>
             {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
           </select>
-          <button disabled={busy} onClick={() => setMode('paused')}>Pause 15m</button>
-          <button disabled={busy} onClick={aiNow}>AI Reply Now</button>
+          <button className="btn-warning" disabled={busy} onClick={() => setMode('paused')}>Pause 15m</button>
+          <button className="btn-success" disabled={busy} onClick={aiNow}>AI Reply Now</button>
+          <button className="btn-neutral" disabled={busy || replyLeft <= 0} onClick={cancelAiReply}>Cancel AI reply</button>
           <button type="button" className="drawerToggle" onClick={() => setShowDrawer((s) => !s)}>{showDrawer ? 'Hide customer' : 'Customer details'}</button>
           <div className="quickMenu">
-            <button type="button" onClick={() => setShowMore((s) => !s)}>...</button>
+            <button type="button" className="btn-neutral" onClick={() => setShowMore((s) => !s)}>...</button>
             {showMore ? <div>
               <button type="button" onClick={() => { setShowMore(false); void markRead(); }}>Mark read</button>
               <button type="button" onClick={() => { setShowMore(false); void markUnread(); }}>Mark unread</button>
               <button type="button" onClick={() => { setShowMore(false); void archiveOne(); }}>{archived ? 'Restore to inbox' : 'Archive conversation'}</button>
               <button type="button" onClick={() => { setShowMore(false); void clearCurrentCar(); }}>Clear current vehicle</button>
+              <button type="button" onClick={() => { setShowMore(false); void resetWelcome(); }}>Reset welcome</button>
               <button type="button" onClick={() => { setShowMore(false); void quick('sold'); }}>Vehicle sold</button>
               <button type="button" onClick={() => { setShowMore(false); void quick('not_available'); }}>Vehicle not available</button>
               <button type="button" onClick={() => { setShowMore(false); void deleteOne(); }}>Delete conversation (owner)</button>
@@ -249,6 +269,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         {active.mode === 'human' ? ' - automatic replies are off.' : active.mode === 'ai' ? ' - the AI answers new messages.' : ' - paused; the AI waits.'}
         {Number(active.needs_reply) > 0 ? <b> | CUSTOMER IS WAITING</b> : null}
         {Number(active.needs_staff) ? <b style={{ color: '#9b3d00' }}> | flagged for you</b> : null}
+        {replyLeft > 0 ? <b style={{ color: '#1e6fd9' }}> | {countdownLabel(replyLeft)}</b> : null}
       </div>
 
       <div className="messages" ref={scrollBox} onScroll={onScroll}>
@@ -261,9 +282,10 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
             {day && day !== prevDay ? <div className="daySep">{day}</div> : null}
             <div className={'bubble ' + (String(m.sender) === 'customer' ? 'customer' : 'agent')}>
               <small>{who}{m.message_type && m.message_type !== 'text' ? ' | ' + String(m.message_type).toUpperCase() : ''}{ds ? ' | ' + ds.label.toUpperCase() : ''}</small>
-              {m.media_url && m.message_type === 'image' ? <img src={`/api/admin/conversations/media/${m.id}`} alt="Customer upload (admin only)" loading="lazy" /> : null}
-              {m.media_url && m.message_type === 'audio' ? <audio controls preload="none" src={`/api/admin/conversations/media/${m.id}`} /> : null}
-              {m.media_url && m.message_type === 'video' ? <video controls preload="none" src={`/api/admin/conversations/media/${m.id}`} /> : null}
+              {m.media_url && m.message_type === 'image' ? <button type="button" className="mediaThumb" onClick={() => setLightbox(mediaSrc(m))} title="Click to enlarge"><img src={mediaSrc(m)} alt="Photo in this conversation (admin only)" loading="lazy" /></button> : null}
+              {m.media_url && m.message_type === 'audio' ? <audio controls preload="none" src={mediaSrc(m)} /> : null}
+              {m.media_url && m.message_type === 'video' ? <video controls preload="none" src={mediaSrc(m)} /> : null}
+              {m.media_url && m.message_type === 'document' ? <a className="btn-neutral" style={{ marginTop: 6 }} href={mediaSrc(m)} target="_blank" rel="noreferrer">Open document</a> : null}
               <div style={{ whiteSpace: 'pre-wrap' }}>{linkify(m.body) || (m.media_url ? `[${m.message_type}]` : '')}</div>
               {ds?.reason ? <div className="error" style={{ fontSize: 12 }}>failed: {ds.reason}</div> : null}
               <time>{new Date(m.created_at).toLocaleString()}</time>
@@ -303,6 +325,8 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         <small>{memory.country || 'Country unknown'}{memory.preferred_language ? ` | ${memory.preferred_language}` : ''}</small>
         <small>Current: {state?.current_stock_no || 'none set'}</small>
         <small>Status: {modeChip(active.mode)}{isPaused(active, now) ? ` (paused ${countdown(pauseSecondsLeft(active, now))})` : ''}</small>
+        <small>Welcome: {welcome?.sent_at ? new Date(welcome.sent_at).toLocaleDateString() : 'Not sent'}</small>
+        <small>{preferredToCode(memory.preferred_language) ? `Language: ${languageName(preferredToCode(memory.preferred_language) as LangCode)}` : state?.slots?.detected_language ? `Detected language: ${languageName(state.slots.detected_language as LangCode)}` : 'Language: not detected yet'}</small>
       </div>
       <div className="contextBlock">
         <b>Current car</b>
@@ -333,7 +357,17 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         <button type="button" className="miniBtn" onClick={saveMemory}>Save notes</button> <span className="muted">{memoryMsg}</span>
       </div>
     </aside> : null}
+    {lightbox ? <div className="lightbox" onClick={() => setLightbox('')} role="dialog" aria-label="Photo">
+      <img src={lightbox} alt="Enlarged photo" />
+      <button type="button" className="btn-neutral" style={{ position: 'absolute', top: 18, right: 18 }} onClick={() => setLightbox('')}>Close</button>
+    </div> : null}
   </div>;
+}
+
+/** Stored media reference: our own media proxy for Meta ids, otherwise the saved URL (never a supplier URL). */
+function mediaSrc(m: any) {
+  const u = String(m?.media_url || '');
+  return u.startsWith('meta:') ? `/api/admin/conversations/media/${m.id}` : u;
 }
 
 function linkify(body?: string | null) {

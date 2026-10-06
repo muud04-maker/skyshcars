@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 import { db } from '../../../../../lib/db';
 import { adminDenied } from '../../../../../lib/admin-guard';
 import { agentEvent } from '../../../../../lib/agent-events';
-import { clearStaffFlag, pauseAi, resumeAi } from '../../../../../lib/conversation-state';
+import { clearAiReply, clearStaffFlag, pauseAi, resumeAi } from '../../../../../lib/conversation-state';
 import { staffPauseMinutes } from '../../../../../lib/staff';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +30,7 @@ export async function POST(req: Request) {
   // Archive hides a chat from the main inbox but keeps all history (searchable under Archived).
   if (action === 'archive' || action === 'unarchive') {
     const [r]: any = await db().execute(`UPDATE conversations SET archived_at=${action === 'archive' ? 'NOW()' : 'NULL'} WHERE id IN ${inList}`, ids);
+    if (action === 'archive') for (const id of ids) await clearAiReply(id).catch(() => {});
     return NextResponse.json({ ok: true, action, changed: Number(r?.affectedRows || 0), ids });
   }
 
@@ -56,10 +57,12 @@ export async function POST(req: Request) {
     try {
       if (action === 'human') {
         await db().execute("UPDATE conversations SET mode='human',takeover_by='admin',takeover_at=NOW() WHERE id=?", [id]);
+        await clearAiReply(id).catch(() => {});
         await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)', [id, 'system', 'outbound', 'text', 'Admin took over conversation.']);
       } else if (action === 'paused') {
         await db().execute("UPDATE conversations SET mode='ai',takeover_by=NULL,takeover_at=NULL WHERE id=?", [id]);
         await pauseAi(id, minutes, 'admin').catch(() => {});
+        await clearAiReply(id).catch(() => {});
         await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)', [id, 'system', 'outbound', 'text', `AI paused for ${minutes} min.`]);
       } else {
         await db().execute("UPDATE conversations SET mode='ai',takeover_by=NULL,takeover_at=NULL WHERE id=?", [id]);

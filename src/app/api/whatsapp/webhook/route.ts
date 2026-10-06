@@ -5,7 +5,8 @@ import { db, one, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
 import { scheduleReply } from '../../../../lib/sales-engine';
-import { clearStaffFlag, ensureConversationState, flagForStaff, pauseAi } from '../../../../lib/conversation-state';
+import { clearAiReply, clearStaffFlag, ensureConversationState, flagForStaff, pauseAi, scheduleAiReply } from '../../../../lib/conversation-state';
+import { REPLY_DELAY_SECONDS } from '../../../../lib/ai-rules/ai-queue';
 import { storeReferral } from '../../../../lib/referrals';
 import { staffPauseMinutes } from '../../../../lib/staff';
 import { isStaffEcho, looksLikeBusinessEcho } from '../../../../lib/ai-rules/staff';
@@ -143,6 +144,8 @@ async function handleEcho(m: any) {
   await clearStaffFlag(Number(c.id)).catch(() => {});
   const minutes = await staffPauseMinutes().catch(() => 15);
   await pauseAi(Number(c.id), minutes, 'staff').catch(() => {});
+  // Staff replied: cancel any queued AI reply for this chat (staff always wins).
+  await clearAiReply(Number(c.id)).catch(() => {});
   await agentEvent(Number(c.id), id, 'staff_echo', 'ok', {
     type: parsed.type, has_text: parsed.hasText, matched_outbound: !!existing?.id, action, minutes, chars: parsed.body.length,
   });
@@ -187,8 +190,10 @@ async function handle(m: any, contacts: any[], referral?: any) {
     await agentEvent(c.id,m.id,'reply','ignored',{reason:'stale_delivery',age_seconds:Math.round(Date.now()/1000-sentAt)});
     return;
   }
-  // The reply is produced after the 200 response, by the one reply engine (lock, burst merge, reply rule, welcome).
-  after(() => scheduleReply(Number(c.id), 'webhook'));
+  // Do NOT answer instantly: queue ONE reply 60 seconds after the latest customer message.
+  // The deadline lives in MySQL, so restarts and parallel webhooks are safe (a newer message resets it).
+  await scheduleAiReply(Number(c.id), REPLY_DELAY_SECONDS, m.id || null).catch((e) => console.error('QUEUE_SCHEDULE', e));
+  await agentEvent(c.id, m.id, 'ai_queued', 'ok', { delay_seconds: REPLY_DELAY_SECONDS });
 }
 
 export async function POST(req: Request) {

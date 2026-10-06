@@ -1,4 +1,4 @@
-// PART 6 â€” staff and AI work together: staff echoes are recognised, the AI stays quiet while paused,
+// PART 6  |  staff and AI work together: staff echoes are recognised, the AI stays quiet while paused,
 // and it returns by itself (sweep) once the pause has expired and the customer is still waiting.
 const test = require('node:test');
 const assert = require('node:assert/strict');

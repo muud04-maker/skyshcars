@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {db,one} from '../../../../../../lib/db';
 import {adminDenied} from '../../../../../../lib/admin-guard';
-import {pauseAi,resumeAi,clearStaffFlag} from '../../../../../../lib/conversation-state';
+import {clearAiReply,pauseAi,resumeAi,clearStaffFlag} from '../../../../../../lib/conversation-state';
 import {runReplyEngine} from '../../../../../../lib/sales-engine';
 import {staffPauseMinutes} from '../../../../../../lib/staff';
 
@@ -21,10 +21,12 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
     const minutes=Number(b.minutes)||await staffPauseMinutes();
     await db().execute(`UPDATE conversations SET mode='ai',takeover_by=NULL,takeover_at=NULL WHERE id=?`,[id]);
     await pauseAi(id,minutes,'admin');
+    await clearAiReply(Number(id)).catch(()=>{});
     await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)',[id,'system','outbound','text',`AI paused for ${minutes} min.`]);
     return NextResponse.json({ok:true,mode:'paused',minutes});
   }
   await db().execute(`UPDATE conversations SET mode=?,takeover_by=?,takeover_at=${b.mode==='human'?'NOW()':'NULL'} WHERE id=?`,[b.mode,b.mode==='human'?'admin':null,id]);
+  if(String(b.mode)!=='ai')await clearAiReply(Number(id)).catch(()=>{});
   await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)',[id,'system','outbound','text',b.mode==='human'?'Admin took over conversation.':'Conversation returned to AI.']);
   let catchUp:any={attempted:false,sent:false};
   if(b.mode==='ai'){

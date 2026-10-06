@@ -5,6 +5,7 @@
 */
 import { decideReply, wordsFromStored, type BurstMsg } from './reply-policy';
 import { askedForGroup, askedForWebsite, detectLanguage, stripPromoLinks, withWelcome, type Lang, type WelcomeConfig } from './welcome';
+import { withBlock, welcomeBlock } from './welcome';
 import { stripInventedHistory } from './reply-guard';
 import { holdingLine, isHolding } from './hold';
 import { applyStaffOverride } from './staff-override';
@@ -18,7 +19,7 @@ export type ComposeIn = {
   welcomeDue: boolean; welcomeSent: boolean; referral: boolean;
   referralVehicle?: any; referralAiEnabled?: boolean;
 };
-export type ComposeOut = { text: string; lang?: Lang; model?: string | null; vehicleId?: number | null; photoPlan?: any; needsStaff?: string | null; facts?: any; notes?: string[]; allowedNames?: string[] };
+export type ComposeOut = { text: string; lang?: string; model?: string | null; vehicleId?: number | null; photoPlan?: any; needsStaff?: string | null; facts?: any; notes?: string[]; allowedNames?: string[] };
 
 export type EngineDeps = {
   sleep(ms: number): Promise<void>;
@@ -40,6 +41,9 @@ export type EngineDeps = {
   holdForStaff(conversationId: number): Promise<void>;
   /** The last thing a colleague said in this chat (used to stop the AI contradicting staff). */
   lastStaffBody(conversationId: number): Promise<string | null>;
+  /** Optional: a hold line / welcome block generated for an arbitrary customer language. */
+  holdText?(lang: string): Promise<string>;
+  welcomeBlockText?(lang: string): Promise<string>;
   welcomeConfig(): Promise<WelcomeConfig>;
   welcomeAlreadySent(key: string): Promise<boolean>;
   claimWelcome(key: string, customerId: number | null, conversationId: number): Promise<boolean>;
@@ -137,7 +141,8 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
           result = { status: 'skipped', reason: 'holding_already_sent' };
           break;
         }
-        text = holdingLine(composed.lang || detectLanguage(words));
+        const holdLang = composed.lang || detectLanguage(words);
+        text = deps.holdText ? await deps.holdText(holdLang).catch(() => holdingLine(holdLang)) : holdingLine(holdLang);
       } else {
         // Code-level link filter on every AI reply (staff messages never pass here).
         text = stripPromoLinks(composed.text, { site: wcfg.site, allowSite: askedForWebsite(words), allowGroup: askedForGroup(words) });
@@ -146,11 +151,15 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
         // A colleague already told the customer this car is sold / not available: never contradict them.
         const staffText = deps.lastStaffBody ? await deps.lastStaffBody(conversationId).catch(() => null) : null;
         text = applyStaffOverride(text, staffText);
-        // Atomic claim BEFORE sending: only one caller can ever add the welcome for this person.
-        if (welcomeDue && await deps.claimWelcome(key, conv.customer_id, conversationId)) {
-          welcome = true;
-          text = withWelcome(text, composed.lang || detectLanguage(words), wcfg);
-        }
+      }
+      // The FIRST reply of a new customer always carries the website + WhatsApp-group invitation -
+      // a normal answer AND a holding reply. Claimed atomically BEFORE sending, so webhook retries
+      // and parallel workers can never send the welcome twice.
+      if (welcomeDue && await deps.claimWelcome(key, conv.customer_id, conversationId)) {
+        welcome = true;
+        const lang = composed.lang || detectLanguage(words);
+        const block = deps.welcomeBlockText ? await deps.welcomeBlockText(lang).catch(() => welcomeBlock(lang as Lang, wcfg)) : welcomeBlock(lang as Lang, wcfg);
+        text = withBlock(text, block);
       }
       if (!text.trim()) { await deps.markAnswered(conversationId, lastId); result = { status: 'skipped', reason: 'empty_reply' }; break; }
 

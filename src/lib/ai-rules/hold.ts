@@ -6,12 +6,13 @@
   the owner replies or returns the chat to the AI.
 */
 
-export type HoldLang = 'en' | 'ar' | 'so';
+export type HoldLang = 'en' | 'ar' | 'so' | 'zh';
 
 const HOLDING: Record<HoldLang, string> = {
   en: 'Let me confirm that for you.',
   so: 'Waan kuu xaqiijinayaa.',
   ar: '\u062f\u0639\u0646\u064a \u0623\u062a\u0623\u0643\u062f \u0644\u0643.',
+  zh: '\u6211\u5e2e\u4f60\u786e\u8ba4\u4e00\u4e0b\u3002',
 };
 
 export function holdingLine(lang?: string | null) {

@@ -8,6 +8,30 @@ import { loadAiCars } from './ai-catalog';
 import { detectLanguage } from './ai-rules/welcome';
 import { shouldHold } from './ai-rules/hold';
 import { isQuestion, isRequest } from './intent';
+import { history } from './conversations';
+import { getState, saveSlots } from './conversation-state';
+import { isHardcodedLang, languageName, type LangCode } from './ai-rules/language';
+import { detectCustomerLanguage, saveDetectedLanguage } from './language-detect';
+import { filterInventory, inventoryAnswer, inventoryIntent } from './ai-rules/inventory-intent';
+
+/** Recent customer wording (for language inheritance when the latest message is short/ambiguous). */
+async function recentCustomerText(conversationId?: number) {
+  if (!conversationId) return '';
+  try {
+    const past = await history(conversationId, 12);
+    return past.filter((m: any) => String(m.sender) === 'customer').slice(-5).map((m: any) => String(m.body || '')).join(' ');
+  } catch { return ''; }
+}
+
+/** Explicit admin-set preferred language (authoritative when the latest message is ambiguous). */
+async function preferredLanguageOf(conversationId?: number) {
+  if (!conversationId) return null;
+  try {
+    const { one } = await import('./db');
+    const r = await one<any>('SELECT c.preferred_language FROM conversations co LEFT JOIN customers c ON c.id=co.customer_id WHERE co.id=? LIMIT 1', [conversationId]);
+    return r?.preferred_language || null;
+  } catch { return null; }
+}
 import type { ComposeIn, ComposeOut } from './ai-rules/engine-core';
 
 export function welcomeNote(i: { welcomeDue: boolean }) {
@@ -35,11 +59,38 @@ export function referralNote(i: ComposeIn) {
 export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise<ComposeOut> {
   const hasMedia = (i.burst || []).some(b => ['image', 'audio', 'video', 'document'].includes(String(b.message_type)));
   const text = i.words || 'The customer sent a photo/voice note/document without words. Reply briefly and ask what they are looking for.';
-  const lang = detectLanguage(i.words);
+  // Customer language: latest message -> explicit admin preference -> recent conversation -> English.
+  const recent = await recentCustomerText(i.conversationId);
+  const preferred = await preferredLanguageOf(i.conversationId);
+  const lang: LangCode = await detectCustomerLanguage({ conversationId: i.conversationId, latest: i.words, recent, preferred });
+  // Remember the detected language additively (no schema change) so the inbox can show it.
+  if (i.conversationId && !preferred) await saveDetectedLanguage(i.conversationId, lang);
   const photoPlan = i.dryRun ? null : await planPhotos(text, i.conversationId).catch(() => null);
   // Part 4: media we cannot read never causes silence - ask a short, honest clarification.
   const mediaNote = (!i.words && hasMedia) ? await mediaClarificationNote() : '';
-  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + ` Reply in ${lang === 'ar' ? 'Arabic' : lang === 'so' ? 'Somali' : 'English'}.` });
+  // Inventory questions ("Do you have cars?", "Gaari ma haysa?", "Any Toyota?", "SUV?", "cars under
+  // $7000") are answered from the AI Catalog - never with the hold line. The count and the cars come
+  // from the catalog rows, so nothing can be invented.
+  if (i.words && !photoPlan) {
+    try {
+      const cars: any[] = await loadAiCars(300);
+      const inv = inventoryIntent(i.words, [...new Set(cars.map((c: any) => String(c.brand || '')).filter(Boolean))]);
+      if (inv) {
+        const matched = filterInventory(cars as any, inv);
+        const names = (matched.length ? matched : cars).slice(0, 8).map((v: any) => [v.model_year, v.brand, v.model].filter(Boolean).join(' '));
+        if (isHardcodedLang(lang)) {
+          const ans = inventoryAnswer(inv, matched, lang, { totalAi: cars.length });
+          return { text: ans.text, lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: ans.needsStaff ? 'No AI inventory enabled' : null };
+        }
+        // Any other language: let the model phrase the SAME facts in the customer's language.
+        const show = (matched.length ? matched : cars).slice(0, 3).map((v: any) => `${[v.model_year, v.brand, v.model].filter(Boolean).join(' ')}${v.price_usd ? ` - $${Number(v.price_usd).toLocaleString()}` : ''}`);
+        const factNote = ` The customer asked about our inventory. Use ONLY these facts: ${matched.length || cars.length} vehicles match, ${cars.length} vehicles are enabled in total. Options: ${show.join('; ') || 'none'}. Answer in ${languageName(lang)} in 1-2 short sentences and do not invent vehicles, prices or counts.${matched.length ? '' : ' If nothing matches, say so honestly and offer another brand.'}`;
+        const phrased = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + factNote + ` Reply in ${languageName(lang)}.` });
+        return { text: String(phrased || ''), lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: (!cars.length) ? 'No AI inventory enabled' : null };
+      }
+    } catch { /* any lookup problem falls through to the normal (or hold) path */ }
+  }
+  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
   // Part 9: the cars this reply is allowed to remember (used by the invented-history guard).
   const allowedNames = await allowedVehicleNames(text, i.conversationId, i.referralVehicle ? [i.referralVehicle] : []).catch(() => []);
   // No verified answer for a real question/request: hold, flag for the owner, and wait instead of guessing.

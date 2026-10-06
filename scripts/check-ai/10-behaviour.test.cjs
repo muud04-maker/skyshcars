@@ -1,4 +1,4 @@
-// PART 10 â€” AI behaviour: short holding reply when it does not know, then WAIT; never repeat it.
+// PART 10  |  AI behaviour: short holding reply when it does not know, then WAIT; never repeat it.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const load = require('./lib.cjs');

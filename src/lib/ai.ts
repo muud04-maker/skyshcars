@@ -184,7 +184,7 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
   const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.replace(/\s+/g,' ').trim();
   return {
     vehicleId: Number(v.id), stockNo: String(v.stock_no || ''), title, images, exact: images.length > 0,
-    caption: `${title}${v.stock_no ? ` • ${v.stock_no}` : ''}${v.price_usd ? ` • $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`
+    caption: `${title}${v.stock_no ? ` | ${v.stock_no}` : ''}${v.price_usd ? ` | $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`
   };
 }
 
@@ -319,7 +319,7 @@ ${JSON.stringify(facts)}`;
 function compactVehicleLine(v:any, includeLink=false){
   const title=[v.model_year,v.brand,v.model,v.trim_name].filter(Boolean).join(' ');
   const price=v.price_usd!=null?`$${Number(v.price_usd).toLocaleString()}`:'Price on request';
-  return `${title || 'Vehicle'} — ${price}${v.stock_no?` (${v.stock_no})`:''}${includeLink&&v.link?`\n${v.link}`:''}`;
+  return `${title || 'Vehicle'} - ${price}${v.stock_no?` (${v.stock_no})`:''}${includeLink&&v.link?`\n${v.link}`:''}`;
 }
 
 function wantsLink(text:string){

@@ -4,7 +4,7 @@ import {db,one} from '../../../../../../lib/db';
 import {outbound} from '../../../../../../lib/conversations';
 import {adminDenied} from '../../../../../../lib/admin-guard';
 import {agentEvent} from '../../../../../../lib/agent-events';
-import {pauseAi} from '../../../../../../lib/conversation-state';
+import {clearAiReply,pauseAi} from '../../../../../../lib/conversation-state';
 import {staffPauseMinutes} from '../../../../../../lib/staff';
 
 export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
@@ -23,6 +23,7 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
     await db().execute("UPDATE conversations SET mode='human',takeover_by='admin',takeover_at=COALESCE(takeover_at,NOW()),last_message_at=NOW() WHERE id=?",[id]);
     // Part 6: keep the AI quiet while staff are handling this chat.
     await pauseAi(Number(id), await staffPauseMinutes(), 'admin').catch(()=>{});
+    await clearAiReply(Number(id)).catch(()=>{});
     await agentEvent(Number(id),null,'human_reply','ok',{whatsapp_message_id:metaId,chars:text.length});
     return NextResponse.json({ok:true,metaMessageId:metaId});
   }catch(e:any){

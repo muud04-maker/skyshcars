@@ -1,4 +1,4 @@
-// PART 5 â€” reply quality: 25-message labelled context and deterministic slot tracking (no repeats).
+// PART 5  |  reply quality: 25-message labelled context and deterministic slot tracking (no repeats).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const load = require('./lib.cjs');

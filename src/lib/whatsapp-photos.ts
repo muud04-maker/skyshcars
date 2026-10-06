@@ -1,7 +1,11 @@
 /*
   WhatsApp photo requests. The plan is decided BEFORE the AI writes its reply so the text never
-  promises photos that will not arrive. Only exact photos of a real Available unit are sent,
-  and the same vehicle's photos are not re-sent to the same customer within 30 minutes.
+  promises photos that will not arrive. Only exact photos of a real Available unit are sent, and the
+  same vehicle's photos are not re-sent to the same customer within 30 minutes.
+
+  Every image Meta accepts is stored as its own outbound message row (type=image, our media URL, Meta
+  message id, delivery status) so the admin transcript can show the real photos the customer got.
+  Separators are plain ASCII on purpose - no bullet characters that can break in transport/encoding.
 */
 import { one } from './db';
 import { outbound } from './conversations';
@@ -26,14 +30,17 @@ export async function planPhotos(text: string, conversationId: number): Promise<
   return { ...base, status: 'sending', images: media.images };
 }
 
-/** Sends the planned exact photos. If Meta rejects them, sends one honest correction instead of silence. */
+/** Sends the planned exact photos. If Meta rejects them all, sends one honest correction instead of silence. */
 export async function sendPlannedPhotos(to: string, conversationId: number, plan: PhotoPlan | null) {
   if (!plan || plan.status !== 'sending' || !plan.images.length) return { sent: 0 };
   let sent = 0;
   // Each photo is tried on its own: one bad image must not stop the others.
   for (let i = 0; i < plan.images.length; i++) {
     try {
-      await sendWhatsAppImage(to, plan.images[i], sent === 0 ? plan.caption : `${plan.title} • photo ${i + 1}`);
+      const caption = sent === 0 ? String(plan.caption || '') : `${plan.title || 'Vehicle'} | photo ${i + 1}`;
+      const metaId = await sendWhatsAppImage(to, plan.images[i], caption);
+      // Persist what was really sent: one row per image, with our own media URL (never a supplier URL).
+      await outbound(conversationId, 'ai', caption, AI_MODEL, { type: 'image', mediaUrl: plan.images[i], externalId: metaId, status: metaId ? 'sent' : null });
       sent++;
     } catch (err: any) {
       await agentEvent(conversationId, null, 'vehicle_image_send', 'failed', { url: plan.images[i], error: err?.response?.data || err?.message || String(err) });
@@ -41,7 +48,8 @@ export async function sendPlannedPhotos(to: string, conversationId: number, plan
     }
   }
   if (sent) {
-    await outbound(conversationId, 'ai', `${sentMarker(plan.stockNo || '')} ${sent} photo${sent > 1 ? 's' : ''}\n${plan.caption || ''}`, AI_MODEL);
+    // Short metadata label carrying the ACTUAL successful count (never claims more than was delivered).
+    await outbound(conversationId, 'ai', `${sentMarker(plan.stockNo || '')} ${sent} photo${sent > 1 ? 's' : ''}`, AI_MODEL);
     await agentEvent(conversationId, null, 'vehicle_image_send', 'ok', { stock_no: plan.stockNo, sent });
   } else {
     const sorry = 'Sorry, the photos did not go through just now. Our team will send them to you shortly.';
