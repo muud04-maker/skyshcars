@@ -8,7 +8,7 @@ import { scheduleReply } from '../../../../lib/sales-engine';
 import { clearStaffFlag, ensureConversationState, flagForStaff, pauseAi } from '../../../../lib/conversation-state';
 import { storeReferral } from '../../../../lib/referrals';
 import { staffPauseMinutes } from '../../../../lib/staff';
-import { isStaffEcho } from '../../../../lib/ai-rules/staff';
+import { isStaffEcho, looksLikeBusinessEcho } from '../../../../lib/ai-rules/staff';
 import { isPlaceholderBody, mapMessageType, parseStaffEcho } from '../../../../lib/ai-rules/staff-echo';
 import { isGroupRecipient } from '../../../../lib/intent';
 
@@ -224,8 +224,10 @@ export async function POST(req: Request) {
       for (const echo of [...(v.message_echoes || []), ...(v.smb_message_echoes || [])]) {
         try { echoCount += await handleEcho(echo); } catch (err:any) { console.error('WHATSAPP_ECHO_ERROR', err?.message || err); }
       }
+      // Echoes can also arrive as a normal message sent FROM us TO a known customer.
+      const contactIds = new Set<string>((v.contacts || []).map((x: any) => String(x?.wa_id || '')));
       for (const m of v.messages || []) {
-        if (isStaffEcho(m, ownWhatsAppNumbers())) {
+        if (isStaffEcho(m, ownWhatsAppNumbers()) || looksLikeBusinessEcho(m, contactIds)) {
           try { echoCount += await handleEcho(m); } catch (err:any) { console.error('WHATSAPP_ECHO_ERROR', err?.message || err); }
           continue;
         }

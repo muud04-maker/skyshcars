@@ -104,3 +104,15 @@ test('14. long / unusual staff text is stored safely and placeholders are reconc
   assert.equal(isPlaceholderBody('We have this vehicle available.'), false);
   assert.equal(mapMessageType('interactive'), 'other');
 });
+
+test('14b. a staff echo is recognised when Meta sends it as "from us to the customer"', () => {
+  const { looksLikeBusinessEcho } = load('ai-rules/staff.js');
+  const contacts = ['255700000001'];
+  // staff echo: from = our business number, to = a known customer
+  assert.equal(looksLikeBusinessEcho({ from: '8615778025441', to: '255700000001' }, contacts), true);
+  // normal customer message: from = the known customer
+  assert.equal(looksLikeBusinessEcho({ from: '255700000001', to: '8615778025441' }, contacts), false);
+  // no contact list -> never treated as an echo
+  assert.equal(looksLikeBusinessEcho({ from: '8615778025441', to: '255700000001' }, []), false);
+  assert.equal(looksLikeBusinessEcho({}, contacts), false);
+});
