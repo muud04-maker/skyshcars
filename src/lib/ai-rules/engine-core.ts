@@ -7,6 +7,7 @@ import { decideReply, wordsFromStored, type BurstMsg } from './reply-policy';
 import { askedForGroup, askedForWebsite, detectLanguage, stripPromoLinks, withWelcome, type Lang, type WelcomeConfig } from './welcome';
 import { stripInventedHistory } from './reply-guard';
 import { holdingLine, isHolding } from './hold';
+import { applyStaffOverride } from './staff-override';
 
 export type Trigger = 'webhook' | 'catch_up' | 'manual' | 'sweep';
 export type Conv = { id: number; channel: string; external_user_id: string; mode: string; customer_id: number | null };
@@ -37,6 +38,8 @@ export type EngineDeps = {
   setCurrentCar(conversationId: number, vehicleId: number, source: string): Promise<void>;
   /** Pause the AI after a holding reply so it waits for the owner instead of guessing. */
   holdForStaff(conversationId: number): Promise<void>;
+  /** The last thing a colleague said in this chat (used to stop the AI contradicting staff). */
+  lastStaffBody(conversationId: number): Promise<string | null>;
   welcomeConfig(): Promise<WelcomeConfig>;
   welcomeAlreadySent(key: string): Promise<boolean>;
   claimWelcome(key: string, customerId: number | null, conversationId: number): Promise<boolean>;
@@ -140,6 +143,9 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
         text = stripPromoLinks(composed.text, { site: wcfg.site, allowSite: askedForWebsite(words), allowGroup: askedForGroup(words) });
         // Never let the AI invent a car the customer "was looking at" (failure E).
         text = stripInventedHistory(text, composed.allowedNames || []);
+        // A colleague already told the customer this car is sold / not available: never contradict them.
+        const staffText = deps.lastStaffBody ? await deps.lastStaffBody(conversationId).catch(() => null) : null;
+        text = applyStaffOverride(text, staffText);
         // Atomic claim BEFORE sending: only one caller can ever add the welcome for this person.
         if (welcomeDue && await deps.claimWelcome(key, conv.customer_id, conversationId)) {
           welcome = true;
