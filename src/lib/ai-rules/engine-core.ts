@@ -6,6 +6,8 @@
 import { decideReply, wordsFromStored, type BurstMsg } from './reply-policy';
 import { askedForGroup, askedForWebsite, detectLanguage, stripPromoLinks, withWelcome, type Lang, type WelcomeConfig } from './welcome';
 import { stripInventedHistory } from './reply-guard';
+import { holdingLine, isHolding } from './hold';
+import { applyStaffOverride } from './staff-override';
 
 export type Trigger = 'webhook' | 'catch_up' | 'manual' | 'sweep';
 export type Conv = { id: number; channel: string; external_user_id: string; mode: string; customer_id: number | null };
@@ -34,6 +36,10 @@ export type EngineDeps = {
   channelReady(conv: Conv): boolean;
   resolveReferral(conv: Conv, burst: BurstRow[]): Promise<ResolvedReferral | null>;
   setCurrentCar(conversationId: number, vehicleId: number, source: string): Promise<void>;
+  /** Pause the AI after a holding reply so it waits for the owner instead of guessing. */
+  holdForStaff(conversationId: number): Promise<void>;
+  /** The last thing a colleague said in this chat (used to stop the AI contradicting staff). */
+  lastStaffBody(conversationId: number): Promise<string | null>;
   welcomeConfig(): Promise<WelcomeConfig>;
   welcomeAlreadySent(key: string): Promise<boolean>;
   claimWelcome(key: string, customerId: number | null, conversationId: number): Promise<boolean>;
@@ -117,17 +123,35 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
       if (st.answered_through_id >= lastId && !opts.force) { result = { status: 'skipped', reason: 'already_answered' }; break; }
       if (st.ai_paused_until && st.ai_paused_until > deps.now() && opts.trigger !== 'manual') { result = { status: 'skipped', reason: 'staff_replied' }; break; }
 
-      // Code-level link filter on every AI reply (staff messages never pass here).
-      let text = stripPromoLinks(composed.text, { site: wcfg.site, allowSite: askedForWebsite(words), allowGroup: askedForGroup(words) });
-      // Never let the AI invent a car the customer "was looking at" (failure E).
-      text = stripInventedHistory(text, composed.allowedNames || []);
       let welcome = false;
-      // Atomic claim BEFORE sending: only one caller can ever add the welcome for this person.
-      if (welcomeDue && await deps.claimWelcome(key, conv.customer_id, conversationId)) {
-        welcome = true;
-        text = withWelcome(text, composed.lang || detectLanguage(words), wcfg);
+      let text: string;
+      if (composed.needsStaff) {
+        // No verified answer: flag the chat for staff, send ONE short holding line, then WAIT for the owner.
+        await deps.flagStaff(conversationId, composed.needsStaff);
+        await deps.holdForStaff(conversationId).catch(() => {});
+        const lastOut = await deps.lastOutboundBody(conversationId, Number.MAX_SAFE_INTEGER).catch(() => null);
+        if (isHolding(lastOut)) {
+          // Never repeat the holding message.
+          await deps.markAnswered(conversationId, lastId);
+          await deps.event(conversationId, lastExt, 'reply', 'ignored', { reason: 'holding_already_sent' });
+          result = { status: 'skipped', reason: 'holding_already_sent' };
+          break;
+        }
+        text = holdingLine(composed.lang || detectLanguage(words));
+      } else {
+        // Code-level link filter on every AI reply (staff messages never pass here).
+        text = stripPromoLinks(composed.text, { site: wcfg.site, allowSite: askedForWebsite(words), allowGroup: askedForGroup(words) });
+        // Never let the AI invent a car the customer "was looking at" (failure E).
+        text = stripInventedHistory(text, composed.allowedNames || []);
+        // A colleague already told the customer this car is sold / not available: never contradict them.
+        const staffText = deps.lastStaffBody ? await deps.lastStaffBody(conversationId).catch(() => null) : null;
+        text = applyStaffOverride(text, staffText);
+        // Atomic claim BEFORE sending: only one caller can ever add the welcome for this person.
+        if (welcomeDue && await deps.claimWelcome(key, conv.customer_id, conversationId)) {
+          welcome = true;
+          text = withWelcome(text, composed.lang || detectLanguage(words), wcfg);
+        }
       }
-      if (composed.needsStaff) await deps.flagStaff(conversationId, composed.needsStaff);
       if (!text.trim()) { await deps.markAnswered(conversationId, lastId); result = { status: 'skipped', reason: 'empty_reply' }; break; }
 
       await deps.markAnswered(conversationId, lastId); // before sending: a crash or timeout can never cause a second send

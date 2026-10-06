@@ -17,6 +17,20 @@ export function isStaffEcho(msg: EchoMsg, ownNumbers: (string | number)[] = []) 
   return ownNumbers.map(digits).filter(Boolean).includes(from);
 }
 
+/**
+ * Second way Meta delivers a staff reply: as a normal message addressed FROM us TO the customer.
+ * A customer message has from = a known contact; a staff echo has to = a known contact and from = us.
+ * Returns false when there is no contact list, so a customer message is never misread as an echo.
+ */
+export function looksLikeBusinessEcho(msg: EchoMsg, contactIds: Iterable<string> = []) {
+  const from = String(msg?.from == null ? '' : msg.from).trim();
+  const to = String(msg?.to == null ? '' : msg.to).trim();
+  if (!from || !to) return false;
+  const contacts = new Set(Array.from(contactIds || []).map((x) => String(x).trim()).filter(Boolean));
+  if (!contacts.size) return false;
+  return !contacts.has(from) && contacts.has(to);
+}
+
 /** Has the staff pause expired (or was there never one)? */
 export function pauseExpired(until: number | null | undefined, now: number) {
   if (!until) return true;

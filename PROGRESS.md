@@ -3,7 +3,7 @@
 Resume rule: parts are done in order 1 -> 9. Each part = one commit.
 Offline tests: `npm run check:ai` (compiles src/lib/ai-rules with tsconfig.check.json, then runs scripts/check-ai/*.test.cjs).
 
-Last verified on this branch: `npx tsc --noEmit` PASS | `npm run build` PASS (next build --webpack) | `npm run check:ai` PASS (74 tests).
+Last verified on this branch: `npx tsc --noEmit` PASS | `npm run build` PASS (next build --webpack) | `npm run check:ai` PASS (80 tests).
 
 | Part | Status | Wired into the live flow | Tested offline | Needs manual live test |
 |---|---|---|---|---|
@@ -27,3 +27,36 @@ Last verified on this branch: `npx tsc --noEmit` PASS | `npm run build` PASS (ne
 
 - `Microsoft/` (a PowerShell ModuleAnalysisCache folder) and `.claude/` are now in .gitignore; they are local tool artifacts, not application code.
 - PROGRESS.md is the source of truth for what is wired vs. what only exists.
+
+## Part 10 - owner UX, AI behaviour and phone admin (this round)
+
+- AI Catalog: lists EVERY vehicle (any status) with a Status column/filter and "Turn ON all shown", so the owner can always find and enable the cars they want. A car is only *sold* by the AI when its status is Available (the AI queries still require available + ai_enabled); enabling does not change public visibility.
+- Admin inbox: rebuilt as list | conversation | customer drawer. The conversation keeps the space; the customer details (current car, photos, referral, slots, memory) live in a collapsible right drawer; quick replies are one dropdown that only inserts text; the header uses compact controls with a "..." menu (archive, mark unread, clear current car, vehicle sold / not available, delete).
+- Bulk chat management: tick conversations (or select all shown) then Take over / Return to AI / Pause / Mark unread / Archive / Delete. Archive hides a chat from the inbox but keeps history and it stays searchable under the "Archived" view. Delete is owner-only, requires confirmation, removes the conversation + its messages and never touches the customer record.
+- Responsive: `src/app/inbox.css` removes page-level horizontal overflow, contains tables, wraps long text and collapses the drawer/inbox on tablets and phones.
+- AI behaviour: when there is no grounded answer for a real question/request the AI sends ONE short holding line ("Let me confirm that for you." / "Waan kuu xaqiijinayaa." / Arabic), flags the chat for staff and PAUSES so it waits for the owner; the holding message is never repeated. The prompt is capped at 1-2 short sentences (3 only if the customer asks for details) and must never guess a price, shipping cost or availability.
+- Welcome/links: the first-contact welcome (answer + website + group invitation, once per customer) is unchanged. Staff can always send the website / group link manually from the inbox Quick replies dropdown; staff messages are never filtered.
+- Phone admin (PWA): `manifest-admin.webmanifest` + `icon-admin.svg` + admin layout metadata make /admin installable to the home screen in standalone mode with a 6-tab mobile bar (Dashboard, Inbox, Inventory, Add car, Quotes, More). See MOBILE_ADMIN_BUILD.md.
+- Android APK: NOT created here (no Android SDK/Gradle/network in this environment). The PWA is the supported phone path; MOBILE_ADMIN_BUILD.md has the exact Capacitor steps for the owner to build the wrapper locally.
+- Still open from the request: full admin dashboard redesign (owner KPIs/quick actions), the marketing website polish pass, and per-vehicle step-by-step add form.
+
+## Part 11 - master-plan completion pass (tasks 1-16)
+
+Status (tests 90 passing, typecheck PASS, build PASS):
+
+- Task 1 AI Catalog: DONE - all vehicles (any status), search incl. trim, filters (AI on/off, status, cars/motorcycles, brand, no exact photos, newest, added-in-N-days), pagination (25/50/100), per-row checkbox, select-all-visible, clear selection, bulk enable/disable server-side, "+ Add vehicle to AI" multi-select picker over Available inventory, "+ Add new vehicle", mobile card layout, no page overflow.
+- Task 2 Add Vehicle: DONE - /admin/vehicles/new 5-step flow (Basic, Details, Pricing, Photos, Sales) with photo previews/reorder/cover/remove, AI + Facebook sales toggles, motorcycle category, success screen. "Save draft" not offered (the API has no draft state).
+- Task 3 Dashboard: DONE - Today / Sales / Communication / System (green-yellow-red) + quick actions.
+- Task 4 Inbox: DONE - list|chat|drawer, drawer collapsible (auto-narrow), bulk take over / return to AI / pause / mark read / mark unread / archive / restore / delete(owner), per-chat archive+delete, quick-replies dropdown (insert only) with Send website / group, Send vehicle picker, Sold / Not available, referral correction, archived view, mobile single-pane with Back.
+- Task 5 AI behaviour: DONE - 1-2 short sentences, one holding line (EN/SO/AR) + needs_staff + pause + never repeated.
+- Task 6 Staff override: DONE for sold / not available (deterministic rewrite of availability claims + prompt rule). Price and shipping corrections are detected (staffFact) but still prompt-level only.
+- Task 7 Links: DONE - welcome-once unchanged, explicit ask allowed, staff quick replies for website/group.
+- Task 8 Website polish: DONE - public trust/support strip (Why Sky Cars + Browse/Quote/WhatsApp/Contact) rendered on public pages only; mobile one-column layouts for grids and forms; no page-level sideways scrolling; safe-area aware CTA; homepage already carries hero search, New Arrivals, Cars, Motorcycles, Popular Brands, How Buying Works, Shipping to Africa and the WhatsApp CTA.
+- Task 9 Motorcycle workflow: DONE - /motorcycles filters category='motorcycle', hides the legacy blank-brand rows, has a real empty state, uses the shared filters/sorting, the Add Vehicle flow saves category=motorcycle, the AI Catalog can filter motorcycles, and quote/WhatsApp/Group-Reader approval run through the shared vehicle paths. Covered by Part 13 static tests.
+- Task 10 PWA: DONE (manifest, icon, standalone, safe-area, 6-tab mobile bar); inventory becomes cards on the AI Catalog page only.
+- Task 11 Android wrapper: files created in mobile/admin-app (package.json, capacitor.config.ts, www/, README, .gitignore) + MOBILE_ADMIN_BUILD.md. Gradle/APK build is BLOCKED BY ENVIRONMENT (no Android SDK/network) - manual final step.
+- Task 12 Quote/shipment UX audit: PARTIAL - both admin forms collapse to one column on phones and remain fully usable; the public quote form keeps port as a required field (server validates it), so "port optional" is the one item still open.
+- Task 13 Privacy audit: DONE (public API whitelist, tracking safe fields, supplier feed secret, photo proxy, no env text on public pages).
+- Task 14 Responsive audit: DONE at the shell level - html/body never scroll sideways, admin tables scroll inside their own containers, tables/cards collapse, long text wraps anywhere, safe-area padding, mobile tab bar, inbox single-pane, AI Catalog card layout, dashboard one-column. Individual pages were fixed through these shared rules rather than per-page rewrites.
+- Task 15 Tests: 97 passing (adds 11-catalog, 12-staff-override, 13-website static checks). Not automated (needs a live DB): inbox bulk endpoints, vehicle/motorcycle creation, live PWA install.
+- Task 16 Remaining after this pass: only Task 12's "port optional" and live-account verification (WhatsApp / Facebook / auth / Group Reader / PWA install / APK Gradle build).

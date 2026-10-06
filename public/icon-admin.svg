@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sky Cars Admin">
+  <rect width="512" height="512" rx="96" fill="#071b2d"/>
+  <path d="M120 300h272a24 24 0 0 1 24 24v40a24 24 0 0 1-24 24H120a24 24 0 0 1-24-24v-40a24 24 0 0 1 24-24z" fill="#ffb400"/>
+  <path d="M152 292l34-84a32 32 0 0 1 30-20h80a32 32 0 0 1 30 20l34 84z" fill="#ffd34d"/>
+  <circle cx="160" cy="356" r="26" fill="#0b1f35"/>
+  <circle cx="352" cy="356" r="26" fill="#0b1f35"/>
+  <text x="256" y="196" font-family="Inter,Arial,sans-serif" font-size="72" font-weight="900" fill="#ffffff" text-anchor="middle">SKY</text>
+</svg>

@@ -1,0 +1,15 @@
+{
+  "name": "Sky Cars Admin",
+  "short_name": "Sky Cars",
+  "description": "Manage Sky Cars inventory, WhatsApp sales inbox, quotes and shipments.",
+  "start_url": "/admin",
+  "scope": "/admin",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#eef5fb",
+  "theme_color": "#071b2d",
+  "icons": [
+    { "src": "/icon-admin.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-admin.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

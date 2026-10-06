@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { one, rows } from '../../../../../lib/db';
 import { adminDenied } from '../../../../../lib/admin-guard';
-import { conversationStateRow, inboxCursor, listConversations } from '../../../../../lib/inbox';
+import { INBOX_LIMIT, conversationStateRow, inboxCursor, listConversations } from '../../../../../lib/inbox';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +26,8 @@ export async function GET(req: Request) {
 
   const out: any = { cursor, status_cursor: statusCursor };
 
-  if (since !== cursor) out.conversations = await listConversations().catch(() => []);
+  const archived = String(q.get('archived') || '') === '1';
+  if (since !== cursor) out.conversations = await listConversations(INBOX_LIMIT, { archived }).catch(() => []);
 
   if (conversationId) {
     // Newest messages plus any message whose delivery status changed since the last poll.

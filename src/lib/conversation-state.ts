@@ -32,6 +32,7 @@ export function ensureConversationState() {
       `ALTER TABLE conversation_state ADD COLUMN ai_paused_until DATETIME NULL`,
       `ALTER TABLE messages ADD COLUMN status_updated_at DATETIME NULL`,
       `ALTER TABLE messages ADD COLUMN delivery_error VARCHAR(500) NULL`,
+      `ALTER TABLE conversations ADD COLUMN archived_at DATETIME NULL`,
     ]) { try { await db().execute(sql); } catch (e: any) { if (e?.code !== 'ER_DUP_FIELDNAME') console.error('STATE_COLUMN', e?.code); } }
     // Speed for the live inbox (part 7). Ignore "already exists".
     for (const sql of [

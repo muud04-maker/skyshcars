@@ -10,7 +10,7 @@ import type { InboxRow } from './ai-rules/inbox';
 export const INBOX_LIMIT = 300;
 
 const LIST_SELECT = `
-  co.id, co.channel, co.external_user_id, co.mode, co.last_message_at,
+  co.id, co.channel, co.external_user_id, co.mode, co.last_message_at, co.archived_at,
   c.full_name, c.phone,
   (SELECT body FROM messages m WHERE m.conversation_id=co.id ORDER BY m.id DESC LIMIT 1) preview,
   CASE WHEN (SELECT COALESCE(MAX(m1.id),0) FROM messages m1 WHERE m1.conversation_id=co.id AND m1.sender='customer' AND m1.direction='inbound')
@@ -22,14 +22,16 @@ const LIST_SELECT = `
   s.current_vehicle_id, s.answered_through_id, s.last_read_message_id, s.slots,
   (SELECT v.stock_no FROM vehicles v WHERE v.id=s.current_vehicle_id) current_stock_no`;
 
-export async function listConversations(limit = INBOX_LIMIT): Promise<InboxRow[]> {
+export async function listConversations(limit = INBOX_LIMIT, opts: { archived?: boolean } = {}): Promise<InboxRow[]> {
   await ensureConversationState().catch(() => {});
   const cap = Math.max(1, Math.min(1000, Number(limit) || INBOX_LIMIT));
+  const arch = opts.archived ? 'co.archived_at IS NOT NULL' : 'co.archived_at IS NULL';
   try {
     const list = await rows<any>(`SELECT ${LIST_SELECT}
       FROM conversations co
       LEFT JOIN customers c ON c.id=co.customer_id
       LEFT JOIN conversation_state s ON s.conversation_id=co.id
+      WHERE ${arch}
       ORDER BY co.last_message_at DESC, co.id DESC LIMIT ${cap}`);
     return list.map(normRow);
   } catch {
@@ -41,6 +43,7 @@ export async function listConversations(limit = INBOX_LIMIT): Promise<InboxRow[]
       (SELECT COALESCE(MAX(m3.id),0) FROM messages m3 WHERE m3.conversation_id=co.id AND m3.sender='customer' AND m3.direction='inbound') last_inbound_id,
       (SELECT TIMESTAMPDIFF(MINUTE,(SELECT MAX(m4.created_at) FROM messages m4 WHERE m4.conversation_id=co.id AND m4.sender='customer' AND m4.direction='inbound'),NOW())) waiting_minutes
       FROM conversations co LEFT JOIN customers c ON c.id=co.customer_id
+      WHERE ${arch}
       ORDER BY co.last_message_at DESC, co.id DESC LIMIT ${cap}`);
     return list.map(normRow);
   }

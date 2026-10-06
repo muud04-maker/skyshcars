@@ -8,7 +8,8 @@ import { one, rows } from './db';
 import { outbound } from './conversations';
 import { agentEvent } from './agent-events';
 import { sendWhatsApp, whatsappConfigured } from './meta';
-import { flagForStaff, getState, markAnswered, setCurrentCar, tryLock, unlock } from './conversation-state';
+import { flagForStaff, getState, markAnswered, pauseAi, setCurrentCar, tryLock, unlock } from './conversation-state';
+import { staffPauseMinutes } from './staff';
 import { resolveForBurst } from './referrals';
 import { runEngine, type EngineDeps, type EngineResult, type Trigger } from './ai-rules/engine-core';
 import { claimWelcome, releaseWelcome, welcomeAlreadySent, welcomeConfig } from './welcome';
@@ -49,6 +50,8 @@ const deps: EngineDeps = {
   channelReady: conv => conv.channel === 'whatsapp' ? whatsappConfigured() : conv.channel === 'facebook',
   resolveReferral: (conv, burst) => resolveForBurst({ id: conv.id, channel: conv.channel }, burst.map(b => Number(b.id))),
   setCurrentCar: (id, vehicleId, source) => setCurrentCar(id, vehicleId, source),
+  holdForStaff: async (id) => { const minutes = await staffPauseMinutes().catch(() => 15); await pauseAi(id, minutes, 'ai_hold'); },
+  lastStaffBody: async (id) => (await one<any>(`SELECT body FROM messages WHERE conversation_id=? AND sender='human' AND direction='outbound' ORDER BY id DESC LIMIT 1`, [id]))?.body || null,
   welcomeConfig: () => welcomeConfig(),
   welcomeAlreadySent: key => welcomeAlreadySent(key),
   claimWelcome: (key, cid, convId) => claimWelcome(key, cid, convId),
