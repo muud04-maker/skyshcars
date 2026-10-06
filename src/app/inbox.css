@@ -101,6 +101,34 @@ html, body { max-width: 100%; overflow-x: hidden; }
 @media (max-width: 700px) { .whyCta { flex-direction: column; align-items: flex-start; } .whyActions .btn { width: 100%; text-align: center; } }
 
 /* ---------- public site / form mobile polish ---------- */
+.btn-primary, .btn-success, .btn-info, .btn-warning, .btn-danger, .btn-neutral {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding: 10px 16px; border-radius: 9px; border: 1px solid transparent;
+  font-weight: 800; cursor: pointer; text-decoration: none; line-height: 1.15;
+}
+.btn-primary { background: #ffb400; color: #071d32; border-color: #e3a000; }
+.btn-primary:hover { background: #ffc333; }
+.btn-success { background: #0b7a3b; color: #fff; border-color: #096630; }
+.btn-success:hover { background: #0e8f46; }
+.btn-info { background: #1e6fd9; color: #fff; border-color: #1a61bd; }
+.btn-info:hover { background: #2a7ce6; }
+.btn-warning { background: #f59e0b; color: #3a2600; border-color: #d98a06; }
+.btn-warning:hover { background: #f7ac2b; }
+.btn-danger { background: #c81e1e; color: #fff; border-color: #ac1717; }
+.btn-danger:hover { background: #da2b2b; }
+.btn-neutral { background: #e6edf3; color: #10263b; border-color: #cbd6e1; }
+.btn-neutral:hover { background: #eff4f8; }
+.btn-primary:focus-visible, .btn-success:focus-visible, .btn-info:focus-visible,
+.btn-warning:focus-visible, .btn-danger:focus-visible, .btn-neutral:focus-visible { outline: 3px solid #1e6fd9; outline-offset: 2px; }
+.btn-primary[disabled], .btn-success[disabled], .btn-info[disabled], .btn-warning[disabled],
+.btn-danger[disabled], .btn-neutral[disabled] { opacity: .55; cursor: not-allowed; }
+.btn-primary.loading, .btn-success.loading, .btn-info.loading, .btn-warning.loading,
+.btn-danger.loading, .btn-neutral.loading { opacity: .8; pointer-events: none; }
+.adminActionBar, .pager, .detailActions, .whyActions { row-gap: 8px; }
+.dupAlert { background: #fff4f4; border: 1px solid #f0b7b7; border-radius: 10px; padding: 12px; margin: 10px 0; color: #8a1c1c; }
+.dupAlert b { display: block; margin-bottom: 4px; }
+.dupAlert .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
 @media (max-width: 700px) {
   .grid, .vehicleGrid, .catalogGrid, .vehicleDetailGrid { grid-template-columns: 1fr !important; }
   .quoteFormGrid, .formGrid, .shipmentFormGrid, .automationGrid, .dashTiles { grid-template-columns: 1fr !important; }
