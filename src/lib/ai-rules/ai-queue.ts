@@ -39,7 +39,9 @@ export function shouldCancelQueued(input: {
   lastInboundId?: number | null; lastOutboundId?: number | null;
 }) {
   if (input.archived) return { cancel: true, reason: 'archived' };
-  if (String(input.mode || 'ai') !== 'ai') return { cancel: true, reason: String(input.mode) === 'human' ? 'human_takeover' : 'paused_mode' };
+  const mode = String(input.mode || 'ai');
+  // 'ai' and 'both' allow the AI; 'human' (take over) and 'paused' never do.
+  if (mode !== 'ai' && mode !== 'both') return { cancel: true, reason: mode === 'human' ? 'human_takeover' : 'paused_mode' };
   if (input.paused) return { cancel: true, reason: 'ai_paused' };
   const inbound = Number(input.lastInboundId || 0);
   const outbound = Number(input.lastOutboundId || 0);

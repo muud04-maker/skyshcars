@@ -7,7 +7,7 @@ import {
 import { languageName, preferredToCode, type LangCode } from '../../../lib/ai-rules/language';
 import { countdownLabel, secondsLeft } from '../../../lib/ai-rules/ai-queue';
 
-type Mode = 'ai' | 'human' | 'paused';
+type Mode = 'ai' | 'human' | 'paused' | 'both';
 const field = (v: any) => (v == null ? '' : String(v));
 const modeChip = (m?: string | null) => String(m || 'ai').toUpperCase();
 
@@ -165,9 +165,9 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     setMemoryMsg(r.ok ? 'Saved.' : 'Could not save');
   }
 
-  async function bulk(action: 'ai' | 'human' | 'paused' | 'archive' | 'unarchive' | 'unread' | 'delete') {
+  async function bulk(action: 'ai' | 'human' | 'both' | 'paused' | 'archive' | 'unarchive' | 'unread' | 'delete') {
     if (!selected.length) return;
-    const label = action === 'delete' ? 'Permanently delete' : action === 'archive' ? 'Archive' : action === 'unarchive' ? 'Restore' : action === 'unread' ? 'Mark unread' : action === 'ai' ? 'Return to AI' : action === 'human' ? 'Take over' : 'Pause';
+    const label = action === 'delete' ? 'Permanently delete' : action === 'archive' ? 'Archive' : action === 'unarchive' ? 'Restore' : action === 'unread' ? 'Mark unread' : action === 'ai' ? 'Return to AI' : action === 'both' ? 'Set BOTH' : action === 'human' ? 'Take over' : 'Pause';
     if (!confirm(`${label} ${selected.length} conversation(s)?${action === 'delete' ? ' Their messages are removed; customer records stay.' : ''}`)) return;
     const j = await post('/api/admin/conversations/bulk', { ids: selected, action });
     if (j) { setOk(`${label}: ${j.changed ?? j.deleted} conversation(s).`); setSelected([]); await poll(); }
@@ -211,6 +211,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
           <b>{selected.length}</b>
           <button className="miniBtn" disabled={busy} onClick={() => bulk('human')}>Take over</button>
           <button className="miniBtn" disabled={busy} onClick={() => bulk('ai')}>Return to AI</button>
+          <button className="miniBtn" disabled={busy} onClick={() => bulk('both')}>Set Both</button>
           <button className="miniBtn" disabled={busy} onClick={() => bulk('paused')}>Pause</button>
           <button className="miniBtn" disabled={busy} onClick={() => bulk('unread')}>Mark unread</button>
           <button className="miniBtn" disabled={busy} onClick={() => bulk(archived ? 'unarchive' : 'archive')}>{archived ? 'Restore' : 'Archive'}</button>
@@ -236,24 +237,33 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     <section className="chatDesk">{!active ? <div className="emptyChat">Select a conversation on the left.</div> : <>
       <div className="chatHead">
         <div><h2><button type="button" className="chatBack miniBtn" onClick={() => setMobileChat(false)}>&lt; Back</button> {active.full_name || active.phone || active.external_user_id}</h2>
-          <small>{active.channel} | {active.external_user_id}{state?.current_stock_no ? ` | current car ${state.current_stock_no}` : ''}{isPaused(active, now) ? ` | AI paused ${countdown(pauseSecondsLeft(active, now))}` : ''}</small></div>
+          <small className="chatStatus">
+            {Number(active.needs_reply) > 0 ? 'CUSTOMER WAITING' : 'WAITING FOR CUSTOMER'}
+            {replyLeft > 0 ? ` | AI REPLY IN ${replyLeft}s` : ''}
+            {Number(active.needs_staff) ? ' | flagged for you' : ''}
+            {isPaused(active, now) ? ` | AI paused ${countdown(pauseSecondsLeft(active, now))}` : ''}
+            {state?.current_stock_no ? ` | ${state.current_stock_no}` : ''}
+          </small></div>
         <div className="modeButtons">
-          <select value={active.mode === 'paused' ? 'paused' : active.mode} onChange={(e) => setMode(e.target.value as Mode)} style={{ width: 'auto', margin: 0 }}>
-            <option value="ai">AI active</option><option value="human">Human takeover</option><option value="paused">Paused</option>
-          </select>
+          <div className="modeSeg" role="group" aria-label="Conversation mode">
+            <button type="button" disabled={busy} className={active.mode === 'ai' ? 'active' : ''} onClick={() => setMode('ai')}>AI</button>
+            <button type="button" disabled={busy} className={active.mode === 'human' ? 'active' : ''} onClick={() => setMode('human')}>TAKE OVER</button>
+            <button type="button" disabled={busy} className={active.mode === 'both' ? 'active' : ''} onClick={() => setMode('both')}>BOTH</button>
+          </div>
           <select value="" onChange={(e) => { const v = Number(e.target.value); if (v) sendPhotos(v); }} onFocus={openPicker} style={{ width: 'auto', margin: 0 }} title="Send exact vehicle photos">
             <option value="">Send vehicle...</option>
             {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
           </select>
-          <button className="btn-warning" disabled={busy} onClick={() => setMode('paused')}>Pause 15m</button>
-          <button className="btn-success" disabled={busy} onClick={aiNow}>AI Reply Now</button>
-          <button className="btn-neutral" disabled={busy || replyLeft <= 0} onClick={cancelAiReply}>Cancel AI reply</button>
+          {active.mode !== 'human' ? <button className="btn-success" disabled={busy} onClick={aiNow}>AI Reply Now</button> : null}
+          {active.mode !== 'human' ? <button className="btn-warning" disabled={busy} onClick={() => setMode('human')}>Take Over</button> : <button className="btn-success" disabled={busy} onClick={() => setMode('ai')}>Return to AI</button>}
+          {replyLeft > 0 ? <button className="btn-neutral" disabled={busy} onClick={cancelAiReply}>Cancel AI reply</button> : null}
           <button type="button" className="drawerToggle" onClick={() => setShowDrawer((s) => !s)}>{showDrawer ? 'Hide customer' : 'Customer details'}</button>
           <div className="quickMenu">
             <button type="button" className="btn-neutral" onClick={() => setShowMore((s) => !s)}>...</button>
             {showMore ? <div>
               <button type="button" onClick={() => { setShowMore(false); void markRead(); }}>Mark read</button>
               <button type="button" onClick={() => { setShowMore(false); void markUnread(); }}>Mark unread</button>
+              <button type="button" onClick={() => { setShowMore(false); void setMode('paused'); }}>Pause AI for 15 min</button>
               <button type="button" onClick={() => { setShowMore(false); void archiveOne(); }}>{archived ? 'Restore to inbox' : 'Archive conversation'}</button>
               <button type="button" onClick={() => { setShowMore(false); void clearCurrentCar(); }}>Clear current vehicle</button>
               <button type="button" onClick={() => { setShowMore(false); void resetWelcome(); }}>Reset welcome</button>
@@ -263,13 +273,6 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
             </div> : null}
           </div>
         </div>
-      </div>
-
-      <div className="modeNotice">Mode: <b>{modeChip(active.mode)}</b>
-        {active.mode === 'human' ? ' - automatic replies are off.' : active.mode === 'ai' ? ' - the AI answers new messages.' : ' - paused; the AI waits.'}
-        {Number(active.needs_reply) > 0 ? <b> | CUSTOMER IS WAITING</b> : null}
-        {Number(active.needs_staff) ? <b style={{ color: '#9b3d00' }}> | flagged for you</b> : null}
-        {replyLeft > 0 ? <b style={{ color: '#1e6fd9' }}> | {countdownLabel(replyLeft)}</b> : null}
       </div>
 
       <div className="messages" ref={scrollBox} onScroll={onScroll}>

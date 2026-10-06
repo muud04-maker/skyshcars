@@ -60,6 +60,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .customerSummary small { color: #5c7184; }
 
 .drawerToggle { border: 1px solid #b8cddd; background: #fff; border-radius: 8px; padding: 7px 10px; font-weight: 750; cursor: pointer; }
+/* single compact mode control: [ AI ][ TAKE OVER ][ BOTH ] */
+.modeSeg { display: inline-flex; border: 1px solid #b8cddd; border-radius: 9px; overflow: hidden; background: #fff; }
+.modeSeg button { border: 0; background: #fff; padding: 9px 13px; font-weight: 800; font-size: 12px; cursor: pointer; color: #10263b; }
+.modeSeg button + button { border-left: 1px solid #dbe7f1; }
+.modeSeg button.active { background: #0a3152; color: #fff; }
+.modeSeg button[disabled] { opacity: .6; cursor: not-allowed; }
+.chatStatus { display: block; margin-top: 3px; font-weight: 800; font-size: 11px; letter-spacing: .3px; color: #b3261e; }
+.chatStatus:not(:empty) { color: #0b7a3b; }
 
 @media (max-width: 1200px) {
   .inbox, .inbox.noDrawer { grid-template-columns: 300px minmax(0, 1fr); }

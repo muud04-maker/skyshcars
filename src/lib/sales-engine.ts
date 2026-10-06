@@ -56,6 +56,12 @@ const deps: EngineDeps = {
   // Languages we do not hardcode are generated once through DeepSeek and cached (see language-detect.ts).
   holdText: (lang) => holdTextFor(lang),
   welcomeBlockText: async (lang) => { const { site, group } = await welcomeLinesFor(lang); return `${site}\n${group}`; },
+  turnState: async (id) => {
+    const r = await one<any>(`SELECT
+      (SELECT COALESCE(MAX(m.id),0) FROM messages m WHERE m.conversation_id=? AND m.sender='customer' AND m.direction='inbound') last_in,
+      (SELECT COALESCE(MAX(m.id),0) FROM messages m WHERE m.conversation_id=? AND m.sender IN ('ai','human') AND m.direction='outbound') last_out`, [id, id]).catch(() => null);
+    return { lastInboundId: Number(r?.last_in || 0), lastOutboundId: Number(r?.last_out || 0) };
+  },
   welcomeConfig: () => welcomeConfig(),
   welcomeAlreadySent: key => welcomeAlreadySent(key),
   claimWelcome: (key, cid, convId) => claimWelcome(key, cid, convId),
