@@ -10,7 +10,8 @@ import { shouldHold } from './ai-rules/hold';
 import { isQuestion, isRequest } from './intent';
 import { history } from './conversations';
 import { getState, saveSlots } from './conversation-state';
-import { languageName, resolveLanguage, type LangCode } from './ai-rules/language';
+import { isHardcodedLang, languageName, type LangCode } from './ai-rules/language';
+import { detectCustomerLanguage, saveDetectedLanguage } from './language-detect';
 import { filterInventory, inventoryAnswer, inventoryIntent } from './ai-rules/inventory-intent';
 
 /** Recent customer wording (for language inheritance when the latest message is short/ambiguous). */
@@ -61,11 +62,9 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
   // Customer language: latest message -> explicit admin preference -> recent conversation -> English.
   const recent = await recentCustomerText(i.conversationId);
   const preferred = await preferredLanguageOf(i.conversationId);
-  const lang: LangCode = resolveLanguage({ latest: i.words, recent, preferred });
+  const lang: LangCode = await detectCustomerLanguage({ conversationId: i.conversationId, latest: i.words, recent, preferred });
   // Remember the detected language additively (no schema change) so the inbox can show it.
-  if (i.conversationId && !preferred) {
-    try { const st = await getState(i.conversationId); await saveSlots(i.conversationId, { ...((st as any).slots || {}), detected_language: lang }); } catch {}
-  }
+  if (i.conversationId && !preferred) await saveDetectedLanguage(i.conversationId, lang);
   const photoPlan = i.dryRun ? null : await planPhotos(text, i.conversationId).catch(() => null);
   // Part 4: media we cannot read never causes silence - ask a short, honest clarification.
   const mediaNote = (!i.words && hasMedia) ? await mediaClarificationNote() : '';
@@ -78,9 +77,16 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
       const inv = inventoryIntent(i.words, [...new Set(cars.map((c: any) => String(c.brand || '')).filter(Boolean))]);
       if (inv) {
         const matched = filterInventory(cars as any, inv);
-        const ans = inventoryAnswer(inv, matched, lang, { totalAi: cars.length });
         const names = (matched.length ? matched : cars).slice(0, 8).map((v: any) => [v.model_year, v.brand, v.model].filter(Boolean).join(' '));
-        return { text: ans.text, lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: ans.needsStaff ? 'No AI inventory enabled' : null };
+        if (isHardcodedLang(lang)) {
+          const ans = inventoryAnswer(inv, matched, lang, { totalAi: cars.length });
+          return { text: ans.text, lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: ans.needsStaff ? 'No AI inventory enabled' : null };
+        }
+        // Any other language: let the model phrase the SAME facts in the customer's language.
+        const show = (matched.length ? matched : cars).slice(0, 3).map((v: any) => `${[v.model_year, v.brand, v.model].filter(Boolean).join(' ')}${v.price_usd ? ` - $${Number(v.price_usd).toLocaleString()}` : ''}`);
+        const factNote = ` The customer asked about our inventory. Use ONLY these facts: ${matched.length || cars.length} vehicles match, ${cars.length} vehicles are enabled in total. Options: ${show.join('; ') || 'none'}. Answer in ${languageName(lang)} in 1-2 short sentences and do not invent vehicles, prices or counts.${matched.length ? '' : ' If nothing matches, say so honestly and offer another brand.'}`;
+        const phrased = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + factNote + ` Reply in ${languageName(lang)}.` });
+        return { text: String(phrased || ''), lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: (!cars.length) ? 'No AI inventory enabled' : null };
       }
     } catch { /* any lookup problem falls through to the normal (or hold) path */ }
   }
