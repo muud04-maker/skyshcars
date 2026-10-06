@@ -11,6 +11,7 @@ import { isQuestion, isRequest } from './intent';
 import { history } from './conversations';
 import { getState, saveSlots } from './conversation-state';
 import { languageName, resolveLanguage, type LangCode } from './ai-rules/language';
+import { filterInventory, inventoryAnswer, inventoryIntent } from './ai-rules/inventory-intent';
 
 /** Recent customer wording (for language inheritance when the latest message is short/ambiguous). */
 async function recentCustomerText(conversationId?: number) {
@@ -68,6 +69,21 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
   const photoPlan = i.dryRun ? null : await planPhotos(text, i.conversationId).catch(() => null);
   // Part 4: media we cannot read never causes silence - ask a short, honest clarification.
   const mediaNote = (!i.words && hasMedia) ? await mediaClarificationNote() : '';
+  // Inventory questions ("Do you have cars?", "Gaari ma haysa?", "Any Toyota?", "SUV?", "cars under
+  // $7000") are answered from the AI Catalog - never with the hold line. The count and the cars come
+  // from the catalog rows, so nothing can be invented.
+  if (i.words && !photoPlan) {
+    try {
+      const cars: any[] = await loadAiCars(300);
+      const inv = inventoryIntent(i.words, [...new Set(cars.map((c: any) => String(c.brand || '')).filter(Boolean))]);
+      if (inv) {
+        const matched = filterInventory(cars as any, inv);
+        const ans = inventoryAnswer(inv, matched, lang, { totalAi: cars.length });
+        const names = (matched.length ? matched : cars).slice(0, 8).map((v: any) => [v.model_year, v.brand, v.model].filter(Boolean).join(' '));
+        return { text: ans.text, lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: ans.needsStaff ? 'No AI inventory enabled' : null };
+      }
+    } catch { /* any lookup problem falls through to the normal (or hold) path */ }
+  }
   const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
   // Part 9: the cars this reply is allowed to remember (used by the invented-history guard).
   const allowedNames = await allowedVehicleNames(text, i.conversationId, i.referralVehicle ? [i.referralVehicle] : []).catch(() => []);
