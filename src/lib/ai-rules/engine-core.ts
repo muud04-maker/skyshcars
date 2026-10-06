@@ -146,11 +146,13 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
         // A colleague already told the customer this car is sold / not available: never contradict them.
         const staffText = deps.lastStaffBody ? await deps.lastStaffBody(conversationId).catch(() => null) : null;
         text = applyStaffOverride(text, staffText);
-        // Atomic claim BEFORE sending: only one caller can ever add the welcome for this person.
-        if (welcomeDue && await deps.claimWelcome(key, conv.customer_id, conversationId)) {
-          welcome = true;
-          text = withWelcome(text, composed.lang || detectLanguage(words), wcfg);
-        }
+      }
+      // The FIRST reply of a new customer always carries the website + WhatsApp-group invitation -
+      // a normal answer AND a holding reply. Claimed atomically BEFORE sending, so webhook retries
+      // and parallel workers can never send the welcome twice.
+      if (welcomeDue && await deps.claimWelcome(key, conv.customer_id, conversationId)) {
+        welcome = true;
+        text = withWelcome(text, composed.lang || detectLanguage(words), wcfg);
       }
       if (!text.trim()) { await deps.markAnswered(conversationId, lastId); result = { status: 'skipped', reason: 'empty_reply' }; break; }
 
