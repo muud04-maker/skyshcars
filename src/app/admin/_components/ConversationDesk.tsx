@@ -4,6 +4,7 @@ import {
   computeUnread, countdown, dayLabel, deliveryState, filterRows, isLocked, isPaused,
   maxId, mergeMessages, pauseSecondsLeft, waitingLabel, type InboxFilter, type InboxMsg, type InboxRow,
 } from '../../../lib/ai-rules/inbox';
+import { languageName, preferredToCode, type LangCode } from '../../../lib/ai-rules/language';
 
 type Mode = 'ai' | 'human' | 'paused';
 const field = (v: any) => (v == null ? '' : String(v));
@@ -315,6 +316,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         <small>Current: {state?.current_stock_no || 'none set'}</small>
         <small>Status: {modeChip(active.mode)}{isPaused(active, now) ? ` (paused ${countdown(pauseSecondsLeft(active, now))})` : ''}</small>
         <small>Welcome: {welcome?.sent_at ? new Date(welcome.sent_at).toLocaleDateString() : 'Not sent'}</small>
+        <small>{preferredToCode(memory.preferred_language) ? `Language: ${languageName(preferredToCode(memory.preferred_language) as LangCode)}` : state?.slots?.detected_language ? `Detected language: ${languageName(state.slots.detected_language as LangCode)}` : 'Language: not detected yet'}</small>
       </div>
       <div className="contextBlock">
         <b>Current car</b>

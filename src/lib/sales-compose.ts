@@ -8,6 +8,28 @@ import { loadAiCars } from './ai-catalog';
 import { detectLanguage } from './ai-rules/welcome';
 import { shouldHold } from './ai-rules/hold';
 import { isQuestion, isRequest } from './intent';
+import { history } from './conversations';
+import { getState, saveSlots } from './conversation-state';
+import { languageName, resolveLanguage, type LangCode } from './ai-rules/language';
+
+/** Recent customer wording (for language inheritance when the latest message is short/ambiguous). */
+async function recentCustomerText(conversationId?: number) {
+  if (!conversationId) return '';
+  try {
+    const past = await history(conversationId, 12);
+    return past.filter((m: any) => String(m.sender) === 'customer').slice(-5).map((m: any) => String(m.body || '')).join(' ');
+  } catch { return ''; }
+}
+
+/** Explicit admin-set preferred language (authoritative when the latest message is ambiguous). */
+async function preferredLanguageOf(conversationId?: number) {
+  if (!conversationId) return null;
+  try {
+    const { one } = await import('./db');
+    const r = await one<any>('SELECT c.preferred_language FROM conversations co LEFT JOIN customers c ON c.id=co.customer_id WHERE co.id=? LIMIT 1', [conversationId]);
+    return r?.preferred_language || null;
+  } catch { return null; }
+}
 import type { ComposeIn, ComposeOut } from './ai-rules/engine-core';
 
 export function welcomeNote(i: { welcomeDue: boolean }) {
@@ -35,11 +57,18 @@ export function referralNote(i: ComposeIn) {
 export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise<ComposeOut> {
   const hasMedia = (i.burst || []).some(b => ['image', 'audio', 'video', 'document'].includes(String(b.message_type)));
   const text = i.words || 'The customer sent a photo/voice note/document without words. Reply briefly and ask what they are looking for.';
-  const lang = detectLanguage(i.words);
+  // Customer language: latest message -> explicit admin preference -> recent conversation -> English.
+  const recent = await recentCustomerText(i.conversationId);
+  const preferred = await preferredLanguageOf(i.conversationId);
+  const lang: LangCode = resolveLanguage({ latest: i.words, recent, preferred });
+  // Remember the detected language additively (no schema change) so the inbox can show it.
+  if (i.conversationId && !preferred) {
+    try { const st = await getState(i.conversationId); await saveSlots(i.conversationId, { ...((st as any).slots || {}), detected_language: lang }); } catch {}
+  }
   const photoPlan = i.dryRun ? null : await planPhotos(text, i.conversationId).catch(() => null);
   // Part 4: media we cannot read never causes silence - ask a short, honest clarification.
   const mediaNote = (!i.words && hasMedia) ? await mediaClarificationNote() : '';
-  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + ` Reply in ${lang === 'ar' ? 'Arabic' : lang === 'so' ? 'Somali' : 'English'}.` });
+  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
   // Part 9: the cars this reply is allowed to remember (used by the invented-history guard).
   const allowedNames = await allowedVehicleNames(text, i.conversationId, i.referralVehicle ? [i.referralVehicle] : []).catch(() => []);
   // No verified answer for a real question/request: hold, flag for the owner, and wait instead of guessing.
