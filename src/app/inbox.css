@@ -88,6 +88,29 @@ html, body { max-width: 100%; overflow-x: hidden; }
 @media (max-width: 900px) { .dashGrid { grid-template-columns: 1fr; } .sysGrid { grid-template-columns: 1fr; } }
 
 .modalBackdrop { position: fixed; inset: 0; background: #061523cc; z-index: 90; display: flex; align-items: flex-start; justify-content: center; padding: 24px 12px; overflow-y: auto; }
+.whySkyCars { background: #071b2d; color: #e8f1f8; padding: 44px 5%; margin-top: 40px; }
+.whyInner { max-width: 1240px; margin: 0 auto; }
+.whyHead h2 { margin: 6px 0 18px; font-size: 30px; }
+.whyGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.whyCard { background: #0d2b45; border: 1px solid #173a5b; border-radius: 12px; padding: 16px; }
+.whyCard b { color: #ffb400; display: block; margin-bottom: 6px; }
+.whyCard p { margin: 0; color: #c9dbea; }
+.whyCta { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 18px; }
+.whyActions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.whyCta p { margin: 4px 0 0; color: #c9dbea; }
+@media (max-width: 700px) { .whyCta { flex-direction: column; align-items: flex-start; } .whyActions .btn { width: 100%; text-align: center; } }
+
+/* ---------- public site / form mobile polish ---------- */
+@media (max-width: 700px) {
+  .grid, .vehicleGrid, .catalogGrid, .vehicleDetailGrid { grid-template-columns: 1fr !important; }
+  .quoteFormGrid, .formGrid, .shipmentFormGrid, .automationGrid, .dashTiles { grid-template-columns: 1fr !important; }
+  .wrap[class*="page"] { padding-left: 16px; padding-right: 16px; }
+  body { overflow-wrap: anywhere; }
+  .whatsapp { right: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); padding: 12px 15px; }
+}
+@media (max-width: 1024px) {
+  .adminPage .tableWrap, .tableWrap { max-width: 100%; }
+}
 .modalCard { width: min(900px, 100%); background: #fff; border-radius: 16px; padding: 18px; box-shadow: 0 24px 70px #0007; }
 .modalCard h2 { margin: 0 0 4px; }
 .catalogCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }

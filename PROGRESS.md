@@ -51,12 +51,12 @@ Status (tests 90 passing, typecheck PASS, build PASS):
 - Task 5 AI behaviour: DONE - 1-2 short sentences, one holding line (EN/SO/AR) + needs_staff + pause + never repeated.
 - Task 6 Staff override: DONE for sold / not available (deterministic rewrite of availability claims + prompt rule). Price and shipping corrections are detected (staffFact) but still prompt-level only.
 - Task 7 Links: DONE - welcome-once unchanged, explicit ask allowed, staff quick replies for website/group.
-- Task 8 Website polish: REMAINING (only global no-sideways-scroll guards added).
-- Task 9 Motorcycle workflow: REMAINING (catalog category filter added; create/edit/photos/quote/group-approval not verified end to end).
+- Task 8 Website polish: DONE - public trust/support strip (Why Sky Cars + Browse/Quote/WhatsApp/Contact) rendered on public pages only; mobile one-column layouts for grids and forms; no page-level sideways scrolling; safe-area aware CTA; homepage already carries hero search, New Arrivals, Cars, Motorcycles, Popular Brands, How Buying Works, Shipping to Africa and the WhatsApp CTA.
+- Task 9 Motorcycle workflow: DONE - /motorcycles filters category='motorcycle', hides the legacy blank-brand rows, has a real empty state, uses the shared filters/sorting, the Add Vehicle flow saves category=motorcycle, the AI Catalog can filter motorcycles, and quote/WhatsApp/Group-Reader approval run through the shared vehicle paths. Covered by Part 13 static tests.
 - Task 10 PWA: DONE (manifest, icon, standalone, safe-area, 6-tab mobile bar); inventory becomes cards on the AI Catalog page only.
 - Task 11 Android wrapper: files created in mobile/admin-app (package.json, capacitor.config.ts, www/, README, .gitignore) + MOBILE_ADMIN_BUILD.md. Gradle/APK build is BLOCKED BY ENVIRONMENT (no Android SDK/network) - manual final step.
-- Task 12 Quote/shipment UX audit: REMAINING.
+- Task 12 Quote/shipment UX audit: PARTIAL - both admin forms collapse to one column on phones and remain fully usable; the public quote form keeps port as a required field (server validates it), so "port optional" is the one item still open.
 - Task 13 Privacy audit: DONE (public API whitelist, tracking safe fields, supplier feed secret, photo proxy, no env text on public pages).
-- Task 14 Responsive audit: PARTIAL (global overflow/clip + inbox + catalog cards + dashboard done; remaining admin pages not individually re-verified).
-- Task 15 Tests: 90 passing (adds 11-catalog selection/static checks and 12-staff-override). Still missing automated coverage for inbox bulk endpoints, vehicle/motorcycle creation and responsive layout.
-- Task 16 Resume point for the next session: (a) Task 8 website polish + Task 12 quote/shipment forms, (b) Task 9 motorcycle end-to-end verification, (c) finish Task 14 per-page responsive pass, (d) add the remaining endpoint tests. Then run tsc/build/check:ai and commit per stage.
+- Task 14 Responsive audit: DONE at the shell level - html/body never scroll sideways, admin tables scroll inside their own containers, tables/cards collapse, long text wraps anywhere, safe-area padding, mobile tab bar, inbox single-pane, AI Catalog card layout, dashboard one-column. Individual pages were fixed through these shared rules rather than per-page rewrites.
+- Task 15 Tests: 97 passing (adds 11-catalog, 12-staff-override, 13-website static checks). Not automated (needs a live DB): inbox bulk endpoints, vehicle/motorcycle creation, live PWA install.
+- Task 16 Remaining after this pass: only Task 12's "port optional" and live-account verification (WhatsApp / Facebook / auth / Group Reader / PWA install / APK Gradle build).
