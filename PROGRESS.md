@@ -39,3 +39,24 @@ Last verified on this branch: `npx tsc --noEmit` PASS | `npm run build` PASS (ne
 - Phone admin (PWA): `manifest-admin.webmanifest` + `icon-admin.svg` + admin layout metadata make /admin installable to the home screen in standalone mode with a 6-tab mobile bar (Dashboard, Inbox, Inventory, Add car, Quotes, More). See MOBILE_ADMIN_BUILD.md.
 - Android APK: NOT created here (no Android SDK/Gradle/network in this environment). The PWA is the supported phone path; MOBILE_ADMIN_BUILD.md has the exact Capacitor steps for the owner to build the wrapper locally.
 - Still open from the request: full admin dashboard redesign (owner KPIs/quick actions), the marketing website polish pass, and per-vehicle step-by-step add form.
+
+## Part 11 - master-plan completion pass (tasks 1-16)
+
+Status (tests 90 passing, typecheck PASS, build PASS):
+
+- Task 1 AI Catalog: DONE - all vehicles (any status), search incl. trim, filters (AI on/off, status, cars/motorcycles, brand, no exact photos, newest, added-in-N-days), pagination (25/50/100), per-row checkbox, select-all-visible, clear selection, bulk enable/disable server-side, "+ Add vehicle to AI" multi-select picker over Available inventory, "+ Add new vehicle", mobile card layout, no page overflow.
+- Task 2 Add Vehicle: DONE - /admin/vehicles/new 5-step flow (Basic, Details, Pricing, Photos, Sales) with photo previews/reorder/cover/remove, AI + Facebook sales toggles, motorcycle category, success screen. "Save draft" not offered (the API has no draft state).
+- Task 3 Dashboard: DONE - Today / Sales / Communication / System (green-yellow-red) + quick actions.
+- Task 4 Inbox: DONE - list|chat|drawer, drawer collapsible (auto-narrow), bulk take over / return to AI / pause / mark read / mark unread / archive / restore / delete(owner), per-chat archive+delete, quick-replies dropdown (insert only) with Send website / group, Send vehicle picker, Sold / Not available, referral correction, archived view, mobile single-pane with Back.
+- Task 5 AI behaviour: DONE - 1-2 short sentences, one holding line (EN/SO/AR) + needs_staff + pause + never repeated.
+- Task 6 Staff override: DONE for sold / not available (deterministic rewrite of availability claims + prompt rule). Price and shipping corrections are detected (staffFact) but still prompt-level only.
+- Task 7 Links: DONE - welcome-once unchanged, explicit ask allowed, staff quick replies for website/group.
+- Task 8 Website polish: REMAINING (only global no-sideways-scroll guards added).
+- Task 9 Motorcycle workflow: REMAINING (catalog category filter added; create/edit/photos/quote/group-approval not verified end to end).
+- Task 10 PWA: DONE (manifest, icon, standalone, safe-area, 6-tab mobile bar); inventory becomes cards on the AI Catalog page only.
+- Task 11 Android wrapper: files created in mobile/admin-app (package.json, capacitor.config.ts, www/, README, .gitignore) + MOBILE_ADMIN_BUILD.md. Gradle/APK build is BLOCKED BY ENVIRONMENT (no Android SDK/network) - manual final step.
+- Task 12 Quote/shipment UX audit: REMAINING.
+- Task 13 Privacy audit: DONE (public API whitelist, tracking safe fields, supplier feed secret, photo proxy, no env text on public pages).
+- Task 14 Responsive audit: PARTIAL (global overflow/clip + inbox + catalog cards + dashboard done; remaining admin pages not individually re-verified).
+- Task 15 Tests: 90 passing (adds 11-catalog selection/static checks and 12-staff-override). Still missing automated coverage for inbox bulk endpoints, vehicle/motorcycle creation and responsive layout.
+- Task 16 Resume point for the next session: (a) Task 8 website polish + Task 12 quote/shipment forms, (b) Task 9 motorcycle end-to-end verification, (c) finish Task 14 per-page responsive pass, (d) add the remaining endpoint tests. Then run tsc/build/check:ai and commit per stage.
