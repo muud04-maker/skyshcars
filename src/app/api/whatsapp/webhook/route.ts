@@ -5,10 +5,11 @@ import { db, one, dbConfigured } from '../../../../lib/db';
 import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../lib/media-ai';
 import { agentEvent } from '../../../../lib/agent-events';
 import { scheduleReply } from '../../../../lib/sales-engine';
-import { ensureConversationState, flagForStaff, pauseAi } from '../../../../lib/conversation-state';
+import { clearStaffFlag, ensureConversationState, flagForStaff, pauseAi } from '../../../../lib/conversation-state';
 import { storeReferral } from '../../../../lib/referrals';
 import { staffPauseMinutes } from '../../../../lib/staff';
 import { isStaffEcho } from '../../../../lib/ai-rules/staff';
+import { isPlaceholderBody, mapMessageType, parseStaffEcho } from '../../../../lib/ai-rules/staff-echo';
 import { isGroupRecipient } from '../../../../lib/intent';
 
 export const dynamic = 'force-dynamic';
@@ -105,20 +106,47 @@ function ownWhatsAppNumbers() {
  * Stored as a [STAFF] message, never answered, and the AI is paused so it does not talk over them.
  */
 async function handleEcho(m: any) {
-  const customer = String(m?.to || '').trim();
   const id = String(m?.id || '').trim();
-  const text = String(m?.text?.body || m?.button?.text || m?.interactive?.button_reply?.title || '').trim();
-  if (!customer || !id) return 0;
-  if (await alreadyProcessed(id)) return 0;
-  const c: any = await one<any>('SELECT id,channel FROM conversations WHERE channel=? AND external_user_id=? LIMIT 1', ['whatsapp', customer]).catch(() => null);
-  if (!c?.id) return 0; // staff wrote to someone we have no chat with yet
-  await db().execute('INSERT IGNORE INTO messages(conversation_id,external_message_id,sender,direction,message_type,body) VALUES(?,?,?,?,?,?)',
-    [c.id, id, 'human', 'outbound', 'text', text || '[staff message]']).catch(() => {});
+  const customer = String(m?.to || '').trim();
+  if (!id || !customer) return 0;
+  const parsed = parseStaffEcho(m);
+
+  // Find the chat: exact number first, then a digits-only match (Meta sometimes formats differently).
+  let c: any = await one<any>('SELECT id FROM conversations WHERE channel=? AND external_user_id=? LIMIT 1', ['whatsapp', customer]).catch(() => null);
+  if (!c?.id) {
+    const digits = customer.replace(/\D/g, '');
+    if (digits) c = await one<any>(`SELECT id FROM conversations WHERE channel='whatsapp'
+      AND REPLACE(REPLACE(REPLACE(external_user_id,'+',''),' ',''),'-','')=? LIMIT 1`, [digits]).catch(() => null);
+  }
+  if (!c?.id) {
+    await agentEvent(null, id, 'staff_echo', 'ignored', { reason: 'no_conversation', type: parsed.type, has_text: parsed.hasText });
+    return 0;
+  }
+
+  // Never duplicate or reclassify: an echo of a message we already stored (AI or admin) stays as it is.
+  const existing: any = await one<any>('SELECT id,sender,body,message_type FROM messages WHERE external_message_id=? LIMIT 1', [id]).catch(() => null);
+  let action = 'inserted';
+  if (existing?.id) {
+    action = 'ignored_duplicate';
+    if (parsed.hasText && isPlaceholderBody(existing.body)) {
+      await db().execute('UPDATE messages SET body=?,message_type=? WHERE id=?', [parsed.body, mapMessageType(parsed.type), existing.id]).catch(() => {});
+      action = 'reconciled';
+    }
+  } else {
+    const [r]: any = await db().execute('INSERT IGNORE INTO messages(conversation_id,external_message_id,sender,direction,message_type,body,media_url) VALUES(?,?,?,?,?,?,?)',
+      [c.id, id, 'human', 'outbound', mapMessageType(parsed.type), parsed.body, parsed.mediaId ? `meta:${parsed.mediaId}` : null]).catch(() => null);
+    if (!r || Number(r.affectedRows) === 0) action = 'ignored_duplicate';
+  }
+
+  // A real staff reply clears the waiting/flag state and pauses the AI so it does not talk over them.
   await db().execute('UPDATE conversations SET last_message_at=NOW() WHERE id=?', [c.id]).catch(() => {});
+  await clearStaffFlag(Number(c.id)).catch(() => {});
   const minutes = await staffPauseMinutes().catch(() => 15);
   await pauseAi(Number(c.id), minutes, 'staff').catch(() => {});
-  await agentEvent(Number(c.id), id, 'staff_echo', 'ok', { minutes, chars: text.length });
-  return 1;
+  await agentEvent(Number(c.id), id, 'staff_echo', 'ok', {
+    type: parsed.type, has_text: parsed.hasText, matched_outbound: !!existing?.id, action, minutes, chars: parsed.body.length,
+  });
+  return action === 'inserted' ? 1 : 0;
 }
 
 async function handle(m: any, contacts: any[], referral?: any) {
@@ -192,7 +220,8 @@ export async function POST(req: Request) {
         if(s.id) await db().execute('UPDATE messages SET delivery_status=?,status_updated_at=NOW() WHERE external_message_id=?',[String(s.status||''),String(s.id)]).catch(()=>{});
       }
       // Part 6: staff replies from the WhatsApp app (Meta echoes them back to us).
-      for (const echo of v.message_echoes || []) {
+      // Meta uses message_echoes (WhatsApp) and smb_message_echoes (WhatsApp Business app) for staff replies.
+      for (const echo of [...(v.message_echoes || []), ...(v.smb_message_echoes || [])]) {
         try { echoCount += await handleEcho(echo); } catch (err:any) { console.error('WHATSAPP_ECHO_ERROR', err?.message || err); }
       }
       for (const m of v.messages || []) {
