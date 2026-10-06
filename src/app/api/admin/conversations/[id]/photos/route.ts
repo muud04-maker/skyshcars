@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const images = (await whatsappPhotosForVehicle(vehicleId, 3).catch(() => [])).map(p => p.url);
   if (!images.length) return NextResponse.json({ error: 'This vehicle has no exact approved photos yet - nothing was sent.' }, { status: 400 });
   const title = [v.model_year, v.brand, v.model, v.trim_name].filter(Boolean).join(' ');
-  const caption = `${title}${v.stock_no ? ` â€¢ ${v.stock_no}` : ''}${v.price_usd ? ` â€¢ $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`;
+  const caption = `${title}${v.stock_no ? `  |  ${v.stock_no}` : ''}${v.price_usd ? `  |  $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`;
   const res = await sendPlannedPhotos(String(c.external_user_id), id, { status: 'sending', vehicleId, stockNo: String(v.stock_no || ''), title, images, caption });
   await agentEvent(id, null, 'staff_photos', res.sent ? 'ok' : 'failed', { vehicle_id: vehicleId, sent: res.sent });
   return NextResponse.json({ ok: true, sent: res.sent });
