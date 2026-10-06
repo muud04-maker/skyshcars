@@ -33,6 +33,8 @@ export function ensureConversationState() {
       `ALTER TABLE messages ADD COLUMN status_updated_at DATETIME NULL`,
       `ALTER TABLE messages ADD COLUMN delivery_error VARCHAR(500) NULL`,
       `ALTER TABLE conversations ADD COLUMN archived_at DATETIME NULL`,
+      `ALTER TABLE conversation_state ADD COLUMN pending_ai_reply_at DATETIME NULL`,
+      `ALTER TABLE conversation_state ADD COLUMN pending_generation VARCHAR(80) NULL`,
     ]) { try { await db().execute(sql); } catch (e: any) { if (e?.code !== 'ER_DUP_FIELDNAME') console.error('STATE_COLUMN', e?.code); } }
     // Speed for the live inbox (part 7). Ignore "already exists".
     for (const sql of [
@@ -47,6 +49,7 @@ export function ensureConversationState() {
 export type ChatState = {
   conversation_id: number; current_vehicle_id: number | null; current_vehicle_source: string | null; slots: Record<string, any>;
   needs_staff: boolean; needs_staff_reason: string | null; ai_paused_until: Date | null; answered_through_id: number; last_staff_at: Date | null;
+  pending_ai_reply_at: Date | null;
 };
 
 const parse = (v: any) => { if (!v) return {}; if (typeof v === 'object') return v; try { return JSON.parse(v); } catch { return {}; } };
@@ -62,7 +65,20 @@ export async function getState(conversationId: number): Promise<ChatState> {
     current_vehicle_source: r?.current_vehicle_source || null, slots: parse(r?.slots), needs_staff: !!Number(r?.needs_staff),
     needs_staff_reason: r?.needs_staff_reason || null, ai_paused_until: r?.ai_paused_until ? new Date(r.ai_paused_until) : null,
     answered_through_id: Number(r?.answered_through_id || 0), last_staff_at: r?.last_staff_at ? new Date(r.last_staff_at) : null,
+    pending_ai_reply_at: r?.pending_ai_reply_at ? new Date(r.pending_ai_reply_at) : null,
   };
+}
+
+/** Queue the AI reply for this chat `seconds` from now (durable: survives restarts, resets each message). */
+export async function scheduleAiReply(conversationId: number, seconds: number, generation?: string | null) {
+  await getState(conversationId);
+  await db().execute(`UPDATE conversation_state SET pending_ai_reply_at=(NOW() + INTERVAL ? SECOND), pending_generation=? WHERE conversation_id=?`,
+    [Math.max(1, Math.round(Number(seconds) || 60)), generation ? String(generation).slice(0, 80) : null, conversationId]);
+}
+
+/** A reply was sent / skipped / cancelled: nothing is pending any more. */
+export async function clearAiReply(conversationId: number) {
+  await db().execute(`UPDATE conversation_state SET pending_ai_reply_at=NULL, pending_generation=NULL WHERE conversation_id=?`, [conversationId]).catch(() => {});
 }
 
 export async function setCurrentCar(conversationId: number, vehicleId: number | null, source: string) {

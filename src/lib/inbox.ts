@@ -19,6 +19,7 @@ const LIST_SELECT = `
   (SELECT COALESCE(MAX(m3.id),0) FROM messages m3 WHERE m3.conversation_id=co.id AND m3.sender='customer' AND m3.direction='inbound') last_inbound_id,
   (SELECT TIMESTAMPDIFF(MINUTE,(SELECT MAX(m4.created_at) FROM messages m4 WHERE m4.conversation_id=co.id AND m4.sender='customer' AND m4.direction='inbound'),NOW())) waiting_minutes,
   s.needs_staff, s.needs_staff_reason, s.ai_paused_until, s.lock_until,
+  s.pending_ai_reply_at,
   s.current_vehicle_id, s.answered_through_id, s.last_read_message_id, s.slots,
   (SELECT v.stock_no FROM vehicles v WHERE v.id=s.current_vehicle_id) current_stock_no`;
 

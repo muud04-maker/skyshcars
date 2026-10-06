@@ -52,6 +52,14 @@ export function withWelcome(answer: string, lang: Lang, cfg: WelcomeConfig) {
   return a ? `${a}\n\n${welcomeBlock(lang, cfg)}` : welcomeBlock(lang, cfg);
 }
 
+/** Append an already-built welcome block (used when it was generated for the customer's language). */
+export function withBlock(answer: string, block: string) {
+  const a = String(answer || '').trim();
+  const b = String(block || '').trim();
+  if (!b) return a;
+  return a ? `${a}\n\n${b}` : b;
+}
+
 export function askedForWebsite(text: string) {
   return /\b(website|web ?site|site|link|url|online|webka|bogga|websaydh)\b|موقع|رابط/i.test(String(text || ''));
 }

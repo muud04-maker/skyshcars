@@ -5,6 +5,7 @@ import {
   maxId, mergeMessages, pauseSecondsLeft, waitingLabel, type InboxFilter, type InboxMsg, type InboxRow,
 } from '../../../lib/ai-rules/inbox';
 import { languageName, preferredToCode, type LangCode } from '../../../lib/ai-rules/language';
+import { countdownLabel, secondsLeft } from '../../../lib/ai-rules/ai-queue';
 
 type Mode = 'ai' | 'human' | 'paused';
 const field = (v: any) => (v == null ? '' : String(v));
@@ -130,6 +131,11 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   async function archiveOne() { if (!activeId) return; const j = await post('/api/admin/conversations/bulk', { ids: [activeId], action: 'archive' }); if (j) { setOk('Conversation archived.'); setActiveId(null); await poll(); } }
   async function markUnread() { if (!activeId) return; const j = await post('/api/admin/conversations/bulk', { ids: [activeId], action: 'unread' }); if (j) { setOk('Marked unread.'); await poll(); } }
   async function markRead() { if (!activeId) return; const j = await post(`/api/admin/conversations/${activeId}/read`); if (j) { setOk('Marked read.'); await poll(); } }
+  async function cancelAiReply() {
+    if (!activeId) return;
+    const j = await post(`/api/admin/conversations/${activeId}/cancel-reply`);
+    if (j) { setOk('Queued AI reply cancelled.'); await poll(); }
+  }
   async function resetWelcome() {
     if (!activeId) return;
     if (!confirm('The website and WhatsApp group invitation will be eligible to send again on this customer\'s next AI response.')) return;
@@ -175,6 +181,8 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     setVehicles(r?.vehicles || []);
   }
   const pickList = useMemo(() => vehicles.slice(0, 400), [vehicles]);
+  const pendingAt = state?.pending_ai_reply_at ? Date.parse(String(state.pending_ai_reply_at).replace(' ', 'T')) : 0;
+  const replyLeft = secondsLeft(pendingAt, now);
   function insert(t: string) { setText((cur) => (cur ? cur + ' ' + t : t)); setShowQuick(false); }
 
   function onScroll() {
@@ -239,6 +247,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
           </select>
           <button className="btn-warning" disabled={busy} onClick={() => setMode('paused')}>Pause 15m</button>
           <button className="btn-success" disabled={busy} onClick={aiNow}>AI Reply Now</button>
+          <button className="btn-neutral" disabled={busy || replyLeft <= 0} onClick={cancelAiReply}>Cancel AI reply</button>
           <button type="button" className="drawerToggle" onClick={() => setShowDrawer((s) => !s)}>{showDrawer ? 'Hide customer' : 'Customer details'}</button>
           <div className="quickMenu">
             <button type="button" className="btn-neutral" onClick={() => setShowMore((s) => !s)}>...</button>
@@ -260,6 +269,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         {active.mode === 'human' ? ' - automatic replies are off.' : active.mode === 'ai' ? ' - the AI answers new messages.' : ' - paused; the AI waits.'}
         {Number(active.needs_reply) > 0 ? <b> | CUSTOMER IS WAITING</b> : null}
         {Number(active.needs_staff) ? <b style={{ color: '#9b3d00' }}> | flagged for you</b> : null}
+        {replyLeft > 0 ? <b style={{ color: '#1e6fd9' }}> | {countdownLabel(replyLeft)}</b> : null}
       </div>
 
       <div className="messages" ref={scrollBox} onScroll={onScroll}>

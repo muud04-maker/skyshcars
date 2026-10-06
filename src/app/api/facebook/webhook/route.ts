@@ -2,6 +2,8 @@ import { after } from 'next/server';
 import { inbound, alreadyProcessed } from '../../../../lib/conversations';
 import { scheduleReply } from '../../../../lib/sales-engine';
 import { storeReferral } from '../../../../lib/referrals';
+import { scheduleAiReply } from '../../../../lib/conversation-state';
+import { REPLY_DELAY_SECONDS } from '../../../../lib/ai-rules/ai-queue';
 import { checkSignature } from '../../../../lib/meta';
 import { dbConfigured } from '../../../../lib/db';
 
@@ -31,8 +33,8 @@ export async function POST(req: Request) {
         if (await alreadyProcessed(mid)) continue;
         const c: any = await inbound('facebook', id, text, mid);
         if (m.referral) await storeReferral({ id: Number(c.id), channel: 'facebook' }, String(mid || ''), m.referral).catch(() => {});
-        // Same reply engine as WhatsApp: AI Catalog, reply rule, one reply per burst, welcome once.
-        after(() => scheduleReply(Number(c.id), 'webhook'));
+        // Same 60-second queue as WhatsApp (durable in MySQL).
+        await scheduleAiReply(Number(c.id), REPLY_DELAY_SECONDS, mid || null).catch(() => {});
       } catch (err: any) { console.error('FB_MESSAGE_ERROR', err?.response?.data || err?.message || err); }
     }
   } catch (e) { console.error('FB_WEBHOOK', e); }
