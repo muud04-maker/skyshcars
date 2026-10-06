@@ -33,6 +33,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .chatDesk .messages { min-height: 180px; }
 .daySep { text-align: center; margin: 10px 0; color: #6b7c8c; font-size: 12px; font-weight: 700; }
 .messages img, .messages video { display: block; max-width: min(320px, 100%); max-height: 260px; border-radius: 10px; margin: 8px 0; background: #0b1f35; }
+.mediaThumb { border: 0; background: none; padding: 0; cursor: zoom-in; display: block; max-width: 100%; }
+.mediaThumb img { margin: 6px 0; }
+.lightbox { position: fixed; inset: 0; background: #000d; z-index: 120; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.lightbox img { max-width: 96vw; max-height: 90vh; border-radius: 10px; }
 .messages audio { display: block; max-width: min(320px, 100%); margin: 8px 0; }
 
 .replyBox { align-items: stretch; }
