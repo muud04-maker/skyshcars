@@ -1,4 +1,4 @@
-// PART 8 â€” the public WhatsApp enquiry must always carry the stock number AND the vehicle name.
+// PART 8  |  the public WhatsApp enquiry must always carry the stock number AND the vehicle name.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const load = require('./lib.cjs');

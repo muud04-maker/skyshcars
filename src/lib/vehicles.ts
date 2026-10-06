@@ -4,6 +4,7 @@ import { rows, one, dbConfigured, lim, db } from './db';
 import { ensureLast50Vehicles } from './inventory-seed';
 import { getRepresentativeCover, getRepresentativePhotos } from './representative-photos';
 import { exactPhotoSql } from './exact-photos';
+import { ARRIVAL_DAYS, ARRIVAL_LIMIT, selectNewArrivals } from './ai-rules/arrivals';
 
 const ALLOW_REPRESENTATIVE_MODEL_PHOTOS = process.env.ALLOW_REPRESENTATIVE_MODEL_PHOTOS !== 'false';
 
@@ -97,7 +98,7 @@ function withRepresentative(v: any) {
 export type VehicleQuery = {
   limit?: number; category?: string; search?: string; brand?: string; steering?: string; fuel?: string; bodyType?: string;
   minPrice?: number; maxPrice?: number; minYear?: number; maxYear?: number; minMileage?: number; maxMileage?: number;
-  stock?: string; sort?: string;
+  stock?: string; sort?: string; onlyAvailable?: boolean; createdWithinDays?: number;
 };
 
 function num(v: any) { const n = Number(v); return Number.isFinite(n) ? n : null; }
@@ -120,6 +121,8 @@ function buildWhere(opts: VehicleQuery) {
   if (minY !== null) { where += ' AND v.model_year>=?'; args.push(minY); } if (maxY !== null) { where += ' AND v.model_year<=?'; args.push(maxY); }
   if (minM !== null) { where += ' AND v.mileage_km>=?'; args.push(minM); } if (maxM !== null) { where += ' AND v.mileage_km<=?'; args.push(maxM); }
   if (opts.stock === 'available') where += ` AND v.status='available'`; else if (opts.stock === 'preorder') where += ` AND v.status='pending_verification'`;
+  if (opts.onlyAvailable) where += ` AND v.status='available'`;
+  if (opts.createdWithinDays) { where += ' AND v.created_at >= (NOW() - INTERVAL ? DAY)'; args.push(Number(opts.createdWithinDays)); }
   return { where, args };
 }
 function orderOf(sort?: string) {
@@ -128,6 +131,7 @@ function orderOf(sort?: string) {
     case 'price_desc': return 'v.price_usd IS NULL, v.price_usd DESC, v.id DESC';
     case 'year_desc': return 'v.model_year IS NULL, v.model_year DESC, v.id DESC';
     case 'mileage_asc': return 'v.mileage_km IS NULL, v.mileage_km ASC, v.id DESC';
+    case 'created_desc': return 'v.created_at DESC, v.id DESC';
     default: return `v.status='available' DESC, v.updated_at DESC, v.id DESC`;
   }
 }
@@ -148,6 +152,17 @@ export async function getVehicles(q: VehicleQuery | number = {}) {
     const list = await rows<any>(`SELECT v.*, ${COVER} FROM vehicles v WHERE ${where} ORDER BY ${orderOf(opts.sort)} LIMIT ${limit}`, args);
     return list.map(withRepresentative);
   } catch (e) { console.error('GET_VEHICLES_DB_ERROR', e); return []; }
+}
+
+/**
+ * Homepage New Arrivals: Available vehicles added in the last `days` days, newest first, capped.
+ * Never falls back to older inventory (returns an empty list instead).
+ */
+export async function getNewArrivals(limit = ARRIVAL_LIMIT, days = ARRIVAL_DAYS) {
+  if (!dbConfigured()) return selectNewArrivals(combinedFallbackInventory(), { nowMs: Date.now(), days, limit }).map(withRepresentative);
+  try {
+    return await getVehicles({ limit, onlyAvailable: true, createdWithinDays: days, sort: 'created_desc' });
+  } catch (e) { console.error('GET_NEW_ARRIVALS_ERROR', e); return []; }
 }
 
 export async function getVehicleFilterOptions(category = 'car') {

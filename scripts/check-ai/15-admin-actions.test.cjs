@@ -67,7 +67,7 @@ test('9. the edit action is wired to PATCH with the vehicle id', () => {
 test('10. the AI Catalog toggle and bulk enable/disable are wired', () => {
   const client = read('src/app/admin/ai-catalog/AiCatalogClient.tsx');
   assert.ok(client.includes("action: 'set'"));
-  assert.ok(client.includes('Enable selected') && client.includes('Disable selected'));
+  assert.ok(client.includes('Enable AI') && client.includes('Disable AI'), 'bulk enable/disable present');
   const api = read('src/app/api/admin/ai-catalog/route.ts');
   assert.ok(api.includes("b.action === 'set'"));
 });

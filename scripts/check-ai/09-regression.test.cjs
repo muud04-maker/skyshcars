@@ -1,4 +1,4 @@
-// PART 9 â€” regression suite for the real live failures A-H plus the extra Part 9 scenarios.
+// PART 9  |  regression suite for the real live failures A-H plus the extra Part 9 scenarios.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const load = require('./lib.cjs');

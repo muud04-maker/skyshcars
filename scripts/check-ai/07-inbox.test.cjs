@@ -1,4 +1,4 @@
-// PART 7 â€” inbox helpers (unread, pause/lock countdown, waiting label, filters, message merge, days).
+// PART 7  |  inbox helpers (unread, pause/lock countdown, waiting label, filters, message merge, days).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const load = require('./lib.cjs');

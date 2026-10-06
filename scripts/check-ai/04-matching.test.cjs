@@ -1,4 +1,4 @@
-// PART 4 â€” strict matching wired to the per-chat CURRENT CAR.
+// PART 4  |  strict matching wired to the per-chat CURRENT CAR.
 // The matcher must return nothing for a pure follow-up ("how much is it?", "send photos"), so the
 // reply is answered from the car we are already discussing instead of matching a random vehicle.
 const test = require('node:test');

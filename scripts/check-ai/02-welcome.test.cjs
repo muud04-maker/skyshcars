@@ -1,4 +1,4 @@
-// PART 2 â€” first-contact welcome, sent exactly once, and the marketing-link filter.
+// PART 2  |  first-contact welcome, sent exactly once, and the marketing-link filter.
 // Runs the real reply engine (ai-rules/engine-core) against an in-memory store that mimics the
 // database semantics (atomic welcome claim, per-chat lock, answered marker).
 const test = require('node:test');

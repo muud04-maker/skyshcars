@@ -1,4 +1,4 @@
-// PART 3 â€” Facebook/Meta ad & post referral.
+// PART 3  |  Facebook/Meta ad & post referral.
 // (A) the strict matcher must never force a wrong vehicle (failure C: "Harrier hybrid" -> Haval Raptor).
 // (B) the reply engine must resolve the tapped post to the exact car, set it as the current car,
 //     and log referral_matched / referral_unmatched.
