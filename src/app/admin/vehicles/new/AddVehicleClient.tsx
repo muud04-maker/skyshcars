@@ -17,7 +17,25 @@ export default function AddVehicleClient() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [done, setDone] = useState<{ id: number; imageErrors: string[] } | null>(null);
+  const [dup, setDup] = useState<{ stock_no: string; id?: number; title?: string } | null>(null);
   const set = (k: string, v: any) => setF((x: any) => ({ ...x, [k]: v }));
+
+  /** Ask the backend whether this stock number is already used (final authority is still the save call). */
+  async function checkStock(value: string) {
+    const stock = String(value || '').trim();
+    if (!stock) { setDup(null); return true; }
+    try {
+      const r = await fetch(`/api/admin/vehicles/check-stock?stock_no=${encodeURIComponent(stock)}`, { cache: 'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (j?.exists) { setDup({ stock_no: stock, id: j.vehicle?.id, title: j.vehicle?.title }); return false; }
+      setDup(null); return true;
+    } catch { setDup(null); return true; }
+  }
+  async function nextStep() {
+    if (!canNext) return;
+    if (step === 1 && !(await checkStock(f.stock_no))) { setMsg(''); return; }
+    setStep((s) => Math.min(5, s + 1));
+  }
 
   const canNext = useMemo(() => {
     if (step === 1) return !!String(f.brand || '').trim() && !!String(f.model || '').trim();
@@ -51,7 +69,12 @@ export default function AddVehicleClient() {
     };
     const r = await fetch('/api/admin/vehicles', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setBusy(false); setMsg(j.error || 'Could not save the vehicle.'); return; }
+    if (!r.ok || j.ok === false) {
+      setBusy(false);
+      if (j.code === 'DUPLICATE_STOCK') { setDup({ stock_no: j.existing?.stock_no || stock, id: j.existing?.id, title: j.existing?.title }); setStep(1); setMsg(''); return; }
+      setMsg(j.message || j.error || 'Could not save the vehicle.');
+      return;
+    }
     const id = Number(j.id);
     const imageErrors: string[] = [];
     let uploaded: any[] = [];
@@ -85,6 +108,15 @@ export default function AddVehicleClient() {
   </div>;
 
   return <div className="card">
+    {dup ? <div className="dupAlert">
+      <b>Stock number {dup.stock_no} already exists.</b>
+      <div>{dup.title ? `${dup.title}${dup.id ? ` (id ${dup.id})` : ''} already uses this stock number.` : 'Another vehicle already uses this stock number.'} Choose a different stock number to continue.</div>
+      <div className="actions">
+        {dup.id ? <a className="btn-info" href={`/admin/vehicles`}>View existing vehicle</a> : null}
+        {dup.id ? <a className="btn-neutral" href={`/vehicles/${dup.id}`} target="_blank" rel="noreferrer">Open its public page</a> : null}
+        <button type="button" className="btn-primary" onClick={() => { setDup(null); setF((x: any) => ({ ...x, stock_no: '' })); setStep(1); }}>Use another stock number</button>
+      </div>
+    </div> : null}
     <div className="pager">
       {STEPS.map((s, i) => <button key={s} type="button" className={step === i + 1 ? 'btn' : 'miniBtn'} onClick={() => setStep(i + 1)}>{i + 1}. {s}</button>)}
     </div>
@@ -95,7 +127,7 @@ export default function AddVehicleClient() {
       <label>Model *<input value={f.model} onChange={(e) => set('model', e.target.value)} placeholder="Corolla" /></label>
       <label>Year<input type="number" value={f.model_year} onChange={(e) => set('model_year', e.target.value)} placeholder="2019" /></label>
       <label>Trim<input value={f.trim_name} onChange={(e) => set('trim_name', e.target.value)} placeholder="Hybrid" /></label>
-      <label>Stock number<input value={f.stock_no} onChange={(e) => set('stock_no', e.target.value)} placeholder="leave empty to auto-generate" /></label>
+      <label>Stock number<input value={f.stock_no} onChange={(e) => { set('stock_no', e.target.value); setDup(null); }} onBlur={(e) => checkStock(e.target.value)} placeholder="leave empty to auto-generate" /></label>
     </div> : null}
 
     {step === 2 ? <div className="formGrid" style={{ marginTop: 12 }}>
@@ -148,8 +180,8 @@ export default function AddVehicleClient() {
     {msg && <p><b>{msg}</b></p>}
     <div className="pager">
       <button className="miniBtn" type="button" disabled={step === 1 || busy} onClick={() => setStep((s) => Math.max(1, s - 1))}>Back</button>
-      <button className="miniBtn" type="button" disabled={step === 5 || busy || !canNext} onClick={() => setStep((s) => Math.min(5, s + 1))}>Next</button>
-      <button className="btn" type="button" disabled={busy || !canNext} onClick={save}>{busy ? 'Saving...' : 'Save vehicle'}</button>
+      <button className="btn-info" type="button" disabled={step === 5 || busy || !canNext} onClick={nextStep}>Next</button>
+      <button className="btn-primary" type="button" disabled={busy || !canNext} onClick={save}>{busy ? 'Saving...' : 'Save vehicle'}</button>
     </div>
   </div>;
 }
