@@ -27,7 +27,9 @@ export async function GET(req: Request) {
   const out: any = { cursor, status_cursor: statusCursor };
 
   const archived = String(q.get('archived') || '') === '1';
-  if (since !== cursor) out.conversations = await listConversations(INBOX_LIMIT, { archived }).catch(() => []);
+  // Always return the list: previews, waiting state, unread and the queue countdown must update live.
+  // It is capped at 300 rows, so the payload stays small.
+  out.conversations = await listConversations(INBOX_LIMIT, { archived }).catch(() => []);
 
   if (conversationId) {
     // Newest messages plus any message whose delivery status changed since the last poll.

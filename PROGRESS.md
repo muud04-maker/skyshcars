@@ -114,6 +114,30 @@ silences ONLY the turn the human answered. The engine compares the newest custom
 
 Tests: `21-modes` grew to 23 checks (staff pause hides the answered turn, a newer customer message re-arms
 the AI, and the worker applies the same rule). Suite is 234 tests.
+
+## Part 17 - sales-agent answers + a live inbox (branch deepseek-dev)
+
+- Problem 1 (inbox not live): the delta endpoint only returned the conversation list when its cursor
+  changed, so previews/waiting/unread/mode/countdown could stay stale until a manual refresh. The
+  inbox API now ALWAYS returns the capped list (300 rows) and the desk polls every 2.5s while the tab
+  is visible and every 15s when hidden, with automatic retry/backoff and a LIVE / RECONNECTING /
+  OFFLINE badge. Messages still merge by id (no duplicates), the staff draft is never touched by the
+  poller, and scrolling only auto-follows when the reader is already near the bottom.
+- Problem 2 (AI too passive): new pure module `ai-rules/vehicle-answer.ts` resolves the vehicle the
+  customer means (referral -> conversation current car -> matched record) and answers "more info on
+  this", "price?", "photos", "what else?" from the REAL record - stock, price, mileage, engine, fuel,
+  transmission, steering, colour, location, status - skipping blank fields and never inventing values.
+  It also ranks up to 3 real alternatives (same model -> same brand -> category -> close price,
+  honouring a stated budget) from the AI Catalog (Available + ai_enabled), and when the vehicle truly
+  cannot be resolved it asks ONE concise clarification instead of a vague hold. Other languages get the
+  same facts handed to the model with "do not invent". "More info on this" no longer becomes needs_staff
+  when the car can be resolved; the welcome is still appended AFTER the useful answer and still once.
+- Queue diagnosis (Problem K): `conversation_state` gained `pending_attempts`,
+  `pending_last_result`, `pending_last_attempt_at`. The worker records every attempt, retries a failed
+  send up to 3 times (60s apart), then stops, flags the chat for staff with a visible reason - so a chat
+  can never hang silently. The inbox drawer shows "AI queue: due <time> | last: <result> | attempts N".
+- Tests: `22-sales-agent` (13 checks incl. details/alternatives/clarify/live-polling/queue diagnostics)
+  -> suite is 246 tests.
 - Hold + welcome language: the hold builder gained Chinese and the welcome block gained a Chinese variant, so a Somali/Arabic/Chinese customer gets the hold line, the website line and the group invitation in their own language (URLs untouched, welcome still exactly once).
 - Inventory questions: added `ai-rules/inventory-intent.ts` (exists / list / brand / category / budget / filter) and wired it into the reply path BEFORE the model call. "Do you have cars?", "Gaari ma haysa?", "What cars do you have?", "Any Toyota?", "Do you have motorcycles?", "SUV?", "cars under $7000" are now answered from the AI Catalog rows (counts and cars come from the catalog, max 3 listed, nothing invented) instead of the "Let me confirm that for you." hold. A brand with no stock gets an honest no-match answer; a genuinely empty AI catalog gets the honest message + needs_staff; shipping/tracking/document questions still use the hold path. Short follow-ups like a bare "Toyota" are brand filters.
 - Tests: `17-language` (18 checks) and `18-inventory` (16 checks). Suite is 191 tests.

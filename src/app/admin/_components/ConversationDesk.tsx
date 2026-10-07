@@ -38,6 +38,8 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const [atBottom, setAtBottom] = useState(true);
   const [newBelow, setNewBelow] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [conn, setConn] = useState<'LIVE' | 'RECONNECTING' | 'OFFLINE'>('LIVE');
+  const fails = useRef(0);
   const [lightbox, setLightbox] = useState<string>('');
 
   const cursor = useRef('');
@@ -78,6 +80,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
       if (!r.ok) throw new Error('poll ' + r.status);
       const j = await r.json();
       backoff.current = 1000;
+      fails.current = 0; setConn('LIVE');
       if (j.cursor) cursor.current = j.cursor;
       if (j.status_cursor) statusCursor.current = j.status_cursor;
       if (Array.isArray(j.conversations)) {
@@ -91,7 +94,11 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         if (added) { setNewBelow((n) => (atBottom ? 0 : n + added)); if (!atBottom) beep(); }
       }
       if (j.state) setState(j.state);
-    } catch { backoff.current = Math.min(20000, backoff.current * 2); }
+    } catch {
+      backoff.current = Math.min(20000, backoff.current * 2);
+      fails.current += 1;
+      setConn(fails.current >= 3 ? 'OFFLINE' : 'RECONNECTING');
+    }
   }
 
   useEffect(() => { if (activeId) void loadDetail(activeId); else { setMsgs([]); setState(null); setReferrals([]); } }, [activeId]);
@@ -100,7 +107,8 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     let timer: any;
     const tick = () => {
       const visible = typeof document === 'undefined' || document.visibilityState === 'visible';
-      void poll().finally(() => { timer = setTimeout(tick, visible ? 1500 : backoff.current * 4); });
+      // Live cadence: ~2.5s while the tab is visible, slow (and backed off) while hidden.
+      void poll().finally(() => { timer = setTimeout(tick, visible ? 2500 : 15000); });
     };
     tick();
     return () => clearTimeout(timer);
@@ -194,7 +202,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
 
   return <div className={'inbox' + (showDrawer ? '' : ' noDrawer') + (mobileChat ? ' mobileChat' : '')}>
     <aside className="chatList">
-      <div className="chatListTitle">{archived ? 'Archived' : 'Conversations'} <span>{list.length}</span>
+      <div className="chatListTitle">{archived ? 'Archived' : 'Conversations'} <span>{list.length}</span><span className={'conn conn-' + conn.toLowerCase()} title="Live connection">{conn}</span>
         <small style={{ display: 'block', fontWeight: 700, color: waiting && !archived ? '#9b3d00' : '#39745a', marginTop: 4 }}>{archived ? 'history kept, hidden from inbox' : `${waiting} waiting for a reply`}</small>
         <button type="button" className="miniBtn" style={{ marginTop: 6 }} onClick={() => { setArchived((a) => !a); setSelected([]); }}>{archived ? '← Back to inbox' : 'Archived'}</button>
       </div>
@@ -329,6 +337,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         <small>Current: {state?.current_stock_no || 'none set'}</small>
         <small>Status: {modeChip(active.mode)}{isPaused(active, now) ? ` (paused ${countdown(pauseSecondsLeft(active, now))})` : ''}</small>
         <small>Welcome: {welcome?.sent_at ? new Date(welcome.sent_at).toLocaleDateString() : 'Not sent'}</small>
+        {state?.pending_ai_reply_at ? <small>AI queue: due {new Date(String(state.pending_ai_reply_at).replace(' ', 'T')).toLocaleTimeString()}{state?.pending_last_result ? ` | last: ${String(state.pending_last_result).slice(0, 60)}` : ''}{Number(state?.pending_attempts) ? ` | attempts ${state.pending_attempts}` : ''}</small> : (state?.pending_last_result ? <small>AI queue: {String(state.pending_last_result).slice(0, 80)}</small> : null)}
         <small>{preferredToCode(memory.preferred_language) ? `Language: ${languageName(preferredToCode(memory.preferred_language) as LangCode)}` : state?.slots?.detected_language ? `Detected language: ${languageName(state.slots.detected_language as LangCode)}` : 'Language: not detected yet'}</small>
       </div>
       <div className="contextBlock">
