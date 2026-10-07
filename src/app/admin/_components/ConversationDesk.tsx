@@ -5,7 +5,7 @@ import {
   maxId, mergeMessages, pauseSecondsLeft, waitingLabel, type InboxFilter, type InboxMsg, type InboxRow,
 } from '../../../lib/ai-rules/inbox';
 import { languageName, preferredToCode, type LangCode } from '../../../lib/ai-rules/language';
-import { countdownLabel, secondsLeft } from '../../../lib/ai-rules/ai-queue';
+import { countdownLabel, queueStatusLabel, secondsLeft } from '../../../lib/ai-rules/ai-queue';
 
 type Mode = 'ai' | 'human' | 'paused' | 'both';
 const field = (v: any) => (v == null ? '' : String(v));
@@ -191,6 +191,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const pickList = useMemo(() => vehicles.slice(0, 400), [vehicles]);
   const pendingAt = state?.pending_ai_reply_at ? Date.parse(String(state.pending_ai_reply_at).replace(' ', 'T')) : 0;
   const replyLeft = secondsLeft(pendingAt, now);
+  const queueLabel = queueStatusLabel({ secondsLeft: replyLeft, lastResult: state?.pending_last_result, pending: replyLeft > 0 || !!state?.pending_ai_reply_at });
   function insert(t: string) { setText((cur) => (cur ? cur + ' ' + t : t)); setShowQuick(false); }
 
   function onScroll() {
@@ -247,7 +248,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         <div><h2><button type="button" className="chatBack miniBtn" onClick={() => setMobileChat(false)}>&lt; Back</button> {active.full_name || active.phone || active.external_user_id}</h2>
           <small className="chatStatus">
             {Number(active.needs_reply) > 0 ? 'CUSTOMER WAITING' : 'WAITING FOR CUSTOMER'}
-            {replyLeft > 0 ? ` | AI REPLY IN ${replyLeft}s` : ''}
+            {queueLabel ? ` | ${queueLabel}` : ''}
             {Number(active.needs_staff) ? ' | flagged for you' : ''}
             {isPaused(active, now) ? ` | AI paused ${countdown(pauseSecondsLeft(active, now))}` : ''}
             {state?.current_stock_no ? ` | ${state.current_stock_no}` : ''}
@@ -337,7 +338,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         <small>Current: {state?.current_stock_no || 'none set'}</small>
         <small>Status: {modeChip(active.mode)}{isPaused(active, now) ? ` (paused ${countdown(pauseSecondsLeft(active, now))})` : ''}</small>
         <small>Welcome: {welcome?.sent_at ? new Date(welcome.sent_at).toLocaleDateString() : 'Not sent'}</small>
-        {state?.pending_ai_reply_at ? <small>AI queue: due {new Date(String(state.pending_ai_reply_at).replace(' ', 'T')).toLocaleTimeString()}{state?.pending_last_result ? ` | last: ${String(state.pending_last_result).slice(0, 60)}` : ''}{Number(state?.pending_attempts) ? ` | attempts ${state.pending_attempts}` : ''}</small> : (state?.pending_last_result ? <small>AI queue: {String(state.pending_last_result).slice(0, 80)}</small> : null)}
+        {queueLabel ? <small>AI queue: {queueLabel}{state?.pending_ai_reply_at ? ` (due ${new Date(String(state.pending_ai_reply_at).replace(' ', 'T')).toLocaleTimeString()})` : ''}{Number(state?.pending_attempts) ? ` | attempts ${state.pending_attempts}` : ''}</small> : (state?.pending_last_result ? <small>AI queue: {String(state.pending_last_result).slice(0, 80)}</small> : null)}
         <small>{preferredToCode(memory.preferred_language) ? `Language: ${languageName(preferredToCode(memory.preferred_language) as LangCode)}` : state?.slots?.detected_language ? `Detected language: ${languageName(state.slots.detected_language as LangCode)}` : 'Language: not detected yet'}</small>
       </div>
       <div className="contextBlock">

@@ -6,7 +6,8 @@ import { transcribeAudio, describeImage, mediaAiConfigured } from '../../../../l
 import { agentEvent } from '../../../../lib/agent-events';
 import { scheduleReply } from '../../../../lib/sales-engine';
 import { clearAiReply, clearStaffFlag, ensureConversationState, flagForStaff, pauseAi, scheduleAiReply } from '../../../../lib/conversation-state';
-import { REPLY_DELAY_SECONDS } from '../../../../lib/ai-rules/ai-queue';
+import { REPLY_DEBOUNCE_SECONDS } from '../../../../lib/ai-rules/ai-queue';
+import { processDueAiReplies } from '../../../../lib/ai-queue-worker';
 import { storeReferral } from '../../../../lib/referrals';
 import { staffPauseMinutes } from '../../../../lib/staff';
 import { isStaffEcho, looksLikeBusinessEcho } from '../../../../lib/ai-rules/staff';
@@ -190,10 +191,18 @@ async function handle(m: any, contacts: any[], referral?: any) {
     await agentEvent(c.id,m.id,'reply','ignored',{reason:'stale_delivery',age_seconds:Math.round(Date.now()/1000-sentAt)});
     return;
   }
-  // Do NOT answer instantly: queue ONE reply 60 seconds after the latest customer message.
-  // The deadline lives in MySQL, so restarts and parallel webhooks are safe (a newer message resets it).
-  await scheduleAiReply(Number(c.id), REPLY_DELAY_SECONDS, m.id || null).catch((e) => console.error('QUEUE_SCHEDULE', e));
-  await agentEvent(c.id, m.id, 'ai_queued', 'ok', { delay_seconds: REPLY_DELAY_SECONDS });
+  // AI-FIRST: answer a few seconds after the LATEST customer message. The deadline is durable in MySQL
+  // (restarts and parallel webhooks are safe; a newer message pushes it forward and merges the burst).
+  await scheduleAiReply(Number(c.id), REPLY_DEBOUNCE_SECONDS, m.id || null).catch((e) => console.error('QUEUE_SCHEDULE', e));
+  await agentEvent(c.id, m.id, 'ai_queued', 'ok', { delay_seconds: REPLY_DEBOUNCE_SECONDS });
+  // Process it right after the debounce instead of waiting for the once-a-minute cron (which stays as
+  // the fallback/recovery path). Two runners can overlap safely: lock + answered marker + single reply.
+  if (typeof after === 'function') {
+    after(async () => {
+      await new Promise((r) => setTimeout(r, REPLY_DEBOUNCE_SECONDS * 1000 + 300));
+      await processDueAiReplies(5).catch((e) => console.error('AI_FIRST_PROCESS', e));
+    });
+  }
 }
 
 export async function POST(req: Request) {

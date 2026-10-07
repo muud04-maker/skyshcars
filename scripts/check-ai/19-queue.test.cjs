@@ -24,7 +24,7 @@ test('14. a second message 30s later resets the deadline', () => {
   assert.ok(second > first);
   assert.equal(second - (T0 + 30000), 60000);
   const webhook = read('src/app/api/whatsapp/webhook/route.ts');
-  assert.ok(webhook.includes('scheduleAiReply(Number(c.id), REPLY_DELAY_SECONDS'), 'every inbound message reschedules');
+  assert.ok(webhook.includes('scheduleAiReply(Number(c.id), REPLY_DEBOUNCE_SECONDS'), 'every inbound message reschedules the short debounce');
 });
 
 test('15. two customer messages produce ONE reply (worker runs the one-reply engine)', () => {
@@ -109,11 +109,11 @@ test('27. an unknown question after 60s sends one hold and pauses (same engine p
 });
 
 test('28. the inbox shows a compact countdown and a cancel control', () => {
-  assert.equal(countdownLabel(42), 'AI reply in 42s');
-  assert.equal(countdownLabel(0), 'AI reply queued');
+  assert.equal(countdownLabel(4), 'AI replying in 4s');
+  assert.equal(countdownLabel(0), 'AI sending...');
   assert.equal(secondsLeft(T0 + 42000, T0), 42);
   const desk = read('src/app/admin/_components/ConversationDesk.tsx');
-  assert.ok(desk.includes('AI REPLY IN ${replyLeft}s'));
+  assert.ok(desk.includes('queueStatusLabel({ secondsLeft: replyLeft'), 'the live queue label is shown');
   assert.ok(desk.includes('cancel-reply'));
   const state = read('src/lib/inbox.ts');
   assert.ok(state.includes('s.pending_ai_reply_at'), 'the inbox API returns the deadline');

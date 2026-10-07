@@ -56,10 +56,10 @@ function makeDeps(s) {
 function inbound(s, body, at = Date.now()) { const id = s.nextId++; s.messages.push({ id, type: 'text', body, sender: 'customer', direction: 'inbound', at }); return id; }
 function human(s, body, at = Date.now()) { const id = s.nextId++; s.messages.push({ id, type: 'text', body, sender: 'human', direction: 'outbound', at }); return id; }
 
-test('1. AI mode: a customer message schedules the 60s AI reply (nothing sent instantly)', () => {
-  assert.equal(REPLY_DELAY_SECONDS, 60);
+test('1. AI mode: a customer message schedules the short AI-first reply (nothing sent instantly)', () => {
+  assert.equal(REPLY_DELAY_SECONDS, 60, 'the 60s value is only the retry/recovery delay now');
   const webhook = read('src/app/api/whatsapp/webhook/route.ts');
-  assert.ok(webhook.includes('scheduleAiReply(Number(c.id), REPLY_DELAY_SECONDS'), 'inbound queues the reply');
+  assert.ok(webhook.includes('scheduleAiReply(Number(c.id), REPLY_DEBOUNCE_SECONDS'), 'inbound queues the short debounce');
   assert.ok(!webhook.includes('sendWhatsApp('), 'the webhook never sends a reply itself');
 });
 

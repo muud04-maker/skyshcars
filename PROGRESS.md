@@ -138,6 +138,25 @@ the AI, and the worker applies the same rule). Suite is 234 tests.
   can never hang silently. The inbox drawer shows "AI queue: due <time> | last: <result> | attempts N".
 - Tests: `22-sales-agent` (13 checks incl. details/alternatives/clarify/live-polling/queue diagnostics)
   -> suite is 246 tests.
+
+## Part 18 - AI-first replies (3-5s debounce; cron is fallback only)
+
+- `REPLY_DEBOUNCE_SECONDS = 4` is now the normal AI delay for both `ai` and `both` modes: the webhook
+  writes the durable deadline (`pending_ai_reply_at = NOW() + 4s`) and then processes due replies right
+  after the response via `after(...)` + `processDueAiReplies(5)` - normal replies no longer wait for the
+  once-a-minute cron. A newer customer message pushes the deadline forward, so a quick burst ("hello",
+  "Toyota", "under 8000") is merged into ONE reply about 4s after the LAST message.
+- The cron (`/api/cron/ai-replies`, still `AUTOMATION_CRON_SECRET`) and `/api/cron/automation` remain as
+  the fallback/recovery path for anything missed after a restart or a crash; `REPLY_DELAY_SECONDS = 60`
+  is now only the failed-send retry delay. Nothing relies on an in-memory timer: the deadline is MySQL,
+  and the engine lock + answered marker + single-reply rule make an immediate runner and the cron safe
+  to overlap.
+- Staff/TAKE OVER rules are unchanged: staff replying first cancels the pending reply, the AI stays
+  silent for that turn, and a NEW customer message re-arms it; RETURN TO AI / BOTH never answer the old
+  turn; `AI Reply Now` stays the explicit immediate override.
+- UI: the long countdown is replaced by `AI replying in 4s` -> `AI sending...`, plus
+  `AI reply failed - retrying` (and the cancel/give-up reasons) in the header and the drawer queue line.
+- Tests: `23-ai-first` (12 checks) and updated queue/mode assertions -> suite is 257 tests.
 - Hold + welcome language: the hold builder gained Chinese and the welcome block gained a Chinese variant, so a Somali/Arabic/Chinese customer gets the hold line, the website line and the group invitation in their own language (URLs untouched, welcome still exactly once).
 - Inventory questions: added `ai-rules/inventory-intent.ts` (exists / list / brand / category / budget / filter) and wired it into the reply path BEFORE the model call. "Do you have cars?", "Gaari ma haysa?", "What cars do you have?", "Any Toyota?", "Do you have motorcycles?", "SUV?", "cars under $7000" are now answered from the AI Catalog rows (counts and cars come from the catalog, max 3 listed, nothing invented) instead of the "Let me confirm that for you." hold. A brand with no stock gets an honest no-match answer; a genuinely empty AI catalog gets the honest message + needs_staff; shipping/tracking/document questions still use the hold path. Short follow-ups like a bare "Toyota" are brand filters.
 - Tests: `17-language` (18 checks) and `18-inventory` (16 checks). Suite is 191 tests.

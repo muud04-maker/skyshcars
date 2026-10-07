@@ -94,7 +94,7 @@ test('16/17. the welcome is appended AFTER the useful answer and stays exactly o
 });
 
 test('18/19/20. the queue rules are preserved (reset, staff cancel, re-arm)', () => {
-  assert.ok(read('src/app/api/whatsapp/webhook/route.ts').includes('scheduleAiReply(Number(c.id), REPLY_DELAY_SECONDS'), 'new message resets the timer');
+  assert.ok(read('src/app/api/whatsapp/webhook/route.ts').includes('scheduleAiReply(Number(c.id), REPLY_DEBOUNCE_SECONDS'), 'new message resets the debounce');
   assert.ok(read('src/app/api/whatsapp/webhook/route.ts').includes('clearAiReply(Number(c.id))'), 'staff reply cancels');
   const engine = read('src/lib/ai-rules/engine-core.ts');
   assert.ok(engine.includes("['ai', 'both'].includes"), 'AI + BOTH only');
@@ -124,7 +124,7 @@ test('25. a failed queue attempt is never silent: diagnostics + bounded retries'
   const state = read('src/lib/conversation-state.ts');
   assert.ok(state.includes('pending_last_result') && state.includes('pending_attempts'));
   const desk = read('src/app/admin/_components/ConversationDesk.tsx');
-  assert.ok(desk.includes('AI queue: due'), 'admin sees the queue state');
+  assert.ok(desk.includes('AI queue: {queueLabel}'), 'admin sees the queue state');
 });
 
 test('26/27/28. language, shipping destination and no fabricated fields', () => {
