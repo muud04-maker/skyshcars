@@ -48,7 +48,7 @@ test('PART 11: the admin add-vehicle route exists and is protected', () => {
   const page = path.join(__dirname, '..', '..', 'src', 'app', 'admin', 'vehicles', 'new', 'page.tsx');
   const src = fs.readFileSync(page, 'utf8');
   assert.ok(src.includes('isAdmin'));
-  const client = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'app', 'admin', 'vehicles', 'new', 'AddVehicleClient.tsx'), 'utf8');
-  for (const step of ['Basic', 'Details', 'Pricing', 'Photos', 'Sales']) assert.ok(client.includes(step), `missing step ${step}`);
+  const client = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'app', 'admin', 'vehicles', '_components', 'VehicleForm.tsx'), 'utf8');
+  for (const section of ['Basic information', 'Vehicle details', 'Pricing', 'Exact vehicle photos', 'Sales &']) assert.ok(client.includes(section), `missing section ${section}`);
   assert.ok(client.includes('motorcycle') === false || client.includes('CATS'), 'category list present');
 });

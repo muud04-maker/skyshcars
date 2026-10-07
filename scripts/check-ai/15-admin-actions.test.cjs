@@ -8,7 +8,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const exists = (p) => fs.existsSync(path.join(root, p));
 
 const VEHICLE_API = 'src/app/api/admin/vehicles/route.ts';
-const ADD_CLIENT = 'src/app/admin/vehicles/new/AddVehicleClient.tsx';
+const ADD_CLIENT = 'src/app/admin/vehicles/_components/VehicleForm.tsx';
 const MANAGER = 'src/app/admin/vehicles/_components/VehicleManager.tsx';
 
 test('1. a valid vehicle create writes to MySQL and returns the new id', () => {
@@ -137,14 +137,14 @@ test('19. the admin button colour system exists and is used', () => {
   assert.ok(/\.btn-primary:hover/.test(css) && /focus-visible/.test(css) && /\[disabled\]/.test(css), 'hover/focus/disabled states');
   const manager = read(MANAGER);
   assert.ok(manager.includes('btn-primary') && manager.includes('btn-info') && manager.includes('btn-danger'));
-  assert.ok(read('src/app/admin/vehicles/new/AddVehicleClient.tsx').includes('btn-primary'));
+  assert.ok(read(ADD_CLIENT).includes('btn-primary'));
 });
 
 test('20. the old inline create form is gone (one creation path only)', () => {
   const manager = read(MANAGER);
   assert.ok(manager.includes('href="/admin/vehicles/new"'), 'prominent add button links to the 5-step flow');
   assert.ok(!/method: 'POST'/.test(manager), 'the list must not POST to create vehicles');
-  assert.ok(read(ADD_CLIENT).includes('Save vehicle'));
+  assert.ok(read(ADD_CLIENT).includes('Save Vehicle'));
 });
 
 test('21. every admin button is styled: semantic class or a container rule (no raw browser buttons)', () => {

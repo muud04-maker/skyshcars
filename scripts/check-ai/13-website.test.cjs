@@ -28,7 +28,7 @@ test('PART 13: motorcycles are a first-class category (listing, filters, AI cata
   assert.ok(fs.existsSync(path.join(root, 'src/app/motorcycles/page.tsx')));
   const catalog = read('src/app/admin/ai-catalog/AiCatalogClient.tsx');
   assert.ok(catalog.includes('motorcycle'), 'AI catalog can filter motorcycles');
-  const add = read('src/app/admin/vehicles/new/AddVehicleClient.tsx');
+  const add = read('src/app/admin/vehicles/_components/VehicleForm.tsx');
   assert.ok(add.includes('motorcycle'), 'add-vehicle flow supports motorcycles');
 });
 

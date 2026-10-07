@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import VehicleForm from './VehicleForm';
 
 /*
   Inventory list + EDIT only. Creating a vehicle is the 5-step flow at /admin/vehicles/new
@@ -78,36 +79,7 @@ export default function VehicleManager({ initial }: { initial: any[] }) {
 
     {msg ? <p className={tone === 'bad' ? 'error' : tone === 'ok' ? 'success' : 'muted'} style={{ maxWidth: 1450, margin: '0 auto 12px' }}><b>{msg}</b></p> : null}
 
-    {open && form.id ? <form className="vehicleForm card" onSubmit={save}>
-      <h2>Edit {titleOf(form)}</h2>
-      <div className="formGrid">
-        <label>Stock number<input value={form.stock_no || ''} readOnly /></label>
-        <label>Category<select value={form.category || 'car'} onChange={(e) => set('category', e.target.value)}>{['car', 'motorcycle', 'truck', 'van', 'bus', 'machinery', 'other'].map((c) => <option key={c}>{c}</option>)}</select></label>
-        <label>Brand *<input value={form.brand || ''} onChange={(e) => set('brand', e.target.value)} /></label>
-        <label>Model *<input value={form.model || ''} onChange={(e) => set('model', e.target.value)} /></label>
-        <label>Year<input type="number" value={form.model_year || ''} onChange={(e) => set('model_year', e.target.value)} /></label>
-        <label>Mileage km<input type="number" value={form.mileage_km || ''} onChange={(e) => set('mileage_km', e.target.value)} /></label>
-        <label>Price USD<input type="number" value={form.price_usd || ''} onChange={(e) => set('price_usd', e.target.value)} /></label>
-        <label>Transmission<input value={form.transmission || ''} onChange={(e) => set('transmission', e.target.value)} /></label>
-        <label>Engine<input value={form.engine || ''} onChange={(e) => set('engine', e.target.value)} /></label>
-        <label>Fuel<input value={form.fuel_type || ''} onChange={(e) => set('fuel_type', e.target.value)} /></label>
-        <label>Color<input value={form.color || ''} onChange={(e) => set('color', e.target.value)} /></label>
-        <label>Status<select value={form.status || 'available'} onChange={(e) => set('status', e.target.value)}>
-          <option value="available">Available</option><option value="reserved">Reserved</option><option value="sold">Sold</option>
-          <option value="pending_verification">Pending verification</option><option value="hidden">Hidden</option>
-        </select></label>
-        <label className="wide">Add another exact photo URL<input placeholder="https://..." value={form.image_url || ''} onChange={(e) => set('image_url', e.target.value)} /></label>
-        <label className="wide" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="checkbox" style={{ width: 'auto' }} checked={form.ai_enabled !== false} onChange={(e) => set('ai_enabled', e.target.checked)} />Let the AI sell this vehicle (WhatsApp and Messenger)
-        </label>
-        <label className="wide">Description<textarea value={form.description || ''} onChange={(e) => set('description', e.target.value)} /></label>
-      </div>
-      <div className="pager">
-        <button className="btn-primary" disabled={busy}>{busy ? 'Saving...' : 'Save Vehicle'}</button>
-        <a className="btn-info" href={`/admin/media?vehicle=${form.id}`}>Manage photos</a>
-        <button type="button" className="btn-neutral" onClick={() => { setOpen(false); setForm(EMPTY); setMsg(''); }}>Cancel</button>
-      </div>
-    </form> : null}
+    {open && form.id ? <VehicleForm mode="edit" initial={form} onSaved={() => { setOpen(false); setForm(EMPTY); setMsg("Vehicle saved."); setTone("ok"); void reload(); }} onCancel={() => { setOpen(false); setForm(EMPTY); }} /> : null}
 
     <div className="tableWrap">
       <table className="table">
