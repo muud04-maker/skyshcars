@@ -92,6 +92,28 @@ Status (tests 90 passing, typecheck PASS, build PASS):
 - Inventory answers in any language: en/so/ar/zh use the deterministic grounded text; other languages get the SAME facts (count + up to 3 real cars) passed to the model with "answer in <language>, do not invent" - never the hold.
 - 60-second reply queue: customer messages no longer get an instant reply. The webhook schedules `conversation_state.pending_ai_reply_at = NOW() + 60s` (a newer message resets it, durable across restarts) and sends nothing. `/api/cron/ai-replies` (secret-protected, run every minute - see `docs/AI_REPLY_CRON.md`; `/api/cron/automation` also drains it) picks due chats, re-checks the cancel rules (staff replied, HUMAN, paused, archived, nothing to answer) and lets the ONE reply engine produce a single reply, then clears the deadline. Staff replies, HUMAN/pause switches, archiving and the admin "AI Reply Now" all cancel or process the queue immediately; the inbox shows "AI reply in 42s" / "AI reply queued" with **Cancel AI reply** and **AI Reply Now**.
 - Tests: `19-queue` (17 checks) and `20-language-dynamic` (13 checks) -> suite is 218 tests.
+
+## Part 16 - AI / TAKE OVER / BOTH modes with turn-based blocking
+
+- Modes: `conversations.mode` gained `both` (additive ENUM widening). `ai` = the AI answers new customer messages through the 60s queue (staff may also reply - human wins). `human` = TAKE OVER, the AI stays completely silent. `both` = AI available AND staff allowed to reply (human always wins). `paused` is kept for compatibility but moved into the chat "..." menu, not the header.
+- Turn rule (the real safety): the engine may only send when the latest CUSTOMER message id is newer than the latest outbound (ai/human) id. A staff reply therefore silences the AI until the customer writes again. There is NO timer-based wake-up any more: the automation cron no longer runs `sweepDuePauses`, so 15 minutes / 2 hours passing changes nothing - the AI is re-armed ONLY by a new customer message (which schedules a fresh 60s queue entry).
+- Return to AI / Both never answer the old turn (the old catch-up reply is removed); the AI waits for the next customer message. `AI Reply Now` remains the explicit manual override (force) that may answer the current unresolved turn.
+- UI: ONE compact mode control in the header - `[ AI ] [ TAKE OVER ] [ BOTH ]` - plus conditional actions (AI/Both: AI Reply Now + Take Over; Take Over: Return to AI), a compact status line ("CUSTOMER WAITING" / "WAITING FOR CUSTOMER" + "AI REPLY IN 42s"), and Cancel AI reply only while a reply is pending. The yellow "Mode: ..." strip and the duplicate mode dropdown are gone; Pause lives in the "..." menu. Bulk actions: Take Over / Return to AI / Set Both.
+- Tests: `21-modes` (20 checks) -> suite is 231 tests.
+
+### Follow-up: staff silence applies only to the answered turn
+
+A staff reply also set a 15-minute pause, which meant a customer message inside that window was still
+blocked - the AI was not "eligible again" as required. Fixed: a staff pause (and the hold pause) now
+silences ONLY the turn the human answered. The engine compares the newest customer message time with
+`conversation_state.last_staff_at` (and the queue worker does the same), so:
+
+- human replies -> the AI stays silent (turn rule: latest outbound is newer than the latest customer message);
+- time passes -> still silent (no timer wake-up anywhere);
+- the customer sends a NEW message -> the AI is eligible again immediately, even if the 15-minute pause has not expired.
+
+Tests: `21-modes` grew to 23 checks (staff pause hides the answered turn, a newer customer message re-arms
+the AI, and the worker applies the same rule). Suite is 234 tests.
 - Hold + welcome language: the hold builder gained Chinese and the welcome block gained a Chinese variant, so a Somali/Arabic/Chinese customer gets the hold line, the website line and the group invitation in their own language (URLs untouched, welcome still exactly once).
 - Inventory questions: added `ai-rules/inventory-intent.ts` (exists / list / brand / category / budget / filter) and wired it into the reply path BEFORE the model call. "Do you have cars?", "Gaari ma haysa?", "What cars do you have?", "Any Toyota?", "Do you have motorcycles?", "SUV?", "cars under $7000" are now answered from the AI Catalog rows (counts and cars come from the catalog, max 3 listed, nothing invented) instead of the "Let me confirm that for you." hold. A brand with no stock gets an honest no-match answer; a genuinely empty AI catalog gets the honest message + needs_staff; shipping/tracking/document questions still use the hold path. Short follow-ups like a bare "Toyota" are brand filters.
 - Tests: `17-language` (18 checks) and `18-inventory` (16 checks). Suite is 191 tests.

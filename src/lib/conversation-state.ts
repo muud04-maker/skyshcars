@@ -35,6 +35,8 @@ export function ensureConversationState() {
       `ALTER TABLE conversations ADD COLUMN archived_at DATETIME NULL`,
       `ALTER TABLE conversation_state ADD COLUMN pending_ai_reply_at DATETIME NULL`,
       `ALTER TABLE conversation_state ADD COLUMN pending_generation VARCHAR(80) NULL`,
+      // Modes: ai = AI answers; human = TAKE OVER (human only); both = AI available and staff may jump in.
+      `ALTER TABLE conversations MODIFY mode ENUM('ai','human','paused','both') NOT NULL DEFAULT 'ai'`,
     ]) { try { await db().execute(sql); } catch (e: any) { if (e?.code !== 'ER_DUP_FIELDNAME') console.error('STATE_COLUMN', e?.code); } }
     // Speed for the live inbox (part 7). Ignore "already exists".
     for (const sql of [

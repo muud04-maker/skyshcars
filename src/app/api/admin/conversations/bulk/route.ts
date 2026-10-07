@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const ids = (Array.isArray(b.ids) ? b.ids : []).map(Number).filter(Boolean).slice(0, 200);
   const action = String(b.action || '');
   if (!ids.length) return NextResponse.json({ error: 'Select at least one conversation.' }, { status: 400 });
-  if (!['ai', 'human', 'paused', 'archive', 'unarchive', 'unread', 'delete'].includes(action)) return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  if (!['ai', 'human', 'both', 'paused', 'archive', 'unarchive', 'unread', 'delete'].includes(action)) return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   const inList = `(${ids.map(() => '?').join(',')})`;
 
   if (action === 'unread') {
@@ -65,10 +65,12 @@ export async function POST(req: Request) {
         await clearAiReply(id).catch(() => {});
         await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)', [id, 'system', 'outbound', 'text', `AI paused for ${minutes} min.`]);
       } else {
-        await db().execute("UPDATE conversations SET mode='ai',takeover_by=NULL,takeover_at=NULL WHERE id=?", [id]);
+        const target = action === 'both' ? 'both' : 'ai';
+        await db().execute("UPDATE conversations SET mode=?,takeover_by=NULL,takeover_at=NULL WHERE id=?", [target, id]);
         await resumeAi(id).catch(() => {});
         await clearStaffFlag(id).catch(() => {});
-        await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)', [id, 'system', 'outbound', 'text', 'Conversation returned to AI.']);
+        await clearAiReply(id).catch(() => {});
+        await db().execute('INSERT INTO messages(conversation_id,sender,direction,message_type,body) VALUES(?,?,?,?,?)', [id, 'system', 'outbound', 'text', target === 'both' ? 'Conversation set to BOTH (AI + staff).' : 'Conversation returned to AI.']);
       }
       changed++;
       await agentEvent(id, null, 'bulk_mode', 'ok', { action }).catch(() => {});

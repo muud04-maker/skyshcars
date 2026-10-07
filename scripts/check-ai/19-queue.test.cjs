@@ -113,7 +113,7 @@ test('28. the inbox shows a compact countdown and a cancel control', () => {
   assert.equal(countdownLabel(0), 'AI reply queued');
   assert.equal(secondsLeft(T0 + 42000, T0), 42);
   const desk = read('src/app/admin/_components/ConversationDesk.tsx');
-  assert.ok(desk.includes('countdownLabel(replyLeft)'));
+  assert.ok(desk.includes('AI REPLY IN ${replyLeft}s'));
   assert.ok(desk.includes('cancel-reply'));
   const state = read('src/lib/inbox.ts');
   assert.ok(state.includes('s.pending_ai_reply_at'), 'the inbox API returns the deadline');

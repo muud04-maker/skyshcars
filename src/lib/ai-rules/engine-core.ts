@@ -44,6 +44,8 @@ export type EngineDeps = {
   /** Optional: a hold line / welcome block generated for an arbitrary customer language. */
   holdText?(lang: string): Promise<string>;
   welcomeBlockText?(lang: string): Promise<string>;
+  /** Latest customer vs latest person/AI outbound message ids (turn-based safety). */
+  turnState?(conversationId: number): Promise<{ lastInboundId: number; lastOutboundId: number; lastInboundAtMs?: number; lastStaffAtMs?: number }>;
   welcomeConfig(): Promise<WelcomeConfig>;
   welcomeAlreadySent(key: string): Promise<boolean>;
   claimWelcome(key: string, customerId: number | null, conversationId: number): Promise<boolean>;
@@ -79,14 +81,32 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
     if (opts.trigger === 'webhook') await deps.sleep(opts.burstWaitMs ?? BURST_WAIT_MS); // merge rapid messages
     for (let round = 0; round < 3; round++) {
       const fresh = await deps.loadConversation(conversationId);
-      if (fresh?.mode !== 'ai') { result = { status: 'skipped', reason: 'human_mode' }; break; }
+      // AI answers in 'ai' and 'both'. TAKE OVER ('human') and 'paused' stay silent.
+      if (!['ai', 'both'].includes(String(fresh?.mode || 'ai'))) { result = { status: 'skipped', reason: 'human_mode' }; break; }
+      // Turn state is read once per round: it decides both the staff-silence rule and whether a
+      // staff PAUSE still applies (a pause only silences the turn the human answered).
+      const turn = (!opts.force && deps.turnState) ? await deps.turnState(conversationId).catch(() => null) : null;
       const state = await deps.getState(conversationId);
       const paused = state.ai_paused_until && state.ai_paused_until > deps.now();
-      if (paused && opts.trigger !== 'manual') { result = { status: 'skipped', reason: 'ai_paused' }; break; }
+      if (paused && opts.trigger !== 'manual') {
+        const customerSpokeAfterStaff = !!(turn && turn.lastInboundAtMs && (!turn.lastStaffAtMs || turn.lastInboundAtMs > turn.lastStaffAtMs));
+        if (!customerSpokeAfterStaff) { result = { status: 'skipped', reason: 'ai_paused' }; break; }
+      }
       let afterId = state.answered_through_id;
       if (opts.force) afterId = Math.min(afterId, await deps.lastAnsweredOutboundId(conversationId));
       const burst = await deps.burst(conversationId, afterId);
       if (!burst.length) { result = { status: 'skipped', reason: 'nothing_new' }; break; }
+      // Turn-based safety: the AI may only speak when the latest CUSTOMER message is newer than the
+      // latest outbound (AI or human). A staff reply therefore silences the AI until the customer
+      // writes again - no timer ever reactivates it. "AI Reply Now" (force) is the explicit override.
+      if (!opts.force && turn) {
+        if (turn.lastOutboundId > turn.lastInboundId) {
+          await deps.markAnswered(conversationId, turn.lastInboundId).catch(() => {});
+          await deps.event(conversationId, null, 'reply', 'ignored', { reason: 'waiting_for_customer', trigger: opts.trigger });
+          result = { status: 'skipped', reason: 'waiting_for_customer' };
+          break;
+        }
+      }
       const lastId = Number(burst[burst.length - 1].id);
       const lastExt = burst[burst.length - 1].external_message_id || null;
       const refIds = await deps.referralIds(burst.map(b => Number(b.id)));
@@ -122,10 +142,14 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
       // More messages arrived while composing: answer them together in the next round.
       if (round < 2 && await deps.hasNewerCustomerMessage(conversationId, lastId)) continue;
       const now = await deps.loadConversation(conversationId);
-      if (now?.mode !== 'ai') { result = { status: 'skipped', reason: 'staff_took_over' }; break; }
+      if (!['ai', 'both'].includes(String(now?.mode || 'ai'))) { result = { status: 'skipped', reason: 'staff_took_over' }; break; }
       const st = await deps.getState(conversationId);
       if (st.answered_through_id >= lastId && !opts.force) { result = { status: 'skipped', reason: 'already_answered' }; break; }
-      if (st.ai_paused_until && st.ai_paused_until > deps.now() && opts.trigger !== 'manual') { result = { status: 'skipped', reason: 'staff_replied' }; break; }
+      if (st.ai_paused_until && st.ai_paused_until > deps.now() && opts.trigger !== 'manual') {
+        // Same rule as above: a staff pause only silences the turn the human already answered.
+        const spokeAfterStaff = !!(turn && turn.lastInboundAtMs && (!turn.lastStaffAtMs || turn.lastInboundAtMs > turn.lastStaffAtMs));
+        if (!spokeAfterStaff) { result = { status: 'skipped', reason: 'staff_replied' }; break; }
+      }
 
       let welcome = false;
       let text: string;
