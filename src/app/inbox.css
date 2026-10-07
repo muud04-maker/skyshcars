@@ -68,6 +68,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .modeSeg button[disabled] { opacity: .6; cursor: not-allowed; }
 .chatStatus { display: block; margin-top: 3px; font-weight: 800; font-size: 11px; letter-spacing: .3px; color: #b3261e; }
 .chatStatus:not(:empty) { color: #0b7a3b; }
+.conn { font-size: 10px; font-weight: 900; padding: 3px 7px; border-radius: 999px; margin-left: 6px; letter-spacing: .5px; }
+.conn-live { background: #dff8e9; color: #08733d; }
+.conn-reconnecting { background: #fff3cd; color: #7a5b00; }
+.conn-offline { background: #ffe5e5; color: #9f1d1d; }
 
 @media (max-width: 1200px) {
   .inbox, .inbox.noDrawer { grid-template-columns: 300px minmax(0, 1fr); }

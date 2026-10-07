@@ -3,7 +3,8 @@ import { inbound, alreadyProcessed } from '../../../../lib/conversations';
 import { scheduleReply } from '../../../../lib/sales-engine';
 import { storeReferral } from '../../../../lib/referrals';
 import { scheduleAiReply } from '../../../../lib/conversation-state';
-import { REPLY_DELAY_SECONDS } from '../../../../lib/ai-rules/ai-queue';
+import { REPLY_DEBOUNCE_SECONDS } from '../../../../lib/ai-rules/ai-queue';
+import { processDueAiReplies } from '../../../../lib/ai-queue-worker';
 import { checkSignature } from '../../../../lib/meta';
 import { dbConfigured } from '../../../../lib/db';
 
@@ -33,8 +34,14 @@ export async function POST(req: Request) {
         if (await alreadyProcessed(mid)) continue;
         const c: any = await inbound('facebook', id, text, mid);
         if (m.referral) await storeReferral({ id: Number(c.id), channel: 'facebook' }, String(mid || ''), m.referral).catch(() => {});
-        // Same 60-second queue as WhatsApp (durable in MySQL).
-        await scheduleAiReply(Number(c.id), REPLY_DELAY_SECONDS, mid || null).catch(() => {});
+        // Same AI-first short debounce as WhatsApp (durable in MySQL, cron stays as fallback).
+        await scheduleAiReply(Number(c.id), REPLY_DEBOUNCE_SECONDS, mid || null).catch(() => {});
+        if (typeof after === 'function') {
+          after(async () => {
+            await new Promise((r) => setTimeout(r, REPLY_DEBOUNCE_SECONDS * 1000 + 300));
+            await processDueAiReplies(5).catch(() => {});
+          });
+        }
       } catch (err: any) { console.error('FB_MESSAGE_ERROR', err?.response?.data || err?.message || err); }
     }
   } catch (e) { console.error('FB_WEBHOOK', e); }

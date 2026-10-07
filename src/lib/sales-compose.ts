@@ -4,7 +4,8 @@
 */
 import { salesReply, AI_MODEL, allowedVehicleNames } from './ai';
 import { planPhotos } from './whatsapp-photos';
-import { loadAiCars } from './ai-catalog';
+import { aiCarById, loadAiCars } from './ai-catalog';
+import { alternativeLines, alternatives, carTitle, clarifyVehicle, vehicleDetails, vehicleIntent } from './ai-rules/vehicle-answer';
 import { detectLanguage } from './ai-rules/welcome';
 import { shouldHold } from './ai-rules/hold';
 import { isQuestion, isRequest } from './intent';
@@ -68,6 +69,39 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
   const photoPlan = i.dryRun ? null : await planPhotos(text, i.conversationId).catch(() => null);
   // Part 4: media we cannot read never causes silence - ask a short, honest clarification.
   const mediaNote = (!i.words && hasMedia) ? await mediaClarificationNote() : '';
+  let vehicleFactNote = '';
+  // Vehicle context (referral -> current car -> matched record). "more info on this" / "price?" must
+  // be answered from the real record - never with a hold. Alternatives are real AI-catalog rows only.
+  if (i.words && !photoPlan) {
+    try {
+      const vIntent = vehicleIntent(i.words);
+      if (vIntent && vIntent !== 'photos' && vIntent !== 'shipping') {
+        const st: any = await getState(i.conversationId).catch(() => null);
+        const currentId = Number(st?.current_vehicle_id || 0);
+        const cats: any[] = await loadAiCars(300).catch(() => []);
+        const knownBrands = [...new Set(cats.map((c: any) => String(c.brand || '')).filter(Boolean))];
+        const named = inventoryIntent(i.words, knownBrands);
+        const current: any = i.referralVehicle || (currentId ? await aiCarById(currentId).catch(() => null) : null);
+        const namesAnother = !!(named?.brand && current && String(current.brand || '').toLowerCase() !== String(named.brand).toLowerCase());
+        if (current && !namesAnother) {
+          const alts = alternatives(cats, current, { limit: 3 });
+          const lines = vIntent === 'alternatives'
+            ? (alternativeLines(alts, lang) || vehicleDetails(current, lang, { maxLines: 4 }))
+            : `${vehicleDetails(current, lang, { maxLines: vIntent === 'price' ? 4 : 9 })}${alts.length ? `\n\n${alternativeLines(alts, lang)}` : ''}`;
+          const allowed = [carTitle(current), ...alts.map((c: any) => carTitle(c))];
+          if (isHardcodedLang(lang)) {
+            return { text: lines, lang, model: AI_MODEL, vehicleId: Number(current.id) || null, photoPlan, allowedNames: allowed, needsStaff: null };
+          }
+          // Other languages: hand the model exactly these facts (it must not invent or translate identifiers).
+          vehicleFactNote = ` The customer asked about the vehicle this conversation is about. Use ONLY these real fields (skip blanks, never invent): ${vehicleDetails(current, 'en', { maxLines: 9 }).split('\n').slice(1).join(' | ')}${alts.length ? `. Real alternatives: ${alts.map((c: any) => `${carTitle(c)}${Number(c.price_usd) > 0 ? ` $${Number(c.price_usd).toLocaleString()}` : ''}`).join('; ')}` : ''}. Answer in ${languageName(lang)} in a short sales style and offer the next step.`;
+        } else if (!current) {
+          // Nothing to resolve from: ONE concise clarification, not a vague hold.
+          if (isHardcodedLang(lang)) return { text: clarifyVehicle(lang), lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: [], needsStaff: null };
+          vehicleFactNote = ` The customer asked about a vehicle but we cannot tell which one. Ask ONE short question in ${languageName(lang)}: name the model or send the stock number.`;
+        }
+      }
+    } catch { /* fall through to the normal path */ }
+  }
   // Inventory questions ("Do you have cars?", "Gaari ma haysa?", "Any Toyota?", "SUV?", "cars under
   // $7000") are answered from the AI Catalog - never with the hold line. The count and the cars come
   // from the catalog rows, so nothing can be invented.
@@ -90,7 +124,7 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
       }
     } catch { /* any lookup problem falls through to the normal (or hold) path */ }
   }
-  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
+  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + vehicleFactNote + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
   // Part 9: the cars this reply is allowed to remember (used by the invented-history guard).
   const allowedNames = await allowedVehicleNames(text, i.conversationId, i.referralVehicle ? [i.referralVehicle] : []).catch(() => []);
   // No verified answer for a real question/request: hold, flag for the owner, and wait instead of guessing.

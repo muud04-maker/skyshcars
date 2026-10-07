@@ -6,6 +6,9 @@
   Everything here is deterministic so the scheduling/cancel rules can be tested offline.
 */
 
+/** Normal AI-first reply: a short debounce so a quick burst is merged into ONE reply. */
+export const REPLY_DEBOUNCE_SECONDS = 4;
+/** Recovery/retry delay (cron fallback, failed send retry). */
 export const REPLY_DELAY_SECONDS = 60;
 
 export function deadlineMs(nowMs: number, seconds = REPLY_DELAY_SECONDS) {
@@ -24,10 +27,20 @@ export function secondsLeft(pendingAtMs: number | null | undefined, nowMs: numbe
   return Math.max(0, Math.round((Number(pendingAtMs) - Number(nowMs)) / 1000));
 }
 
-/** Compact inbox label: "AI reply in 42s" while counting down, then "AI reply queued". */
+/** Compact inbox label: "AI replying in 4s" while counting down, then "AI sending...". */
 export function countdownLabel(left: number) {
   const s = Math.max(0, Math.round(Number(left) || 0));
-  return s > 0 ? `AI reply in ${s}s` : 'AI reply queued';
+  return s > 0 ? `AI replying in ${s}s` : 'AI sending...';
+}
+
+/** Admin-visible queue state: pending countdown, sending, or a failed attempt that will retry. */
+export function queueStatusLabel(input: { secondsLeft: number; lastResult?: string | null; pending?: boolean }) {
+  const last = String(input.lastResult || '');
+  if (last.startsWith('failed')) return input.pending ? 'AI reply failed - retrying' : 'AI reply failed';
+  if (last.startsWith('gave_up')) return `AI reply failed - ${last.replace(/^gave_up:?\s*/, '') || 'needs staff'}`;
+  if (last.startsWith('cancelled')) return `AI queue cancelled - ${last.replace(/^cancelled:?\s*/, '')}`;
+  if (input.pending) return countdownLabel(input.secondsLeft);
+  return last ? `AI reply ${last}` : '';
 }
 
 /**
