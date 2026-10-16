@@ -22,6 +22,8 @@ const CUSTOMERS = arg('customers', 'C:/Users/muud_/Downloads/customers.txt');
 const CONVERSATIONS = arg('conversations', 'C:/Users/muud_/Downloads/conversations.sql');
 const MESSAGES = arg('messages', 'C:/Users/muud_/Downloads/messages.sql');
 const DAYS = Number(arg('days', '14')) || 14;
+/** Sanitized dossiers for the conversations named in the brief (ids only, no PII). */
+const DOSSIER = arg('dossier', '4,2,8,9,130,35,51').split(',').map((s) => Number(s.trim())).filter(Boolean);
 
 // ---------------------------------------------------------------- parsing
 /** phpMyAdmin "text" export: a structure block (|column|type|...) then data rows (|v|v|...). */
@@ -307,6 +309,87 @@ function main() {
   }
   line('');
   line(`CONVERSATIONS MENTIONING MORE THAN ONE STOCK NUMBER: ${multiVehicle}`);
+
+  /*
+    HOLD BENCHMARK (brief item 4): for every AI hold ("let me confirm"), was the fact the customer
+    asked about already available IN THIS CHAT at that moment? Available = the customer had already
+    identified a vehicle (stock number, or a model the AI echoed) AND the question was price /
+    availability / shipping for that identified vehicle. Those are the holds that were avoidable.
+  */
+  let holdTotal = 0, holdAvoidable = 0, holdUnknownVehicle = 0, holdNeedsTeam = 0;
+  const holdExamples = [];
+  for (const [cid, list] of byConversation) {
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (m.sender !== 'ai' || !HOLD.test(String(m.body || ''))) continue;
+      holdTotal++;
+      const before = list.slice(0, i);
+      const lastCustomer = [...before].reverse().find((x) => x.sender === 'customer');
+      const question = String(lastCustomer?.body || '');
+      const knownVehicleInChat = before.some((x) => STOCKS(String(x.body || '')).length > 0) || before.some((x) => /stock\s*\d/i.test(String(x.body || '')));
+      const aboutFact = ASK_PRICE.test(question) || ASK_AVAIL.test(question) || ASK_SHIP.test(question);
+      if (!question.trim()) { holdNeedsTeam++; continue; }
+      if (!knownVehicleInChat && !ASK_SHIP.test(question)) { holdUnknownVehicle++; continue; }
+      if (aboutFact && knownVehicleInChat) {
+        holdAvoidable++;
+        if (holdExamples.length < 5) holdExamples.push(`conv#${cid}: customer asked "${clip(question, 50)}" while the unit was already in the chat -> AI held: "${clip(m.body, 60)}"`);
+      } else if (ASK_SHIP.test(question) || ASK_PAY.test(question)) holdNeedsTeam++;
+      else holdUnknownVehicle++;
+    }
+  }
+  line('');
+  line('HOLD BENCHMARK (was the answer already in the chat when the AI held?)');
+  line(`  holds total ${holdTotal} | avoidable (unit already known, question was price/availability) ${holdAvoidable} | vehicle still unknown ${holdUnknownVehicle} | needed the team (shipping/payment/quote) ${holdNeedsTeam}`);
+  for (const e of holdExamples) line('  e.g. ' + e);
+
+  // --- unanswered customers with real timing (system-only events ignored)
+  const now = Math.max(...messages.map((m) => ts(m.created_at)));
+  const waiting = [];
+  for (const [cid, list] of byConversation) {
+    const lastCustomer = [...list].reverse().find((m) => m.sender === 'customer');
+    if (!lastCustomer) continue;
+    const lastReply = [...list].reverse().find((m) => ['ai', 'human'].includes(m.sender) && ts(m.created_at) > ts(lastCustomer.created_at));
+    if (lastReply) continue;
+    const hours = Math.round((now - ts(lastCustomer.created_at)) / 3600000);
+    waiting.push({ cid, hours, question: clip(lastCustomer.body, 60) });
+  }
+  waiting.sort((a, b) => a.hours - b.hours);
+  line('');
+  line(`CUSTOMERS STILL WAITING (no AI/staff reply after their last message): ${waiting.length}`);
+  for (const w of waiting.slice(0, 8)) line(`  conv#${w.cid}: waiting ~${w.hours}h | last customer message: "${w.question}"`);
+
+  /*
+    SANITIZED DOSSIERS for the conversations named in the brief. Ids, counts, clipped texts, masked
+    numbers only - enough to verify the reported failures without exposing a customer.
+  */
+  if (DOSSIER.length) {
+    line('');
+    line('DOSSIERS (sanitized: ids, counts, clipped text, masked numbers)');
+    for (const wanted of DOSSIER) {
+      const list = byConversation.get(wanted);
+      if (!list) { line(`  conv#${wanted}: not present in this snapshot`); continue; }
+      const conv = byId.get(wanted) || {};
+      const first = list[0], last = list[list.length - 1];
+      const cust = list.filter((m) => m.sender === 'customer').length;
+      const ai = list.filter((m) => m.sender === 'ai').length;
+      const staff = list.filter((m) => m.sender === 'human').length;
+      const imgs = list.filter((m) => m.message_type === 'image').length;
+      const stocks = [...new Set(list.flatMap((m) => STOCKS(String(m.body || ''))))];
+      const lastCustomer = [...list].reverse().find((m) => m.sender === 'customer');
+      const repliedAfter = lastCustomer
+        ? !!list.find((m) => ['ai', 'human'].includes(m.sender) && ts(m.created_at) > ts(lastCustomer.created_at))
+        : false;
+      const customerQuestions = list.filter((m) => m.sender === 'customer' && isQuestion(String(m.body || ''))).slice(-4).map((m) => clip(m.body, 70));
+      const aiSamples = list.filter((m) => m.sender === 'ai').slice(-2).map((m) => clip(m.body, 70));
+      const staffSamples = list.filter((m) => m.sender === 'human').slice(-2).map((m) => clip(m.body, 70));
+      line(`  --- conv#${wanted} | channel=${conv.channel || '?'} | mode=${conv.mode || '?'} | staff-owned=${conv.takeover_by ? 'yes' : 'no'}`);
+      line(`      messages: ${list.length} (customer ${cust}, AI ${ai}, staff ${staff}) | images ${imgs} | stock mentions: ${stocks.length ? stocks.join(',') : 'none'}`);
+      line(`      window: ${day(first.created_at)} -> ${day(last.created_at)} | customer waiting at the end: ${repliedAfter ? 'no' : 'YES'}`);
+      for (const q of customerQuestions) line(`      customer asked: "${q}"`);
+      for (const a of aiSamples) line(`      AI last said: "${a}"`);
+      for (const s of staffSamples) line(`      staff last said: "${s}"`);
+    }
+  }
 
   line('');
   line('LIMITATIONS');

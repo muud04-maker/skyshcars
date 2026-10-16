@@ -69,7 +69,10 @@ test('the exported block uses the required readable format with a blank line bet
     body: 'Do you have a CBR1000?', meta: 'text|delivered', vehicle_id: 5, stock_no: 'SC-859',
     category: 'motorcycle', brand: 'Honda', model: 'CBR1000', model_year: 2011,
   });
-  assert.ok(block.startsWith('[2026-10-17 09:05:03] [WHATSAPP] [Ali] [CUSTOMER]'), block.split('\n')[0]);
+  // Privacy: the identifier is masked and the customer id is appended, so the line is traceable but not
+  // a raw phone number. Format: [time] [CHANNEL] [name/masked-id #customer] [ROLE].
+  assert.ok(block.startsWith('[2026-10-17 09:05:03] [WHATSAPP] [Ali …0001 #12] [CUSTOMER]'), block.split('\n')[0]);
+  assert.ok(!block.includes('255700000001'), 'the raw phone number never appears');
   assert.ok(block.includes('Vehicle: 2011 Honda CBR1000 (motorcycle)'));
   assert.ok(block.includes('Stock: SC-859'));
   assert.ok(block.includes('Ref:') && block.includes('conversation #3') && block.includes('customer #12'), 'the export line is traceable to the exact record');
@@ -81,7 +84,9 @@ test('the exported block uses the required readable format with a blank line bet
     body: 'referral_matched (ok)', meta: 'referral_matched', vehicle_id: null, stock_no: null,
     category: null, brand: null, model: null, model_year: null,
   });
-  assert.ok(event.startsWith('[2026-10-17 09:00:00] [FACEBOOK] [1234567890123456] [SYSTEM]'));
+  // A Messenger PSID is masked too (last four digits) and the customer id is kept for cross-checking.
+  assert.ok(event.startsWith('[2026-10-17 09:00:00] [FACEBOOK] […3456 #12] [SYSTEM]'), event.split('\n')[0]);
+  assert.ok(!event.includes('1234567890123456'), 'the raw PSID never appears in the export');
   assert.ok(event.includes('Type: SYSTEM'));
   const head = historyHeader({ from: '2026-10-01', channel: 'whatsapp', facebookOnly: true }, 42);
   assert.ok(head.includes('SKY CARS - ALL HISTORY EXPORT'));

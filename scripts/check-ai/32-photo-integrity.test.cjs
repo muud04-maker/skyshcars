@@ -97,10 +97,14 @@ test('zero delivered photos are never counted or described as sent', () => {
 
 test('PHASE 4 item 9: a photo request for "any vehicle" prefers a unit that really has photos', () => {
   const src = read(AI);
-  assert.ok(src.includes('newestCarWithPhotos'), 'a photo-backed vehicle is looked up');
+  // The brief forbids a "newest item" shortcut: the photo-backed unit must satisfy the customer's own
+  // filters (category, body type, steering, budget) from this chat or their stored memory.
+  assert.ok(src.includes('photoBackedMatchFor'), 'a filter-aware photo-backed vehicle is looked up');
+  assert.ok(!src.includes('newestCarWithPhotos'), 'the newest-item shortcut is gone');
+  for (const f of ['want.category', 'want.bodyType', 'want.steering', 'want.maxPrice']) assert.ok(src.includes(f), `filters on ${f}`);
   assert.ok(src.includes('if (!vehicles.length && wantsPhotos(text) && isGenericOnly(text))'), 'only when no vehicle was named');
   assert.ok(src.includes('exact_photo_count'), 'using the real exact-photo count');
-  assert.ok(src.includes('whatsappPhotosForVehicle(Number(c.id), 3)'), 'and only its own approved photos');
+  assert.ok(src.includes('whatsappPhotosForVehicle(Number(c.id), 3)'), 'and only its own verified photos');
   // Unrelated photos can never be attached: multiple candidates without a stock number still refuse.
   assert.ok(src.includes('if (!vehicles.length || (vehicles.length > 1 && !stock.length)) return null'), 'the single-vehicle rule is intact');
 });

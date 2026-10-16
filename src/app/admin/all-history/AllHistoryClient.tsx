@@ -10,6 +10,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 const ROLE_LABEL: Record<string, string> = { customer: 'CUSTOMER', ai: 'AI', human: 'STAFF', staff: 'STAFF', system: 'SYSTEM' };
 const KIND_LABEL: Record<string, string> = { message: 'message', system: 'system', referral: 'referral', quote: 'quote', note: 'note', memory: 'memory', learning: 'learning' };
 const when = (v: any) => (v ? new Date(String(v).replace(' ', 'T')).toLocaleString() : '-');
+/* Privacy: a phone/PSID is shown masked (last four digits) plus the customer id, exactly like the TXT. */
+const maskId = (v: any) => { const s = String(v == null ? '' : v).replace(/\s+/g, ''); return s ? `…${s.slice(-4)}` : ''; };
+const whoOf = (r: any) => [r.customer_name || null, maskId(r.phone || r.psid) || null, r.customer_id ? `#${r.customer_id}` : null].filter(Boolean).join(' ') || 'unknown';
 
 type Filters = {
   from: string; to: string; channel: string; role: string; kind: string; q: string;
@@ -117,7 +120,7 @@ export default function AllHistoryClient() {
         return <div className={'chEvent ' + cls} key={r.source_id + ':' + i}>
           <small>
             {when(r.ts)} | {(r.channel || r.kind || 'system').toUpperCase()} |
-            {' '}{r.customer_name || r.phone || r.psid || (r.customer_id ? `customer #${r.customer_id}` : 'unknown')} |
+            {' '}{whoOf(r)} |
             {' '}{r.kind === 'message' ? (ROLE_LABEL[r.sender_role] || r.sender_role) : (KIND_LABEL[r.kind] || r.kind).toUpperCase()}
           </small>
           {vehicle || r.stock_no ? <div className="chMeta">Vehicle: {vehicle || '-'}{r.category ? ` (${r.category})` : ''}{r.stock_no ? ` | Stock: ${r.stock_no}` : ''}</div> : null}

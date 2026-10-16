@@ -205,6 +205,44 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
       }
       if (!text.trim()) { await deps.markAnswered(conversationId, lastId); result = { status: 'skipped', reason: 'empty_reply' }; break; }
 
+      /*
+        FINAL pre-send gate (race fix, production evidence conversations #35 and #51).
+
+        Composing a reply can take seconds (the model call), and a colleague can answer in that window.
+        The mode/pause checks above deliberately stay cheap, but they used the TURN SNAPSHOT taken
+        BEFORE composing - so a staff reply that landed during composing was invisible and the AI
+        spoke over the human. Here we re-read the turn state at the last possible moment and re-apply
+        the exact same rules, so an in-flight send can no longer overtake the staff:
+          - a colleague's reply after the customer's turn  -> the AI stays silent for this turn,
+          - the customer wrote again while we were composing -> skip; the next round answers everything.
+        The send itself is still guarded by the lock + answered marker, so this cannot duplicate.
+      */
+      if (!opts.force && deps.turnState) {
+        const freshTurn = await deps.turnState(conversationId).catch(() => null);
+        if (freshTurn) {
+          const customerSpokeAfterStaff = !!freshTurn.lastInboundAtMs
+            && (!freshTurn.lastStaffAtMs || freshTurn.lastInboundAtMs > freshTurn.lastStaffAtMs);
+          if (freshTurn.lastOutboundId > freshTurn.lastInboundId && !customerSpokeAfterStaff) {
+            await deps.markAnswered(conversationId, freshTurn.lastInboundId).catch(() => {});
+            await deps.event(conversationId, lastExt, 'reply', 'ignored', { reason: 'staff_replied_during_compose' });
+            result = { status: 'skipped', reason: 'staff_replied_during_compose' };
+            break;
+          }
+          if (Number(freshTurn.lastInboundId) > lastId) {
+            // A newer customer message arrived while composing: answer it in the next round instead of
+            // sending a reply that is already out of date.
+            await deps.event(conversationId, lastExt, 'reply', 'ignored', { reason: 'newer_customer_message_during_compose' });
+            result = { status: 'skipped', reason: 'newer_customer_message_during_compose' };
+            break;
+          }
+        }
+        const freshConv = await deps.loadConversation(conversationId).catch(() => null);
+        if (freshConv && !['ai', 'both'].includes(String(freshConv.mode || 'ai'))) {
+          result = { status: 'skipped', reason: 'staff_took_over_during_compose' };
+          break;
+        }
+      }
+
       await deps.markAnswered(conversationId, lastId); // before sending: a crash or timeout can never cause a second send
       try {
         const extId = await deps.sendText(conv, text);

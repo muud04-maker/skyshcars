@@ -310,6 +310,18 @@ export const KIND_LABEL: Record<string, string> = {
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
+ * Privacy (brief item 7): a phone number or Messenger PSID never travels in full. The admin keeps the
+ * last four digits (enough to recognise a customer they are talking to) plus the customer id, which is
+ * the stable reference for cross-checking against the Customer History page.
+ */
+export function maskIdentifier(value: unknown): string {
+  const raw = String(value == null ? '' : value).replace(/\s+/g, '');
+  if (!raw) return '';
+  const tail = raw.slice(-4);
+  return `…${tail}`;
+}
+
+/**
  * `[YYYY-MM-DD HH:mm:ss] [CHANNEL] [CUSTOMER] [ROLE]` plus Vehicle/Stock/Ref/Message and a blank line.
  * The Ref line carries the database record id and the conversation reference, so any line in the
  * download can be traced back to the exact record it came from.
@@ -317,7 +329,8 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export function historyBlock(r: HistoryRow & { ref?: string | null }) {
   const t = r.ts ? String(r.ts).replace('T', ' ').slice(0, 19) : 'unknown time';
   const channel = String(r.channel || r.kind || 'system').toUpperCase();
-  const who = r.customer_name || r.phone || r.psid || (r.customer_id ? `customer #${r.customer_id}` : 'unknown customer');
+  const ident = maskIdentifier(r.phone || r.psid);
+  const who = [r.customer_name || null, ident || null, r.customer_id ? `#${r.customer_id}` : null].filter(Boolean).join(' ') || 'unknown customer';
   const label = r.sender_role === 'customer' && r.kind !== 'message' ? KIND_LABEL[r.kind] || 'EVENT' : ROLE_LABEL[r.sender_role] || String(r.sender_role).toUpperCase();
   const vehicle = [r.model_year, r.brand, r.model].filter(Boolean).join(' ');
   const lines = [`[${t}] [${channel}] [${who}] [${label}]`];
