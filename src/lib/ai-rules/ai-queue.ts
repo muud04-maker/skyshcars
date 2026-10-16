@@ -6,8 +6,20 @@
   Everything here is deterministic so the scheduling/cancel rules can be tested offline.
 */
 
-/** Normal AI-first reply: a short debounce so a quick burst is merged into ONE reply. */
-export const REPLY_DEBOUNCE_SECONDS = 4;
+/*
+  Normal AI reply timing.
+
+  A customer message schedules ONE reply one minute after the LATEST customer message:
+    - a newer message pushes the deadline forward (the burst merges into one answer),
+    - a staff reply before the deadline cancels it,
+    - the deadline lives in MySQL, so restarts and parallel webhooks are safe.
+
+  The delay is intentional: it gives rapid messages time to arrive together and gives the owner a
+  window to step in before the AI speaks. (Part 1: the 4-second fast path was removed.)
+*/
+export const NORMAL_REPLY_DELAY_SECONDS = 60;
+/** Back-compat alias: the debounce used when a customer message arrives. */
+export const REPLY_DEBOUNCE_SECONDS = NORMAL_REPLY_DELAY_SECONDS;
 /** Recovery/retry delay (cron fallback, failed send retry). */
 export const REPLY_DELAY_SECONDS = 60;
 
@@ -27,19 +39,25 @@ export function secondsLeft(pendingAtMs: number | null | undefined, nowMs: numbe
   return Math.max(0, Math.round((Number(pendingAtMs) - Number(nowMs)) / 1000));
 }
 
-/** Compact inbox label: "AI replying in 4s" while counting down, then "AI sending...". */
-export function countdownLabel(left: number) {
+/**
+ * Compact inbox label, exactly as the owner asked to see it:
+ *   "AI reply in 58s"  -> counting down
+ *   "AI reply queued"  -> due, waiting for the worker
+ *   "AI sending..."    -> the reply engine is working on this chat right now
+ */
+export function countdownLabel(left: number, opts: { sending?: boolean } = {}) {
   const s = Math.max(0, Math.round(Number(left) || 0));
-  return s > 0 ? `AI replying in ${s}s` : 'AI sending...';
+  if (s > 0) return `AI reply in ${s}s`;
+  return opts.sending ? 'AI sending...' : 'AI reply queued';
 }
 
 /** Admin-visible queue state: pending countdown, sending, or a failed attempt that will retry. */
-export function queueStatusLabel(input: { secondsLeft: number; lastResult?: string | null; pending?: boolean }) {
+export function queueStatusLabel(input: { secondsLeft: number; lastResult?: string | null; pending?: boolean; sending?: boolean }) {
   const last = String(input.lastResult || '');
   if (last.startsWith('failed')) return input.pending ? 'AI reply failed - retrying' : 'AI reply failed';
   if (last.startsWith('gave_up')) return `AI reply failed - ${last.replace(/^gave_up:?\s*/, '') || 'needs staff'}`;
   if (last.startsWith('cancelled')) return `AI queue cancelled - ${last.replace(/^cancelled:?\s*/, '')}`;
-  if (input.pending) return countdownLabel(input.secondsLeft);
+  if (input.pending) return countdownLabel(input.secondsLeft, { sending: input.sending });
   return last ? `AI reply ${last}` : '';
 }
 

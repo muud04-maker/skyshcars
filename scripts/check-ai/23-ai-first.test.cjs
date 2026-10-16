@@ -4,36 +4,41 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const load = require('./lib.cjs');
-const { REPLY_DEBOUNCE_SECONDS, REPLY_DELAY_SECONDS, deadlineMs, isDue, countdownLabel, queueStatusLabel, shouldCancelQueued } = load('ai-rules/ai-queue.js');
+const { REPLY_DEBOUNCE_SECONDS, REPLY_DELAY_SECONDS, NORMAL_REPLY_DELAY_SECONDS, deadlineMs, isDue, countdownLabel, queueStatusLabel, shouldCancelQueued } = load('ai-rules/ai-queue.js');
 const { runEngine, customerKey } = load('ai-rules/engine-core.js');
 const root = path.join(__dirname, '..', '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const WHATSAPP = 'src/app/api/whatsapp/webhook/route.ts';
 const FACEBOOK = 'src/app/api/facebook/webhook/route.ts';
 
-test('1. the normal AI reply uses a 3-5s debounce, not 60s', () => {
-  assert.ok(REPLY_DEBOUNCE_SECONDS >= 3 && REPLY_DEBOUNCE_SECONDS <= 5, '3-5 second window');
-  assert.equal(REPLY_DELAY_SECONDS, 60, 'the old delay is kept for retry/recovery');
+test('1. the normal AI reply is queued for about one minute', () => {
+  assert.equal(NORMAL_REPLY_DELAY_SECONDS, 60, 'one minute');
+  assert.equal(REPLY_DEBOUNCE_SECONDS, 60, 'scheduling uses the one-minute delay');
+  assert.equal(REPLY_DELAY_SECONDS, 60, 'retry/recovery uses the same one-minute delay');
   const t = Date.parse('2026-10-07T10:00:00Z');
   assert.equal(deadlineMs(t, REPLY_DEBOUNCE_SECONDS) - t, REPLY_DEBOUNCE_SECONDS * 1000);
-  assert.equal(isDue(deadlineMs(t, REPLY_DEBOUNCE_SECONDS), t + 4000), true);
-  assert.equal(isDue(deadlineMs(t, REPLY_DEBOUNCE_SECONDS), t + 1000), false);
+  assert.equal(isDue(deadlineMs(t, REPLY_DEBOUNCE_SECONDS), t + 59000), false, 'not due before the minute');
+  assert.equal(isDue(deadlineMs(t, REPLY_DEBOUNCE_SECONDS), t + 60000), true, 'due after the minute');
+  assert.equal(isDue(deadlineMs(t, REPLY_DEBOUNCE_SECONDS), t + 90000), true);
 });
 
-test('2. the webhook schedules the debounce and processes it without the cron', () => {
+test('2. the webhook queues one minute ahead; the cron stays the reliable processor', () => {
   for (const f of [WHATSAPP, FACEBOOK]) {
     const src = read(f);
-    assert.ok(src.includes('scheduleAiReply(Number(c.id), REPLY_DEBOUNCE_SECONDS'), `${f} schedules the short debounce`);
-    assert.ok(src.includes('processDueAiReplies(5)'), `${f} processes it directly`);
-    assert.ok(src.includes('after(async () =>'), `${f} runs it after the response (server-safe)`);
-    assert.ok(!src.includes('REPLY_DELAY_SECONDS'), `${f} no longer waits 60s for a normal reply`);
+    assert.ok(src.includes('scheduleAiReply(Number(c.id), REPLY_DEBOUNCE_SECONDS'), `${f} schedules the one-minute deadline`);
+    assert.ok(src.includes('REPLY_DEBOUNCE_SECONDS * 1000 + 2000'), `${f} only wakes after the delay has passed`);
+    assert.ok(src.includes('processDueAiReplies(5)'), `${f} still kicks the worker after the delay`);
   }
+  const cron = read('src/app/api/cron/ai-replies/route.ts');
+  assert.ok(cron.includes('processDueAiReplies'), 'the cron is the reliable processor');
+  assert.ok(cron.includes('AUTOMATION_CRON_SECRET'), 'the cron keeps its secret');
 });
 
-test('3. BOTH mode uses the same short debounce (mode-independent)', () => {
+test('3. BOTH mode uses the same one-minute queue (mode-independent)', () => {
   const src = read(WHATSAPP);
   assert.ok(!/mode.*REPLY_DEBOUNCE/.test(src), 'the schedule does not depend on the mode');
   assert.ok(read('src/lib/ai-rules/engine-core.ts').includes("['ai', 'both'].includes"), 'BOTH is an AI mode');
+  assert.ok(read('src/lib/ai-rules/ai-queue.ts').includes('NORMAL_REPLY_DELAY_SECONDS = 60'), 'one shared delay for AI and BOTH');
 });
 
 test('4. TAKE OVER blocks the AI completely', async () => {
@@ -92,12 +97,17 @@ test('11. AI Reply Now is still immediate', () => {
   assert.ok(route.includes("trigger:'manual',force:true"));
 });
 
-test('12/13. new customer message after staff re-arms, and the UI shows the short countdown', () => {
+test('12/13. new customer message after staff re-arms, and the UI shows the countdown as asked', () => {
   assert.equal(shouldCancelQueued({ mode: 'ai', lastInboundId: 5, lastOutboundId: 4, lastInboundAtMs: Date.now(), lastStaffAtMs: Date.now() - 60000 }).cancel, false);
-  assert.equal(countdownLabel(4), 'AI replying in 4s');
-  assert.equal(countdownLabel(0), 'AI sending...');
-  assert.equal(queueStatusLabel({ secondsLeft: 4, pending: true }), 'AI replying in 4s');
+  assert.equal(countdownLabel(58), 'AI reply in 58s');
+  assert.equal(countdownLabel(31), 'AI reply in 31s');
+  assert.equal(countdownLabel(0), 'AI reply queued');
+  assert.equal(countdownLabel(0, { sending: true }), 'AI sending...');
+  assert.equal(queueStatusLabel({ secondsLeft: 58, pending: true }), 'AI reply in 58s');
+  assert.equal(queueStatusLabel({ secondsLeft: 0, pending: true }), 'AI reply queued');
+  assert.equal(queueStatusLabel({ secondsLeft: 0, pending: true, sending: true }), 'AI sending...');
   assert.equal(queueStatusLabel({ secondsLeft: 0, lastResult: 'failed (attempt 1): meta 470', pending: true }), 'AI reply failed - retrying');
   const desk = read('src/app/admin/_components/ConversationDesk.tsx');
   assert.ok(desk.includes('queueStatusLabel'));
+  assert.ok(desk.includes('sending: !!(active && isLocked(active, now))'), 'the desk shows "AI sending..." while the engine works');
 });

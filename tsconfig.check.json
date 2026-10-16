@@ -3,5 +3,14 @@
     "target": "ES2020", "module": "commonjs", "moduleResolution": "node", "outDir": ".check-build", "rootDir": ".",
     "esModuleInterop": true, "skipLibCheck": true, "strict": false, "resolveJsonModule": true, "noEmit": false, "incremental": false
   },
-  "include": ["src/lib/ai-rules/**/*.ts", "src/lib/intent.ts", "src/lib/ai-catalog.ts", "src/lib/site.ts"]
+  "include": [
+    "src/lib/ai-rules/**/*.ts",
+    "src/lib/intent.ts",
+    "src/lib/ai-catalog.ts",
+    "src/lib/site.ts",
+    "src/lib/customer-facts.ts",
+    "src/lib/ai-learning.ts",
+    "src/lib/staff-notes.ts",
+    "src/lib/customer-context.ts"
+  ]
 }

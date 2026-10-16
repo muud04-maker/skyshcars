@@ -44,6 +44,9 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const [conn, setConn] = useState<'LIVE' | 'RECONNECTING' | 'OFFLINE'>('LIVE');
   const fails = useRef(0);
   const [lightbox, setLightbox] = useState<string>('');
+  // Part 10/11: staff feedback on an AI reply (thumbs down needs a reason) or "use this as correction".
+  const [fb, setFb] = useState<{ id: number; action: 'down' | 'correction'; reason: string; correction: string } | null>(null);
+  const [fbMsg, setFbMsg] = useState('');
 
   const cursor = useRef('');
   const msgCursor = useRef(0);
@@ -190,6 +193,41 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     setMemoryMsg(r.ok ? 'Saved.' : 'Could not save');
   }
 
+  /*
+    Part 10/11: thumbs up records a good-reply example; thumbs down (or "use this as correction")
+    creates a PENDING AI lesson. Nothing here changes AI behaviour - that needs approval on
+    /admin/ai-learning, which is exactly the admin-approved learning rule.
+  */
+  function lastBefore(id: number, sender: 'customer' | 'ai'): string {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (Number(m.id) >= id) continue;
+      const s = String(m.sender);
+      if (sender === 'customer' && s === 'customer') return String(m.body || '');
+      if (sender === 'ai' && s === 'ai') return String(m.body || '');
+    }
+    return '';
+  }
+  async function sendFeedback(input: { action: 'up' | 'down' | 'correction'; messageId: number; reason?: string; correction?: string }) {
+    if (!activeId) return;
+    setFbMsg('');
+    const question = lastBefore(input.messageId, 'customer');
+    const aiReply = input.action === 'up' || input.action === 'down' ? String((msgs.find((m) => Number(m.id) === input.messageId) || {}).body || '') : lastBefore(input.messageId, 'ai');
+    const r = await fetch('/api/admin/ai-learning', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: input.action === 'up' ? 'thumbs_up' : input.action === 'down' ? 'thumbs_down' : 'correction',
+        conversation_id: activeId, message_id: input.messageId,
+        question, ai_reply: aiReply, reason: input.reason || null, correction: input.correction || null,
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setFbMsg(j.error || 'Could not save the feedback'); return; }
+    setFbMsg(j.message || 'Saved to AI Learning.');
+    if (input.action === 'up') setTimeout(() => setFbMsg(''), 4000);
+    else setFb(null);
+  }
+
   async function bulk(action: 'ai' | 'human' | 'both' | 'paused' | 'archive' | 'unarchive' | 'unread' | 'delete') {
     if (!selected.length) return;
     const label = action === 'delete' ? 'Permanently delete' : action === 'archive' ? 'Archive' : action === 'unarchive' ? 'Restore' : action === 'unread' ? 'Mark unread' : action === 'ai' ? 'Return to AI' : action === 'both' ? 'Set BOTH' : action === 'human' ? 'Take over' : 'Pause';
@@ -208,7 +246,8 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const pickList = useMemo(() => vehicles.slice(0, 400), [vehicles]);
   const pendingAt = state?.pending_ai_reply_at ? Date.parse(String(state.pending_ai_reply_at).replace(' ', 'T')) : 0;
   const replyLeft = secondsLeft(pendingAt, now);
-  const queueLabel = queueStatusLabel({ secondsLeft: replyLeft, lastResult: state?.pending_last_result, pending: replyLeft > 0 || !!state?.pending_ai_reply_at });
+  // "AI reply in 58s" / "AI reply queued" / "AI sending..." / "AI reply failed - retrying"
+  const queueLabel = queueStatusLabel({ secondsLeft: replyLeft, lastResult: state?.pending_last_result, pending: replyLeft > 0 || !!state?.pending_ai_reply_at, sending: !!(active && isLocked(active, now)) });
   // The composer text of the chat that is open right now (its own draft).
   const text = draftFor(drafts, activeId);
   function setText(v: string) { if (!activeId) return; setDrafts((d) => withDraft(d, activeId, v)); }
@@ -321,7 +360,28 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
               <div style={{ whiteSpace: 'pre-wrap' }}>{linkify(m.body) || (m.media_url ? `[${m.message_type}]` : '')}</div>
               {ds?.reason ? <div className="error" style={{ fontSize: 12 }}>failed: {ds.reason}</div> : null}
               <time>{new Date(m.created_at).toLocaleString()}</time>
+              {String(m.sender) === 'ai' ? <div className="fbRow">
+                <button type="button" className="miniBtn" title="This reply was good" onClick={() => sendFeedback({ action: 'up', messageId: Number(m.id) })}>&#128077; Good</button>
+                <button type="button" className="miniBtn" title="This reply needs improvement" onClick={() => { setFbMsg(''); setFb({ id: Number(m.id), action: 'down', reason: 'poor answer', correction: '' }); }}>&#128078; Needs improvement</button>
+              </div> : null}
+              {String(m.sender) === 'human' ? <div className="fbRow">
+                <button type="button" className="miniBtn" title="Teach the AI with this answer" onClick={() => { setFbMsg(''); setFb({ id: Number(m.id), action: 'correction', reason: 'staff wrote the correct answer', correction: String(m.body || '') }); }}>Use this as correction</button>
+              </div> : null}
             </div>
+            {fb && fb.id === Number(m.id) ? <div className="fbPanel">
+              <b style={{ fontSize: 12 }}>{fb.action === 'down' ? 'What was wrong with that reply?' : 'Use this staff answer as the correction'}</b>
+              <div className="chInline" style={{ marginTop: 6 }}>
+                <select value={fb.reason} onChange={(e) => setFb({ ...fb, reason: e.target.value })}>
+                  {['wrong vehicle', 'wrong facts', 'wrong language', 'poor answer', 'incomplete', 'unnecessary hold', 'bad recommendation', 'other'].map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <textarea rows={2} placeholder="Optional: the correct answer for the customer" value={fb.correction} onChange={(e) => setFb({ ...fb, correction: e.target.value })} />
+              <div className="chInline">
+                <button type="button" className="miniBtn" disabled={busy} onClick={() => sendFeedback({ action: fb.action === 'down' ? 'down' : 'correction', messageId: fb.id, reason: fb.reason, correction: fb.correction })}>Save lesson</button>
+                <button type="button" className="miniBtn" onClick={() => setFb(null)}>Cancel</button>
+                <span className="muted" style={{ fontSize: 12 }}>Waits for approval on AI Learning</span>
+              </div>
+            </div> : null}
           </div>;
         })}
         <div ref={bottom} />
@@ -329,6 +389,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
       {newBelow > 0 ? <button className="miniBtn" style={{ margin: '6px 16px' }} onClick={() => { bottom.current?.scrollIntoView({ block: 'end' }); setAtBottom(true); setNewBelow(0); }}>New messages ({newBelow})</button> : null}
 
       {(err || ok) && <div style={{ padding: '0 16px' }}>{err && <p className="error">{err}</p>}{ok && <p style={{ color: '#08733d', fontWeight: 800 }}>{ok}</p>}</div>}
+      {fbMsg ? <div style={{ padding: '0 16px' }}><p style={{ color: '#17509c', fontWeight: 700, fontSize: 13 }}>{fbMsg}</p></div> : null}
 
       <form className="replyBox" onSubmit={send}>
         <div className="replyCol">

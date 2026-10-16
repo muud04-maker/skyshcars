@@ -19,5 +19,16 @@ export default function LaunchReadiness(){
    <small className="muted">{c.detail}</small>{c.link&&<> <a href={c.link}>Open →</a></>}
   </div>)}</div>)}</div>
   <div className="card" style={{marginTop:18}}><h2>Launch order</h2><ol><li>Fix everything marked <b>Not working</b>.</li><li>Approve only vehicles you can genuinely sell, with exact stock-unit photos where possible.</li><li>Make sure the Group Reader bridge is online if supplier groups are your motorcycle source.</li><li>Use Social Auto-Post to test one real vehicle on Facebook.</li><li>After the test succeeds, enable automatic Facebook posting in Automation Center.</li><li>Send a WhatsApp message to the business number and confirm the AI reply.</li></ol></div>
+  {/* Phone shortcut: the "More" tab lands here, so the two new customer/AI pages are one tap away. */}
+  <div className="card" style={{marginTop:18}}><h2>More tools</h2>
+    <div className="chInline">
+      <a className="miniBtn" href="/admin/whatsapp">Inbox</a>
+      <a className="miniBtn" href="/admin/customer-history">Customer History</a>
+      <a className="miniBtn" href="/admin/ai-learning">AI Learning</a>
+      <a className="miniBtn" href="/admin/vehicles">Inventory</a>
+      <a className="miniBtn" href="/admin/quotes">Quotes</a>
+    </div>
+    <p className="muted" style={{marginTop:8}}>Customer History keeps every conversation (WhatsApp + Messenger) in one place; AI Learning reviews staff corrections before anything changes the AI.</p>
+  </div>
  </>
 }

@@ -109,8 +109,10 @@ test('27. an unknown question after 60s sends one hold and pauses (same engine p
 });
 
 test('28. the inbox shows a compact countdown and a cancel control', () => {
-  assert.equal(countdownLabel(4), 'AI replying in 4s');
-  assert.equal(countdownLabel(0), 'AI sending...');
+  // Part 1 of the continuation task: the normal queue is one minute, labelled as the owner asked.
+  assert.equal(countdownLabel(58), 'AI reply in 58s');
+  assert.equal(countdownLabel(0), 'AI reply queued');
+  assert.equal(countdownLabel(0, { sending: true }), 'AI sending...');
   assert.equal(secondsLeft(T0 + 42000, T0), 42);
   const desk = read('src/app/admin/_components/ConversationDesk.tsx');
   assert.ok(desk.includes('queueStatusLabel({ secondsLeft: replyLeft'), 'the live queue label is shown');
