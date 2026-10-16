@@ -7,6 +7,7 @@ import { decideReply, wordsFromStored, type BurstMsg } from './reply-policy';
 import { askedForGroup, askedForWebsite, detectLanguage, stripPromoLinks, withWelcome, type Lang, type WelcomeConfig } from './welcome';
 import { withBlock, welcomeBlock } from './welcome';
 import { stripInventedHistory } from './reply-guard';
+import { enforcePhotoHonesty, needsStaffPhotoRequest } from './photo-guard';
 import { holdingLine, isHolding } from './hold';
 import { applyStaffOverride } from './staff-override';
 
@@ -172,6 +173,23 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
         text = stripPromoLinks(composed.text, { site: wcfg.site, allowSite: askedForWebsite(words), allowGroup: askedForGroup(words) });
         // Never let the AI invent a car the customer "was looking at" (failure E).
         text = stripInventedHistory(text, composed.allowedNames || []);
+        /*
+          Phase 4: never promise photos that will not arrive. Production evidence showed 2 of 5
+          delivered photo promises with no photo at all, so this is enforced in code, not in the
+          prompt. When there are no exact photos, the customer is told honestly AND staff get a
+          tracked request so the real photos can be fetched from the yard.
+        */
+        const photoGuard = enforcePhotoHonesty(text, composed.photoPlan);
+        text = photoGuard.text;
+        if (photoGuard.changed !== 'none') {
+          await deps.event(conversationId, lastExt, 'photo_promise_guarded', 'ok', {
+            plan_status: composed.photoPlan?.status || null, action: photoGuard.changed, stock_no: composed.photoPlan?.stockNo || null,
+          }).catch(() => {});
+        }
+        if (needsStaffPhotoRequest(composed.photoPlan)) {
+          await deps.flagStaff(conversationId, `photo request: no exact photos for ${composed.photoPlan?.stockNo || composed.photoPlan?.title || 'that vehicle'}`).catch(() => {});
+          await deps.event(conversationId, lastExt, 'photo_request', 'needs_staff', { stock_no: composed.photoPlan?.stockNo || null }).catch(() => {});
+        }
         // A colleague already told the customer this car is sold / not available: never contradict them.
         const staffText = deps.lastStaffBody ? await deps.lastStaffBody(conversationId).catch(() => null) : null;
         text = applyStaffOverride(text, staffText);

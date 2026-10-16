@@ -54,6 +54,16 @@ export async function sendPlannedPhotos(to: string, conversationId: number, plan
   } else {
     const sorry = 'Sorry, the photos did not go through just now. Our team will send them to you shortly.';
     try { await sendWhatsApp(to, sorry); await outbound(conversationId, 'ai', sorry, AI_MODEL); } catch {}
+    /*
+      Phase 4 items 5-8: zero photos delivered must never look like a successful send, and the real
+      photos have to be fetched by a human - so create a tracked staff request (visible in the inbox
+      as "needs staff") instead of quietly failing.
+    */
+    await agentEvent(conversationId, null, 'photo_send_failed', 'needs_staff', { stock_no: plan.stockNo || null, attempted: plan.images.length }).catch(() => {});
+    try {
+      const { flagForStaff } = await import('./conversation-state');
+      await flagForStaff(conversationId, `photo send failed: 0 of ${plan.images.length} photos delivered for ${plan.stockNo || plan.title || 'that vehicle'} - send them manually`);
+    } catch { /* flagging must never break the reply */ }
   }
   return { sent };
 }

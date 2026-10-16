@@ -7,7 +7,7 @@ import {ensureLast50Vehicles} from './inventory-seed';
 import { exactPhotoSql, sellableVehicleSql, whatsappPhotosForVehicle } from './exact-photos';
 import { aiCarSql, aiCarById, catalogCounts, loadAiCars, loadDisabledCars } from './ai-catalog';
 import { flagForStaff, getState, saveSlots, setCurrentCar } from './conversation-state';
-import { matchVehicles } from './ai-rules/match';
+import { matchVehicles, isGenericOnly } from './ai-rules/match';
 import { refersToCurrentCar } from './ai-rules/vehicle-intent';
 import { carTitle } from './ai-rules/vehicle-answer';
 import { transcriptLines, CONTEXT_LIMIT, roleOf } from './ai-rules/context';
@@ -182,6 +182,16 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
     if (cur && refersToCurrentCar(text)) vehicles = [cur];
   }
   if (!vehicles.length && priorCustomer) vehicles = await findVehicles(priorCustomer);
+  /*
+    Phase 4 item 9: the customer asked for photos but named no vehicle. Rather than asking "which one?"
+    (or offering a unit we cannot show), pick the newest catalogue vehicle that HAS verified photos and
+    show that - a real, photo-backed option. Evidence: 151 photo requests in the dump, and the owner
+    sent photos by hand 330 times.
+  */
+  if (!vehicles.length && wantsPhotos(text) && isGenericOnly(text)) {
+    const photoBacked = await newestCarWithPhotos().catch(() => null);
+    if (photoBacked) vehicles = [photoBacked];
+  }
   // Never send photos of an arbitrary car when the request is ambiguous.
   const { stock } = extractTerms(text);
   if (!vehicles.length || (vehicles.length > 1 && !stock.length)) return null;
@@ -193,6 +203,19 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
     vehicleId: Number(v.id), stockNo: String(v.stock_no || ''), title, images, exact: images.length > 0,
     caption: `${title}${v.stock_no ? ` | ${v.stock_no}` : ''}${v.price_usd ? ` | $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`
   };
+}
+
+/** The newest AI-catalogue unit that really has approved photos of its own. */
+async function newestCarWithPhotos(): Promise<any | null> {
+  try {
+    const cars = await loadAiCars(60);
+    for (const c of cars) {
+      if (Number(c.exact_photo_count || 0) <= 0) continue;
+      const photos = await whatsappPhotosForVehicle(Number(c.id), 3);
+      if (photos.length) return { ...c, _photos: photos };
+    }
+  } catch { /* fall through: no photo-backed vehicle is a normal state */ }
+  return null;
 }
 
 /** What the system will do about a photo request; given to the AI so its text matches reality. */
