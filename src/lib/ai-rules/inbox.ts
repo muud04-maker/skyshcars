@@ -72,6 +72,28 @@ export function mergeMessages(prev: InboxMsg[] = [], incoming: InboxMsg[] = []):
   return [...map.values()].sort((a, b) => Number(a.id) - Number(b.id));
 }
 
+/*
+  Staff drafts are kept PER CONVERSATION. Polling must never touch a draft (it would erase what the
+  person is typing), and a draft typed for customer A must never be sent to customer B.
+*/
+export type DraftMap = Record<string, string>;
+
+export function draftKey(conversationId: number | string | null | undefined) {
+  const id = Number(conversationId);
+  return Number.isFinite(id) && id > 0 ? String(id) : '';
+}
+
+export function draftFor(drafts: DraftMap, conversationId: number | string | null | undefined) {
+  const key = draftKey(conversationId);
+  return (key && drafts && drafts[key]) || '';
+}
+
+export function withDraft(drafts: DraftMap, conversationId: number | string | null | undefined, text: string): DraftMap {
+  const key = draftKey(conversationId);
+  if (!key) return drafts || {};
+  return { ...(drafts || {}), [key]: String(text == null ? '' : text) };
+}
+
 export function maxId(rows: InboxMsg[] = []) {
   return rows.reduce((n, m) => Math.max(n, Number(m.id) || 0), 0);
 }

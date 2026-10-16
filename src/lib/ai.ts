@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { rows } from './db';
+import { one, rows } from './db';
 import { history } from './conversations';
 import { activeKnowledge } from './knowledge';
 import { memoryForConversation, refreshCustomerMemory } from './customer-memory';
@@ -9,8 +9,12 @@ import { aiCarSql, aiCarById, catalogCounts, loadAiCars, loadDisabledCars } from
 import { flagForStaff, getState, saveSlots, setCurrentCar } from './conversation-state';
 import { matchVehicles } from './ai-rules/match';
 import { refersToCurrentCar } from './ai-rules/vehicle-intent';
+import { carTitle } from './ai-rules/vehicle-answer';
 import { transcriptLines, CONTEXT_LIMIT, roleOf } from './ai-rules/context';
 import { extractSlots, missingSlots, type Slots } from './ai-rules/slots';
+import { extractFacts, factsForCustomer, saveFacts } from './customer-facts';
+import { approvedLessons, lessonsNote } from './ai-learning';
+import { buildContextPack } from './ai-rules/context-pack';
 
 /*
   Grounded sales assistant. Every fact the AI may state (vehicles, prices,
@@ -79,7 +83,9 @@ async function rememberCurrentCar(conversationId: number | undefined, vehicleId?
  */
 export async function allowedVehicleNames(text: string, conversationId?: number, extra: any[] = []) {
   const names: string[] = [];
-  const push = (v: any) => { const t = [v?.model_year, v?.brand, v?.model, v?.trim_name].filter(Boolean).join(' ').trim(); if (t) names.push(t); };
+  // carTitle() normalises the name, so a title typed twice ("Honda CBR1000 Honda CBR1000") never
+  // enters the reply guard as a second, different vehicle.
+  const push = (v: any) => { if (!v) return; const t = carTitle(v); if (t && t !== 'Vehicle') names.push(t); };
   (extra || []).forEach(push);
   try { const cur = await currentCarFor(conversationId); if (cur) push(cur); } catch {}
   try { (await findVehicles(text)).slice(0, 8).forEach(push); } catch {}
@@ -181,7 +187,7 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
   const v = vehicles[0];
   // JPEG/PNG only, supplier photos via our own proxy URL (see exact-photos.ts).
   const images = (await whatsappPhotosForVehicle(Number(v.id), 3)).map(p => p.url);
-  const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.replace(/\s+/g,' ').trim();
+  const title = carTitle(v);
   return {
     vehicleId: Number(v.id), stockNo: String(v.stock_no || ''), title, images, exact: images.length > 0,
     caption: `${title}${v.stock_no ? ` | ${v.stock_no}` : ''}${v.price_usd ? ` | $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`
@@ -206,6 +212,10 @@ export async function buildFacts(text: string, priorCustomerText = '', conversat
   if (vehicles.length === 1) { current = vehicles[0]; await rememberCurrentCar(conversationId, Number(vehicles[0]?.id)); }
   // Part 5: remember the customer's answers (destination, budget, body, steering, fuel, transmission).
   let slots: Slots = {};
+  // Part 2/3: which customer is this? (stable id, never guessed from the message)
+  const customerId = conversationId
+    ? Number((await safe(async () => (await one<any>('SELECT customer_id FROM conversations WHERE id=? LIMIT 1', [conversationId]))?.customer_id, 0), 0) || 0)
+    : 0;
   if (conversationId) {
     slots = await safe(async () => ((await getState(conversationId)).slots || {}) as Slots, {} as Slots);
     const hints = await safe(async () => ({
@@ -214,7 +224,18 @@ export async function buildFacts(text: string, priorCustomerText = '', conversat
     }), { countries: [] as string[], ports: [] as string[] });
     const next = extractSlots(`${text} ${priorCustomerText}`, hints, slots || {});
     if (JSON.stringify(next) !== JSON.stringify(slots)) { slots = next; await safe(() => saveSlots(Number(conversationId), next as any), undefined as any); }
+    /*
+      Part 3: persistent, traceable memory. Only the customer's OWN words create facts, and only the
+      fields we can prove from those words (brand, budget, category, destination...). A newer value
+      supersedes the old one and the change is logged for the admin.
+    */
+    if (customerId) {
+      const found = extractFacts(text, { countries: hints.countries, ports: hints.ports });
+      if (found.length) await safe(() => saveFacts(customerId, found, { source: 'customer_message' }), 0);
+    }
   }
+  // Stored preferences the customer already gave us (never ask for these again).
+  const storedFacts = customerId ? await safe(() => factsForCustomer(customerId), [] as any[]) : [];
   const shipping = await safe(() => findShipping(text + ' ' + priorCustomerText), null);
   const tracking = await safe(() => findTracking(text), null);
   const summary = vehicles.length ? null : await safe(() => inventorySummary(), []);
@@ -226,6 +247,7 @@ export async function buildFacts(text: string, priorCustomerText = '', conversat
     // Facts block stays small: the current car plus at most 8 cars we may sell, nothing else.
     matching_vehicles: withLinks(vehicles.slice(0, 8)),
     known_slots: Object.keys(slots || {}).length ? slots : undefined,
+    customer_preferences: storedFacts.length ? Object.fromEntries(storedFacts.map((f: any) => [f.fact_key, f.fact_value])) : undefined,
     missing_slots: missingSlots(slots || {}),
     requested_but_not_available: unavailable.length ? unavailable : undefined,
     available_inventory_by_brand: summary,
@@ -317,7 +339,7 @@ DATABASE FACTS:
 ${JSON.stringify(facts)}`;
 
 function compactVehicleLine(v:any, includeLink=false){
-  const title=[v.model_year,v.brand,v.model,v.trim_name].filter(Boolean).join(' ');
+  const title=carTitle(v);
   const price=v.price_usd!=null?`$${Number(v.price_usd).toLocaleString()}`:'Price on request';
   return `${title || 'Vehicle'} - ${price}${v.stock_no?` (${v.stock_no})`:''}${includeLink&&v.link?`\n${v.link}`:''}`;
 }
@@ -398,13 +420,30 @@ export async function salesReply(text: string, conversationId?: number, photoPla
   }
 
   if (!process.env.DEEPSEEK_API_KEY) return deterministicFallback(text,facts,past,photoPlan);
-  // Part 5: only the LAST 25 messages of THIS conversation, labelled [CUSTOMER]/[STAFF]/[AI].
-  const recent = past.slice(-CONTEXT_LIMIT);
+  /*
+    Part 13/14: context in a fixed order (latest turn -> referral -> current vehicle -> recent history
+    -> memory/preferences -> catalog facts -> knowledge -> shipping -> approved lessons) and SAFE
+    compaction: only the latest messages go to the model, the raw history stays in MySQL for the admin.
+  */
+  const lessons = await approvedLessons(5).catch(() => []);
+  const pack = buildContextPack({
+    latestTurn: text,
+    recentMessages: past,
+    recentLimit: CONTEXT_LIMIT,
+    preferences: (facts as any)?.customer_preferences || {},
+    facts: Object.entries((facts as any)?.customer_preferences || {}).map(([fact_key, fact_value]) => ({ fact_key, fact_value: String(fact_value) })),
+    knowledge: Array.isArray(knowledge) ? knowledge : [],
+    lessons,
+    catalogCount: Array.isArray(facts?.available_inventory_by_brand) ? facts.available_inventory_by_brand.length : null,
+    currentVehicle: facts?.current_vehicle || null,
+    summary: String(memory?.summary || ''),
+  });
+  const recent = pack.recent.length ? pack.recent : past.slice(-CONTEXT_LIMIT);
   const transcript = transcriptLines(recent, CONTEXT_LIMIT).join('\n');
   const messages = [
     { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + (opts.note ? `
 
-SYSTEM NOTE: ${opts.note}` : '') + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
+SYSTEM NOTE: ${opts.note}${pack.prefsLine ? ` Stored customer preferences (never ask for these again): ${pack.prefsLine}.` : ''}${lessonsNote(lessons)}${pack.dropped ? ` (${pack.dropped} older message(s) are stored in the database but not repeated here.)` : ''}` : '') + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
     ...recent.map(m => ({ role: roleOf(m), content: String(m.body || '') })),
     { role: 'user', content: text },
   ];

@@ -157,6 +157,25 @@ the AI, and the worker applies the same rule). Suite is 234 tests.
 - UI: the long countdown is replaced by `AI replying in 4s` -> `AI sending...`, plus
   `AI reply failed - retrying` (and the cancel/give-up reasons) in the header and the drawer queue line.
 - Tests: `23-ai-first` (12 checks) and updated queue/mode assertions -> suite is 257 tests.
+
+## Part 19 - Add Vehicle is ONE page again (shared with Edit)
+
+- The 5-step wizard (`AddVehicleClient.tsx`) is gone. `/admin/vehicles/new` now renders ONE reusable
+  `admin/vehicles/_components/VehicleForm.tsx` (mode="create") with every section on the same page:
+  Basic information (category, brand*, model*, year, trim, stock number with auto-generate, manufacturing
+  date), Vehicle details (mileage, engine, fuel, transmission, steering, colour, body type, drivetrain),
+  Pricing & location (selling price, location), Exact vehicle photos (multi-upload, thumbnails, set cover,
+  reorder, remove, attached to the created vehicle id), Sales & visibility (status = public website,
+  AI Catalog switch labelled as separate), description and an optional extra photo URL.
+- One `Save Vehicle` action (sticky action bar, single submit path, `busyRef` double-click guard, friendly
+  errors beside the fields, duplicate-stock box with `View existing vehicle` / `Use another stock number`,
+  no SQL text ever). Success shows `Vehicle saved successfully` + Stock and offers View / Edit /
+  `+ Add another vehicle` (which resets the form and photos) / Back to inventory.
+- Edit Vehicle uses the SAME component (mode="edit", `Save changes`), so Add and Edit no longer diverge.
+  Nothing else changed: check-stock, stock uniqueness/auto-generation, AI Catalog, status rules, exact-photo
+  logic, photo storage, motorcycle support, the API and the public catalogue are untouched. No DB changes.
+- Tests: `24-vehicle-form` (12 checks covering the 20 requested items) and the earlier vehicle assertions
+  were repointed from the deleted wizard to the shared form -> suite is 269 tests.
 - Hold + welcome language: the hold builder gained Chinese and the welcome block gained a Chinese variant, so a Somali/Arabic/Chinese customer gets the hold line, the website line and the group invitation in their own language (URLs untouched, welcome still exactly once).
 - Inventory questions: added `ai-rules/inventory-intent.ts` (exists / list / brand / category / budget / filter) and wired it into the reply path BEFORE the model call. "Do you have cars?", "Gaari ma haysa?", "What cars do you have?", "Any Toyota?", "Do you have motorcycles?", "SUV?", "cars under $7000" are now answered from the AI Catalog rows (counts and cars come from the catalog, max 3 listed, nothing invented) instead of the "Let me confirm that for you." hold. A brand with no stock gets an honest no-match answer; a genuinely empty AI catalog gets the honest message + needs_staff; shipping/tracking/document questions still use the hold path. Short follow-ups like a bare "Toyota" are brand filters.
 - Tests: `17-language` (18 checks) and `18-inventory` (16 checks). Suite is 191 tests.

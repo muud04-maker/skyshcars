@@ -34,9 +34,44 @@ export function vehicleIntent(text: string): VehicleIntent {
   return null;
 }
 
+const wordsOf = (v: any) => String(v == null ? '' : v).toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(Boolean);
+
+/** "Honda CBR1000 Honda CBR1000" -> "Honda CBR1000" (the same title typed twice in one field). */
+export function dedupeText(v: any) {
+  const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  const words = s.split(' ');
+  if (words.length % 2 === 0 && words.length > 1) {
+    const half = words.length / 2;
+    if (words.slice(0, half).join(' ').toLowerCase() === words.slice(half).join(' ').toLowerCase()) return words.slice(0, half).join(' ');
+  }
+  return s;
+}
+
+/**
+ * The vehicle name as it must appear in a reply: normalized once, never duplicated.
+ *   "2011 Honda CBR1000 Honda CBR1000" -> "2011 Honda CBR1000"
+ *   brand "Honda" + model "Honda XR-V"  -> "2016 Honda XR-V"
+ * Anything already stated is dropped instead of repeated (raw title equality is never required).
+ */
 export function carTitle(c?: AnyCar | null) {
   if (!c) return 'Vehicle';
-  return [c.model_year, c.brand, c.model, c.trim_name].filter(Boolean).join(' ') || String(c.stock_no || 'Vehicle');
+  const used = new Set<string>();
+  const parts: string[] = [];
+  for (const raw of [c.model_year, c.brand, c.model, c.trim_name]) {
+    const text = dedupeText(raw);
+    if (!text) continue;
+    const kept: string[] = [];
+    for (const token of text.split(' ')) {
+      const sub = wordsOf(token);
+      if (!sub.length) continue;
+      if (sub.some((w) => !used.has(w))) kept.push(token);
+      sub.forEach((w) => used.add(w));
+    }
+    const clean = kept.join(' ').trim();
+    if (clean) parts.push(clean);
+  }
+  return parts.join(' ') || String(c.stock_no || 'Vehicle');
 }
 const money = (v: any) => (Number(v) > 0 ? '$' + Number(v).toLocaleString('en-US') : '');
 const km = (v: any) => (Number(v) > 0 ? `${Number(v).toLocaleString('en-US')} km` : '');
@@ -69,11 +104,22 @@ export function vehicleDetails(car: AnyCar, lang = 'en', opts: { maxLines?: numb
   return `${head}\n${rows.slice(0, max).join('\n')}\n\n${l.canHelp}:\n${canHelp}`;
 }
 
-/** Up to `limit` real alternatives, ranked: same model -> same brand -> same category -> close price. */
+const sameCategory = (a: AnyCar, b?: AnyCar | null) => {
+  const x = String(a?.category || '').toLowerCase();
+  const y = String(b?.category || '').toLowerCase();
+  return !!x && !!y && x === y;
+};
+
+/**
+ * Up to `limit` real alternatives, ranked: same model -> same brand -> close price.
+ * The category decided first: when the conversation is about a motorcycle, only motorcycles may be
+ * suggested (never a random car such as a BYD Qin EV just because it is cheap), and vice versa.
+ */
 export function alternatives(cars: AnyCar[], like?: AnyCar | null, opts: { limit?: number; maxPrice?: number | null } = {}) {
   const limit = Math.max(1, Math.min(3, Number(opts.limit || 3)));
   const base = Number(like?.price_usd || 0);
   const sameId = Number(like?.id || 0);
+  const likeCategory = String(like?.category || '').toLowerCase();
   const score = (c: AnyCar) => {
     let s = 0;
     if (like?.model && String(c.model || '').toLowerCase() === String(like.model).toLowerCase()) s += 8;
@@ -84,6 +130,8 @@ export function alternatives(cars: AnyCar[], like?: AnyCar | null, opts: { limit
   };
   return (cars || [])
     .filter((c) => Number(c.id || 0) !== sameId)
+    // Hard category filter: a motorcycle never gets car alternatives, a car never gets motorcycles.
+    .filter((c) => (likeCategory === 'car' || likeCategory === 'motorcycle' ? !String(c.category || '') || sameCategory(c, like) : true))
     .filter((c) => (opts.maxPrice == null ? true : Number(c.price_usd) > 0 && Number(c.price_usd) <= Number(opts.maxPrice)))
     .map((c) => ({ c, s: score(c) }))
     .sort((a, b) => b.s - a.s || Number(b.c.model_year || 0) - Number(a.c.model_year || 0))

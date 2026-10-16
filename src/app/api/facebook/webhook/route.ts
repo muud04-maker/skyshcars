@@ -34,11 +34,11 @@ export async function POST(req: Request) {
         if (await alreadyProcessed(mid)) continue;
         const c: any = await inbound('facebook', id, text, mid);
         if (m.referral) await storeReferral({ id: Number(c.id), channel: 'facebook' }, String(mid || ''), m.referral).catch(() => {});
-        // Same AI-first short debounce as WhatsApp (durable in MySQL, cron stays as fallback).
+        // Same one-minute queue as WhatsApp (durable in MySQL; the cron stays the reliable processor).
         await scheduleAiReply(Number(c.id), REPLY_DEBOUNCE_SECONDS, mid || null).catch(() => {});
         if (typeof after === 'function') {
           after(async () => {
-            await new Promise((r) => setTimeout(r, REPLY_DEBOUNCE_SECONDS * 1000 + 300));
+            await new Promise((r) => setTimeout(r, REPLY_DEBOUNCE_SECONDS * 1000 + 2000));
             await processDueAiReplies(5).catch(() => {});
           });
         }
