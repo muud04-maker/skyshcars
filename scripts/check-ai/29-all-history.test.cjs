@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const load = require('./lib.cjs');
-const { historyBlock, historyHeader, EXPORT_BATCH, EXPORT_MAX, ROLE_LABEL } = load('all-history.js');
+const { historyBlock, historyHeader, EXPORT_BATCH, EXPORT_MAX, ROLE_LABEL, buildHistorySources, HISTORY_TABLES } = load('all-history.js');
 
 const root = path.join(__dirname, '..', '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -23,8 +23,9 @@ test('4/5/6/7. the stream is a UNION of every source, keyed on the real customer
   assert.ok(src.includes('LEFT JOIN customers cu ON cu.id=c.customer_id'), 'messages carry the customer identity');
   assert.ok(src.includes('cu.phone') && src.includes('cu.facebook_psid'), 'phone and PSID are shown');
   assert.ok(src.includes('c.channel'), 'the channel travels with every row');
-  assert.ok(src.includes("'message' kind"), 'customer/AI/human messages are one kind with a role');
-  assert.ok(src.includes('role') && src.includes("WHEN 'customer' THEN 'customer' WHEN 'human' THEN 'human' WHEN 'ai' THEN 'ai'"), 'AI, human and customer roles are preserved');
+  assert.ok(src.includes("'message' kind"), 'customer/AI/human messages are one kind with a sender role');
+  assert.ok(src.includes('sender_role') && src.includes("WHEN 'customer' THEN 'customer' WHEN 'human' THEN 'human' WHEN 'ai' THEN 'ai'"), 'AI, human and customer roles are preserved');
+  assert.ok(!/[^`'\w.]role\s*[,=]/.test(src.replace(/sender_role/g, 'X')), 'the MySQL reserved word role is never used as a column name');
   // Isolation: a customer filter is a hard WHERE on customer_id, never a text match.
   assert.ok(src.includes("if (f.customerId) { w.push('customer_id = ?')"), 'customer filter is exact');
   assert.ok(!/JOIN customers cu ON[^\n]*OR/.test(src), 'no fuzzy customer join');
@@ -35,7 +36,7 @@ test('1. filters cover date, channel, customer, person, vehicle, stock, category
   for (const w of ["ts >= ?", "ts <= ?", 'channel = ?', 'customer_id = ?', "category = ?", '(stock_no LIKE ? OR body LIKE ?)']) {
     assert.ok(src.includes(w), `filter: ${w}`);
   }
-  assert.ok(src.includes("f.role === 'staff' ? \"role IN ('human','staff')\" : 'role = ?'"), 'staff/human filter');
+  assert.ok(src.includes("f.role === 'staff' ? \"sender_role IN ('human','staff')\" : 'sender_role = ?'"), 'staff/human filter');
   assert.ok(src.includes('facebookOnly') && src.includes("(channel = 'facebook' OR kind = 'referral')"), 'Facebook-lead-only filter');
   const client = read(CLIENT);
   for (const f of ['From', 'To', 'Channel', 'Who', 'Event type', 'Vehicle type', 'Vehicle / stock', 'Customer #', 'Search', 'Facebook leads', 'Order']) {
@@ -63,23 +64,29 @@ test('2/4/8. the TXT export is one single streamed file over ALL matching histor
 
 test('the exported block uses the required readable format with a blank line between events', () => {
   const block = historyBlock({
-    ts: '2026-10-17 09:05:03', source_id: 'msg:9', kind: 'message', role: 'customer', channel: 'whatsapp',
+    ts: '2026-10-17 09:05:03', source_id: 'msg:9', kind: 'message', sender_role: 'customer', channel: 'whatsapp',
     customer_id: 12, customer_name: 'Ali', phone: '255700000001', psid: null, conversation_id: 3,
     body: 'Do you have a CBR1000?', meta: 'text|delivered', vehicle_id: 5, stock_no: 'SC-859',
     category: 'motorcycle', brand: 'Honda', model: 'CBR1000', model_year: 2011,
   });
-  assert.ok(block.startsWith('[2026-10-17 09:05:03] [WHATSAPP] [Ali] [CUSTOMER]'), block.split('\n')[0]);
+  // Privacy: the identifier is masked and the customer id is appended, so the line is traceable but not
+  // a raw phone number. Format: [time] [CHANNEL] [name/masked-id #customer] [ROLE].
+  assert.ok(block.startsWith('[2026-10-17 09:05:03] [WHATSAPP] [Ali …0001 #12] [CUSTOMER]'), block.split('\n')[0]);
+  assert.ok(!block.includes('255700000001'), 'the raw phone number never appears');
   assert.ok(block.includes('Vehicle: 2011 Honda CBR1000 (motorcycle)'));
   assert.ok(block.includes('Stock: SC-859'));
+  assert.ok(block.includes('Ref:') && block.includes('conversation #3') && block.includes('customer #12'), 'the export line is traceable to the exact record');
   assert.ok(block.includes('Message: Do you have a CBR1000?'));
   assert.ok(block.endsWith('\n'), 'one blank line between events');
   const event = historyBlock({
-    ts: '2026-10-17 09:00:00', source_id: 'evt:1', kind: 'system', role: 'system', channel: 'facebook',
+    ts: '2026-10-17 09:00:00', source_id: 'evt:1', kind: 'system', sender_role: 'system', channel: 'facebook',
     customer_id: 12, customer_name: null, phone: null, psid: '1234567890123456', conversation_id: 3,
     body: 'referral_matched (ok)', meta: 'referral_matched', vehicle_id: null, stock_no: null,
     category: null, brand: null, model: null, model_year: null,
   });
-  assert.ok(event.startsWith('[2026-10-17 09:00:00] [FACEBOOK] [1234567890123456] [SYSTEM]'));
+  // A Messenger PSID is masked too (last four digits) and the customer id is kept for cross-checking.
+  assert.ok(event.startsWith('[2026-10-17 09:00:00] [FACEBOOK] […3456 #12] [SYSTEM]'), event.split('\n')[0]);
+  assert.ok(!event.includes('1234567890123456'), 'the raw PSID never appears in the export');
   assert.ok(event.includes('Type: SYSTEM'));
   const head = historyHeader({ from: '2026-10-01', channel: 'whatsapp', facebookOnly: true }, 42);
   assert.ok(head.includes('SKY CARS - ALL HISTORY EXPORT'));

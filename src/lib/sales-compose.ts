@@ -14,6 +14,8 @@ import { getState, saveSlots } from './conversation-state';
 import { isHardcodedLang, languageName, type LangCode } from './ai-rules/language';
 import { detectCustomerLanguage, saveDetectedLanguage } from './language-detect';
 import { filterInventory, inventoryAnswer, inventoryIntent } from './ai-rules/inventory-intent';
+import { buyingSignal, needsHumanNow, signalNextStep, signalStaffReason } from './ai-rules/buying-signal';
+import { flagForStaff } from './conversation-state';
 
 /** Recent customer wording (for language inheritance when the latest message is short/ambiguous). */
 async function recentCustomerText(conversationId?: number) {
@@ -69,6 +71,18 @@ export function referralNote(i: ComposeIn) {
 export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise<ComposeOut> {
   const hasMedia = (i.burst || []).some(b => ['image', 'audio', 'video', 'document'].includes(String(b.message_type)));
   const text = i.words || 'The customer sent a photo/voice note/document without words. Reply briefly and ask what they are looking for.';
+  /*
+    Brief item 6: detect buying signals and hand the moment to a human with ONE relevant next step.
+    This only uses existing, verified stores (a staff flag + an event) - it never creates an order,
+    a payment record or a fake "reserved" claim, and it never invents terms.
+  */
+  const signal = buyingSignal(i.words);
+  const signalNote = signal ? signalNextStep(signal) : '';
+  if (signal && i.conversationId) {
+    if (needsHumanNow(signal)) {
+      await flagForStaff(Number(i.conversationId), signalStaffReason(signal)).catch(() => {});
+    }
+  }
   // Customer language: latest message -> explicit admin preference -> recent conversation -> English.
   const recent = await recentCustomerText(i.conversationId);
   const preferred = await preferredLanguageOf(i.conversationId);
@@ -127,13 +141,13 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
         }
         // Any other language: let the model phrase the SAME facts in the customer's language.
         const show = (matched.length ? matched : cars).slice(0, 3).map((v: any) => `${[v.model_year, v.brand, v.model].filter(Boolean).join(' ')}${v.price_usd ? ` - $${Number(v.price_usd).toLocaleString()}` : ''}`);
-        const factNote = ` The customer asked about our inventory. Use ONLY these facts: ${matched.length || cars.length} vehicles match, ${cars.length} vehicles are enabled in total. Options: ${show.join('; ') || 'none'}. Answer in ${languageName(lang)} in 1-2 short sentences and do not invent vehicles, prices or counts.${matched.length ? '' : ' If nothing matches, say so honestly and offer another brand.'}`;
+        const factNote = ` The customer asked about our inventory. Use ONLY these facts: ${matched.length || cars.length} vehicles match, ${cars.length} vehicles are enabled in total. Options: ${show.join('; ') || 'none'}. Answer in ${languageName(lang)} in 1-2 short sentences and do not invent vehicles, prices or counts.${matched.length ? '' : ' If nothing matches, say so honestly and offer another brand.'}${signalNote ? ` ${signalNote}` : ''}`;
         const phrased = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + factNote + ` Reply in ${languageName(lang)}.` });
         return { text: String(phrased || ''), lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: (!cars.length) ? 'No AI inventory enabled' : null };
       }
     } catch { /* any lookup problem falls through to the normal (or hold) path */ }
   }
-  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + vehicleFactNote + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
+  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(i) + mediaNote + vehicleFactNote + (signalNote ? ` ${signalNote}` : '') + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
   // Part 9: the cars this reply is allowed to remember (used by the invented-history guard).
   const allowedNames = await allowedVehicleNames(text, i.conversationId, i.referralVehicle ? [i.referralVehicle] : []).catch(() => []);
   // No verified answer for a real question/request: hold, flag for the owner, and wait instead of guessing.

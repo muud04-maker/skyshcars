@@ -9,15 +9,25 @@ import type { InboxRow } from './ai-rules/inbox';
 
 export const INBOX_LIMIT = 300;
 
+/*
+  A reaction or an edit is not a message a customer is waiting on. The October dump had 14 of them
+  ("[Unsupported message: reaction]" x5, "... edit]" x9), and several of the apparent "18 customers
+  still waiting" were exactly these. They are excluded from the waiting/unread maths so the NEEDS REPLY
+  badge and the triage list stay honest - the rows themselves are still stored and shown in the thread.
+*/
+export function actionableInbound(alias: string) {
+  return `COALESCE(${alias}.body,'') NOT LIKE '[Unsupported message: reaction]%' AND COALESCE(${alias}.body,'') NOT LIKE '[Unsupported message: edit]%'`;
+}
+
 const LIST_SELECT = `
   co.id, co.channel, co.external_user_id, co.mode, co.last_message_at, co.archived_at,
   c.full_name, c.phone,
   (SELECT body FROM messages m WHERE m.conversation_id=co.id ORDER BY m.id DESC LIMIT 1) preview,
-  CASE WHEN (SELECT COALESCE(MAX(m1.id),0) FROM messages m1 WHERE m1.conversation_id=co.id AND m1.sender='customer' AND m1.direction='inbound')
+  CASE WHEN (SELECT COALESCE(MAX(m1.id),0) FROM messages m1 WHERE m1.conversation_id=co.id AND m1.sender='customer' AND m1.direction='inbound' AND ${actionableInbound('m1')})
          > (SELECT COALESCE(MAX(m2.id),0) FROM messages m2 WHERE m2.conversation_id=co.id AND m2.sender IN ('ai','human') AND m2.direction='outbound')
        THEN 1 ELSE 0 END needs_reply,
-  (SELECT COALESCE(MAX(m3.id),0) FROM messages m3 WHERE m3.conversation_id=co.id AND m3.sender='customer' AND m3.direction='inbound') last_inbound_id,
-  (SELECT TIMESTAMPDIFF(MINUTE,(SELECT MAX(m4.created_at) FROM messages m4 WHERE m4.conversation_id=co.id AND m4.sender='customer' AND m4.direction='inbound'),NOW())) waiting_minutes,
+  (SELECT COALESCE(MAX(m3.id),0) FROM messages m3 WHERE m3.conversation_id=co.id AND m3.sender='customer' AND m3.direction='inbound' AND ${actionableInbound('m3')}) last_inbound_id,
+  (SELECT TIMESTAMPDIFF(MINUTE,(SELECT MAX(m4.created_at) FROM messages m4 WHERE m4.conversation_id=co.id AND m4.sender='customer' AND m4.direction='inbound' AND ${actionableInbound('m4')}),NOW())) waiting_minutes,
   s.needs_staff, s.needs_staff_reason, s.ai_paused_until, s.lock_until,
   s.pending_ai_reply_at,
   s.pending_attempts, s.pending_last_result, s.pending_last_attempt_at,
@@ -39,11 +49,11 @@ export async function listConversations(limit = INBOX_LIMIT, opts: { archived?: 
   } catch {
     const list = await rows<any>(`SELECT co.id, co.channel, co.external_user_id, co.mode, co.last_message_at, c.full_name, c.phone,
       (SELECT body FROM messages m WHERE m.conversation_id=co.id ORDER BY m.id DESC LIMIT 1) preview,
-      CASE WHEN (SELECT COALESCE(MAX(m1.id),0) FROM messages m1 WHERE m1.conversation_id=co.id AND m1.sender='customer' AND m1.direction='inbound')
+      CASE WHEN (SELECT COALESCE(MAX(m1.id),0) FROM messages m1 WHERE m1.conversation_id=co.id AND m1.sender='customer' AND m1.direction='inbound' AND ${actionableInbound('m1')})
              > (SELECT COALESCE(MAX(m2.id),0) FROM messages m2 WHERE m2.conversation_id=co.id AND m2.sender IN ('ai','human') AND m2.direction='outbound')
            THEN 1 ELSE 0 END needs_reply,
-      (SELECT COALESCE(MAX(m3.id),0) FROM messages m3 WHERE m3.conversation_id=co.id AND m3.sender='customer' AND m3.direction='inbound') last_inbound_id,
-      (SELECT TIMESTAMPDIFF(MINUTE,(SELECT MAX(m4.created_at) FROM messages m4 WHERE m4.conversation_id=co.id AND m4.sender='customer' AND m4.direction='inbound'),NOW())) waiting_minutes
+      (SELECT COALESCE(MAX(m3.id),0) FROM messages m3 WHERE m3.conversation_id=co.id AND m3.sender='customer' AND m3.direction='inbound' AND ${actionableInbound('m3')}) last_inbound_id,
+      (SELECT TIMESTAMPDIFF(MINUTE,(SELECT MAX(m4.created_at) FROM messages m4 WHERE m4.conversation_id=co.id AND m4.sender='customer' AND m4.direction='inbound' AND ${actionableInbound('m4')}),NOW())) waiting_minutes
       FROM conversations co LEFT JOIN customers c ON c.id=co.customer_id
       WHERE ${arch}
       ORDER BY co.last_message_at DESC, co.id DESC LIMIT ${cap}`);

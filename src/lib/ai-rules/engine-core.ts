@@ -7,6 +7,7 @@ import { decideReply, wordsFromStored, type BurstMsg } from './reply-policy';
 import { askedForGroup, askedForWebsite, detectLanguage, stripPromoLinks, withWelcome, type Lang, type WelcomeConfig } from './welcome';
 import { withBlock, welcomeBlock } from './welcome';
 import { stripInventedHistory } from './reply-guard';
+import { enforcePhotoHonesty, needsStaffPhotoRequest } from './photo-guard';
 import { holdingLine, isHolding } from './hold';
 import { applyStaffOverride } from './staff-override';
 
@@ -172,6 +173,23 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
         text = stripPromoLinks(composed.text, { site: wcfg.site, allowSite: askedForWebsite(words), allowGroup: askedForGroup(words) });
         // Never let the AI invent a car the customer "was looking at" (failure E).
         text = stripInventedHistory(text, composed.allowedNames || []);
+        /*
+          Phase 4: never promise photos that will not arrive. Production evidence showed 2 of 5
+          delivered photo promises with no photo at all, so this is enforced in code, not in the
+          prompt. When there are no exact photos, the customer is told honestly AND staff get a
+          tracked request so the real photos can be fetched from the yard.
+        */
+        const photoGuard = enforcePhotoHonesty(text, composed.photoPlan);
+        text = photoGuard.text;
+        if (photoGuard.changed !== 'none') {
+          await deps.event(conversationId, lastExt, 'photo_promise_guarded', 'ok', {
+            plan_status: composed.photoPlan?.status || null, action: photoGuard.changed, stock_no: composed.photoPlan?.stockNo || null,
+          }).catch(() => {});
+        }
+        if (needsStaffPhotoRequest(composed.photoPlan)) {
+          await deps.flagStaff(conversationId, `photo request: no exact photos for ${composed.photoPlan?.stockNo || composed.photoPlan?.title || 'that vehicle'}`).catch(() => {});
+          await deps.event(conversationId, lastExt, 'photo_request', 'needs_staff', { stock_no: composed.photoPlan?.stockNo || null }).catch(() => {});
+        }
         // A colleague already told the customer this car is sold / not available: never contradict them.
         const staffText = deps.lastStaffBody ? await deps.lastStaffBody(conversationId).catch(() => null) : null;
         text = applyStaffOverride(text, staffText);
@@ -186,6 +204,44 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
         text = withBlock(text, block);
       }
       if (!text.trim()) { await deps.markAnswered(conversationId, lastId); result = { status: 'skipped', reason: 'empty_reply' }; break; }
+
+      /*
+        FINAL pre-send gate (race fix, production evidence conversations #35 and #51).
+
+        Composing a reply can take seconds (the model call), and a colleague can answer in that window.
+        The mode/pause checks above deliberately stay cheap, but they used the TURN SNAPSHOT taken
+        BEFORE composing - so a staff reply that landed during composing was invisible and the AI
+        spoke over the human. Here we re-read the turn state at the last possible moment and re-apply
+        the exact same rules, so an in-flight send can no longer overtake the staff:
+          - a colleague's reply after the customer's turn  -> the AI stays silent for this turn,
+          - the customer wrote again while we were composing -> skip; the next round answers everything.
+        The send itself is still guarded by the lock + answered marker, so this cannot duplicate.
+      */
+      if (!opts.force && deps.turnState) {
+        const freshTurn = await deps.turnState(conversationId).catch(() => null);
+        if (freshTurn) {
+          const customerSpokeAfterStaff = !!freshTurn.lastInboundAtMs
+            && (!freshTurn.lastStaffAtMs || freshTurn.lastInboundAtMs > freshTurn.lastStaffAtMs);
+          if (freshTurn.lastOutboundId > freshTurn.lastInboundId && !customerSpokeAfterStaff) {
+            await deps.markAnswered(conversationId, freshTurn.lastInboundId).catch(() => {});
+            await deps.event(conversationId, lastExt, 'reply', 'ignored', { reason: 'staff_replied_during_compose' });
+            result = { status: 'skipped', reason: 'staff_replied_during_compose' };
+            break;
+          }
+          if (Number(freshTurn.lastInboundId) > lastId) {
+            // A newer customer message arrived while composing: answer it in the next round instead of
+            // sending a reply that is already out of date.
+            await deps.event(conversationId, lastExt, 'reply', 'ignored', { reason: 'newer_customer_message_during_compose' });
+            result = { status: 'skipped', reason: 'newer_customer_message_during_compose' };
+            break;
+          }
+        }
+        const freshConv = await deps.loadConversation(conversationId).catch(() => null);
+        if (freshConv && !['ai', 'both'].includes(String(freshConv.mode || 'ai'))) {
+          result = { status: 'skipped', reason: 'staff_took_over_during_compose' };
+          break;
+        }
+      }
 
       await deps.markAnswered(conversationId, lastId); // before sending: a crash or timeout can never cause a second send
       try {
