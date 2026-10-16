@@ -11,6 +11,10 @@
     "src/lib/customer-facts.ts",
     "src/lib/ai-learning.ts",
     "src/lib/staff-notes.ts",
-    "src/lib/customer-context.ts"
+    "src/lib/customer-context.ts",
+    "src/lib/all-history.ts",
+    "src/lib/sales-patterns.ts",
+    "src/lib/shadow-learning.ts",
+    "src/lib/vehicle-events.ts"
   ]
 }

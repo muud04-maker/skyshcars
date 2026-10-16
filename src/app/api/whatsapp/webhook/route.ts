@@ -13,6 +13,7 @@ import { staffPauseMinutes } from '../../../../lib/staff';
 import { isStaffEcho, looksLikeBusinessEcho } from '../../../../lib/ai-rules/staff';
 import { isPlaceholderBody, mapMessageType, parseStaffEcho } from '../../../../lib/ai-rules/staff-echo';
 import { isGroupRecipient } from '../../../../lib/intent';
+import { recordHumanShadowLearning } from '../../../../lib/shadow-learning';
 
 export const dynamic = 'force-dynamic';
 
@@ -150,6 +151,10 @@ async function handleEcho(m: any) {
   await agentEvent(Number(c.id), id, 'staff_echo', 'ok', {
     type: parsed.type, has_text: parsed.hasText, matched_outbound: !!existing?.id, action, minutes, chars: parsed.body.length,
   });
+  // GOAL 4: a staff reply typed in the WhatsApp app is compared with the AI the same way.
+  if (parsed.hasText && action === 'inserted') {
+    await recordHumanShadowLearning({ conversationId: Number(c.id), humanReply: parsed.body, by: 'staff_whatsapp' }).catch(() => {});
+  }
   return action === 'inserted' ? 1 : 0;
 }
 

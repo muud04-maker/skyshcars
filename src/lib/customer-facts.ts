@@ -23,6 +23,9 @@ export const FACT_KEYS = [
   'steering', 'color', 'model_year_min', 'model_year_max', 'budget_min', 'budget_max',
   'destination_country', 'destination_port', 'shipping_needed', 'purchase_intent', 'language',
   'contact_preference',
+  // Written by staff, not by the customer: the team's latest guidance for this customer. It is
+  // customer-scoped context for the same chat/person only - never a global rule.
+  'last_human_guidance',
 ] as const;
 
 let ready: Promise<void> | null = null;
