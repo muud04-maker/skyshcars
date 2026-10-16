@@ -11,12 +11,14 @@ export const CONTEXT_ORDER = [
   'latest_turn',
   'referral',
   'current_vehicle',
+  'human_replies_here',
   'recent_history',
   'memory_preferences',
   'catalog_facts',
   'business_knowledge',
   'shipping_quote_facts',
   'approved_lessons',
+  'same_day_patterns',
 ] as const;
 
 export type ContextSection = (typeof CONTEXT_ORDER)[number];
@@ -71,6 +73,10 @@ export type PackInput = {
   knowledge?: { title?: string; content?: string }[];
   shipping?: any;
   lessons?: { lesson?: string | null; event_type?: string }[];
+  /** Human (staff) replies from THIS conversation - the strongest in-chat guidance. */
+  humanReplies?: { body?: any; created_at?: any }[];
+  /** Same-day sales patterns: LOW-PRIORITY hints only (never override exact facts). */
+  sameDayPatterns?: { type?: string; value?: string; count?: number }[];
   recentLimit?: number;
 };
 
@@ -81,6 +87,8 @@ export type PackOutput = {
   dropped: number;
   prefsLine: string;
   size: { recent: number; facts: number; knowledge: number; lessons: number };
+  humanReplies: PackMessage[];
+  sameDayPatterns: { value: string; count: number }[];
 };
 
 /**
@@ -94,17 +102,26 @@ export function buildContextPack(input: PackInput): PackOutput {
   const lessons = (input.lessons || []).filter((l) => String(l?.lesson || '').trim());
   const prefs = { ...(input.preferences || {}) };
   for (const f of facts) if (prefs[f.fact_key] == null) prefs[f.fact_key] = f.fact_value;
+  // Step 4: the people on our side answered inside this chat - that beats any general hint.
+  const humanReplies = (input.humanReplies || []).filter((h) => String(h?.body || '').trim()).slice(-3);
+  // Step 11: weak hints, capped and clearly labelled so they can never outrank the facts above.
+  const sameDayPatterns = (input.sameDayPatterns || [])
+    .filter((p) => String(p?.value || '').trim())
+    .slice(0, 5)
+    .map((p) => ({ value: String(p.value).slice(0, 120), count: Number(p.count || 0) }));
 
   const has: Record<ContextSection, boolean> = {
     latest_turn: !!String(input.latestTurn || '').trim(),
     referral: !!input.referral,
     current_vehicle: !!input.currentVehicle,
+    human_replies_here: humanReplies.length > 0,
     recent_history: kept.length > 0,
     memory_preferences: !!String(input.summary || '').trim() || facts.length > 0 || Object.keys(prefs).length > 0,
     catalog_facts: Number(input.catalogCount || 0) > 0,
     business_knowledge: knowledge.length > 0,
     shipping_quote_facts: !!input.shipping,
     approved_lessons: lessons.length > 0,
+    same_day_patterns: sameDayPatterns.length > 0,
   };
 
   return {
@@ -114,5 +131,21 @@ export function buildContextPack(input: PackInput): PackOutput {
     dropped,
     prefsLine: preferencesLine(prefs),
     size: { recent: kept.length, facts: facts.length, knowledge: knowledge.length, lessons: lessons.length },
+    humanReplies,
+    sameDayPatterns,
   };
+}
+
+/** The in-chat staff answers, as a short note for the prompt (step 4). */
+export function humanRepliesNote(humanReplies: PackMessage[] = []) {
+  const lines = (humanReplies || []).map((h) => String(h?.body || '').replace(/\s+/g, ' ').trim().slice(0, 220)).filter(Boolean);
+  if (!lines.length) return '';
+  return ` OUR TEAM ALREADY TOLD THIS CUSTOMER (in this same chat - follow it, do not contradict it): ${lines.join(' || ')}.`;
+}
+
+/** Same-day patterns as LOW-PRIORITY hints (step 11). Never a rule, never an override. */
+export function sameDayPatternsNote(patterns: { value?: string; count?: number }[] = []) {
+  const lines = (patterns || []).map((p) => String(p?.value || '').replace(/\s+/g, ' ').trim().slice(0, 120)).filter(Boolean);
+  if (!lines.length) return '';
+  return ` LOW-PRIORITY HINTS from today's real sales activity (${lines.join('; ')}). These are weak hints only: never let them override an exact referral, stock number, price, category or the admin's correction.`;
 }

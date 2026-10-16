@@ -23,6 +23,7 @@ export default function LaunchReadiness(){
   <div className="card" style={{marginTop:18}}><h2>More tools</h2>
     <div className="chInline">
       <a className="miniBtn" href="/admin/whatsapp">Inbox</a>
+      <a className="miniBtn" href="/admin/all-history">All History</a>
       <a className="miniBtn" href="/admin/customer-history">Customer History</a>
       <a className="miniBtn" href="/admin/ai-learning">AI Learning</a>
       <a className="miniBtn" href="/admin/vehicles">Inventory</a>

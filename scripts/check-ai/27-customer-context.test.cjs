@@ -80,7 +80,9 @@ test('memory never stores passwords, cards or bank details', () => {
 
 // ---------------------------------------------------------------- context order + compaction
 test('6/13. context is assembled in the required order', () => {
-  assert.deepEqual(CONTEXT_ORDER, ['latest_turn', 'referral', 'current_vehicle', 'recent_history', 'memory_preferences', 'catalog_facts', 'business_knowledge', 'shipping_quote_facts', 'approved_lessons']);
+  // GOAL 7 (continuation): the in-chat human replies became step 4 and same-day patterns are the
+  // last, lowest-priority step.
+  assert.deepEqual(CONTEXT_ORDER, ['latest_turn', 'referral', 'current_vehicle', 'human_replies_here', 'recent_history', 'memory_preferences', 'catalog_facts', 'business_knowledge', 'shipping_quote_facts', 'approved_lessons', 'same_day_patterns']);
   const pack = buildContextPack({
     latestTurn: 'what else?',
     referral: { vehicle: { id: 1 }, method: 'headline' },
@@ -92,6 +94,8 @@ test('6/13. context is assembled in the required order', () => {
     knowledge: [{ title: 'Shipping', content: 'We ship to Mombasa.' }],
     shipping: { country: 'Kenya' },
     lessons: [{ lesson: 'Motorcycle ads never resolve to cars.' }],
+    humanReplies: [{ body: 'It is SC-859, $3,214' }],
+    sameDayPatterns: [{ type: 'vehicle_discussed', value: 'Honda CBR1000', count: 3 }],
   });
   assert.deepEqual(pack.present, [...CONTEXT_ORDER], 'every section present in the fixed order');
   assert.equal(pack.size.recent, 1);

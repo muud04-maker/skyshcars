@@ -136,3 +136,81 @@ npm run build
 
 27-customer-context.test.cjs covers memory, isolation, context order, compaction, the summary and
 privacy; 28-ai-learning.test.cjs covers the learning workflow, approval states and the phone pages.
+
+## 10. All-history stream and TXT exports (continuation)
+
+`/admin/all-history` is one chronological stream across EVERY customer and channel: inbound messages,
+AI replies, staff replies, referrals, quotes, staff notes, memory changes and AI learning events.
+Filters: date range, channel, who (customer / AI / staff / system), event type, customer id, vehicle or
+stock text, car/motorcycle, Facebook-leads-only, and newest/oldest sorting. The list pages with a
+keyset cursor ("Load more"), so nothing is cut off.
+
+`Download All History (.txt)` uses the SAME filters and streams one single text file:
+
+```
+SKY CARS - ALL HISTORY EXPORT
+Generated: ... / Filters: ... / Matching events: N
+[YYYY-MM-DD HH:mm:ss] [CHANNEL] [CUSTOMER] [ROLE]
+Vehicle: 2011 Honda CBR1000 (motorcycle)
+Stock: SC-859
+Message: ...
+<blank line>
+```
+
+It walks the history in batches of 500 (`EXPORT_BATCH`), oldest first, and stops at a safety cap
+(`ALL_HISTORY_EXPORT_MAX`, default 200000) with an explicit `*** TRUNCATED AT ... ***` line - it never
+stops silently. `/api/admin/ai-learning/export` does the same for the learning log (one .txt with
+question, AI answer, human correction, reason, lesson, type, status, applies_to, applied_ref and the
+vehicle/referral context). Both endpoints are admin-only and write an audit-log entry.
+
+## 11. Daily human sales patterns (`daily_ai_sales_patterns`)
+
+`src/lib/sales-patterns.ts` counts what really happened each day (no model call, fully deterministic):
+vehicles discussed, what staff recommended or sent, Facebook referral mappings, common questions,
+common human answers, shipping and pricing answers, AI corrections, vehicles staff switched the chat
+to, and destinations/ports. Stored one row per (day, type, key) with sample_count and a confidence
+that is capped at 0.9 - weak by design.
+
+Run it daily (or on demand):
+
+```
+0 1 * * * curl -s "https://skyshcars.com/api/cron/daily-patterns?secret=$AUTOMATION_CRON_SECRET" > /dev/null
+```
+
+`/admin/ai-learning` shows "Today's Human Sales Patterns" (top vehicles, motorcycles, cars, referral
+vehicles, questions, human answers, AI corrections) plus suggested lessons. A suggestion becomes a
+PENDING lesson only when the admin presses the button, and it still needs Approve + Apply: patterns
+never turn into rules by themselves, and never into global business knowledge.
+
+In the reply prompt they appear as the LAST, lowest-priority step, labelled
+"LOW-PRIORITY HINTS ... never let them override an exact referral, stock number, price, category or the
+admin's correction".
+
+## 12. Human shadow learning
+
+Whenever a person answers (inbox reply, or a reply typed in the WhatsApp app) the system compares the
+customer question, the last AI reply, the human reply, the current vehicle and the referral, and
+records a PENDING learning candidate when they materially differ (wrong vehicle, wrong price, wrong
+language, wrong shipping answer, unnecessary hold, better sales reply, missing information). The same
+human message is never reviewed twice, and payment/password text is never stored.
+
+Inside the same chat the human answer is immediately usable context: it is kept as the customer's
+`last_human_guidance` fact and passed to the prompt as
+"OUR TEAM ALREADY TOLD THIS CUSTOMER ... follow it, do not contradict it". For other customers nothing
+is generalised automatically. Every current-vehicle change is logged with its source in
+`conversation_vehicle_events`, so a human switch (previous AI vehicle -> human selection) is recorded
+too.
+
+## 13. Facebook lead resolution priority
+
+1. saved admin referral correction, 2. exact publish/referral id or stock, 3. exact current
+conversation vehicle, 4. exact recent human selection in that conversation, 5. exact model/year/
+category evidence, 6. same-day human pattern (weak, only when nothing exact matched),
+7. catalog matching, 8. one short clarification. Steps 3 and 4 are only accepted when the ad text
+really names that model/stock and the category agrees, so they can never override steps 1-2. A
+motorcycle lead can never resolve to a car, and brand-only evidence never becomes a single match.
+
+## 14. New tables (additive only)
+
+`daily_ai_sales_patterns`, `conversation_vehicle_events`. Both use `CREATE TABLE IF NOT EXISTS` with
+their own indexes; no DROP, TRUNCATE or destructive migration anywhere.

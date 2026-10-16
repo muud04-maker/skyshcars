@@ -7,6 +7,7 @@ import {adminDenied} from '../../../../../../lib/admin-guard';
 import {agentEvent} from '../../../../../../lib/agent-events';
 import {clearAiReply,pauseAi} from '../../../../../../lib/conversation-state';
 import {staffPauseMinutes} from '../../../../../../lib/staff';
+import {recordHumanShadowLearning} from '../../../../../../lib/shadow-learning';
 
 export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
   const d=await adminDenied();if(d)return d;
@@ -32,6 +33,12 @@ export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){
     await pauseAi(Number(id), await staffPauseMinutes(), 'admin').catch(()=>{});
     await clearAiReply(Number(id)).catch(()=>{});
     await agentEvent(Number(id),null,'human_reply','ok',{whatsapp_message_id:metaId,chars:text.length});
+    /*
+      GOAL 4: compare this person's answer with what the AI last said. If they materially differ, a
+      PENDING learning candidate is queued (approval still required); the answer also becomes
+      same-customer context immediately. Never blocks the reply.
+    */
+    const shadow=await recordHumanShadowLearning({conversationId:Number(id),humanReply:text}).catch(()=>({recorded:false}));
     return NextResponse.json({ok:true,metaMessageId:metaId});
   }catch(e:any){
     const detail=c.channel==='facebook'?graphError(e):(e?.response?.data||e?.message||String(e));

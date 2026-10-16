@@ -14,9 +14,12 @@ import { db, one, rows } from './db';
 import { aiCarById, loadReferralInventory, type AiCar } from './ai-catalog';
 import { sellableVehicleSql } from './exact-photos';
 import { type VehicleLite } from './ai-rules/match';
-import { rankReferralCandidates, referralPrice, referralStock } from './ai-rules/referral-match';
+import { rankReferralCandidates, referralLooksMismatched, referralPrice, referralStock } from './ai-rules/referral-match';
+import { categoryHint, normalize } from './ai-rules/match';
+import { lastHumanVehicleSelection } from './vehicle-events';
+import { patternHintForTokens } from './sales-patterns';
 
-export type ReferralMethod = 'correction' | 'social_log' | 'headline' | 'none';
+export type ReferralMethod = 'correction' | 'social_log' | 'conversation' | 'human' | 'headline' | 'pattern' | 'none';
 /** A unit we recognised but may not be allowed to quote: name/stock/year (+ status) only, never price. */
 export type ReferralSummary = VehicleLite & { status?: string | null };
 export type ResolvedReferral = { vehicle: AiCar | ReferralSummary | null; aiEnabled: boolean; method: ReferralMethod };
@@ -101,8 +104,23 @@ async function vehicleSummary(vehicleId: number, opts: { sellableOnly?: boolean 
   } : null;
 }
 
-/** Resolve a referral to a vehicle. Tries the saved correction, the Facebook publish log, then a strict referral match. */
-export async function resolveReferral(channel: string, r: { source_id?: string | null; source_url?: string | null; headline?: string | null; body?: string | null }): Promise<ResolvedReferral> {
+/**
+  Resolve a tapped Facebook post/ad to a vehicle, in this exact order (GOAL 5):
+    1. saved admin referral correction        (a human decision - always wins)
+    2. exact publish/referral id or stock     (the ad itself names the unit)
+    3. exact current conversation vehicle     (only with real evidence in the ad text)
+    4. exact recent HUMAN selection in this conversation (only with evidence)
+    5. exact model/year/category evidence     (strict referral match)
+    6. same-day human pattern                 (WEAK evidence, never overrides 1-5)
+    7. catalog matching                       (part of the strict match above)
+    8. clarification (returns nothing -> the reply asks ONE short question)
+  A motorcycle lead can never resolve to a car, and brand-only evidence never becomes a single match.
+*/
+export async function resolveReferral(
+  channel: string,
+  r: { source_id?: string | null; source_url?: string | null; headline?: string | null; body?: string | null },
+  opts: { conversationId?: number | null } = {},
+): Promise<ResolvedReferral> {
   const none: ResolvedReferral = { vehicle: null, aiEnabled: false, method: 'none' };
   try {
     await ensureReferralSchema();
@@ -130,12 +148,37 @@ export async function resolveReferral(channel: string, r: { source_id?: string |
       }
     }
 
+    const text = [r.headline, r.body].filter(Boolean).join(' ');
+
     /*
-      C. Strict referral match against EVERY sellable unit (cars and motorcycles, AI-enabled or not).
+      C. The chat itself may already know the exact unit (steps 3 and 4). This is ONLY accepted when
+      the ad text really names that vehicle's model or stock, so it can never invent a match, and the
+      category must agree with the ad.
+    */
+    if (opts.conversationId && text) {
+      const state = await one<any>('SELECT current_vehicle_id,current_vehicle_source FROM conversation_state WHERE conversation_id=? LIMIT 1', [Number(opts.conversationId)]).catch(() => null);
+      const humanSel = await lastHumanVehicleSelection(Number(opts.conversationId)).catch(() => null);
+      const wantCategory = categoryHint(text);
+      const consider: { id: number; method: ReferralMethod }[] = [];
+      if (state?.current_vehicle_id) consider.push({ id: Number(state.current_vehicle_id), method: 'conversation' });
+      if (humanSel?.vehicle_id && Number(humanSel.vehicle_id) !== Number(state?.current_vehicle_id || 0)) consider.push({ id: Number(humanSel.vehicle_id), method: 'human' });
+      for (const cand of consider) {
+        const v = await vehicleSummary(cand.id);
+        if (!v) continue;
+        if (wantCategory && v.category && String(v.category) !== wantCategory) continue;
+        if (referralLooksMismatched(text, v)) continue;   // the ad must really name this model/stock
+        const ai = await aiCarById(cand.id);
+        if (ai) return { vehicle: ai, aiEnabled: true, method: cand.method };
+        return { vehicle: v, aiEnabled: false, method: cand.method };
+      }
+    }
+
+    /*
+      D. Strict referral match against EVERY sellable unit (cars and motorcycles, AI-enabled or not).
       The tapped post names one exact vehicle; the matcher requires model evidence and treats the
       category as a hard filter, so a Honda motorcycle can never resolve to a Honda car.
     */
-    const q = [r.headline, r.body].filter(Boolean).join(' ');
+    const q = text;
     if (q) {
       const inventory = await loadReferralInventory(800).catch(() => []);
       const decision = rankReferralCandidates(q, inventory as any, { price: referralPrice(q), stock: referralStock(q) });
@@ -149,6 +192,26 @@ export async function resolveReferral(channel: string, r: { source_id?: string |
         if (other) return { vehicle: other, aiEnabled: false, method: 'headline' };
       }
     }
+
+    /*
+      E. Last resort before asking: today's HUMAN patterns (step 6) as WEAK evidence only. It is used
+      only when nothing exact matched, and only when the pattern's category agrees with the ad.
+    */
+    if (q) {
+      const wantCategory = categoryHint(q);
+      const tokens = normalize(q).split(' ').filter((t) => t.length >= 4);
+      const hint = tokens.length ? await patternHintForTokens(tokens, { category: wantCategory }).catch(() => null) : null;
+      if (hint) {
+        const inventory = await loadReferralInventory(800).catch(() => []);
+        const named = inventory.find((v: any) => hint.value && String(hint.value).toLowerCase().includes(String(v.model || '').toLowerCase()) && String(v.model || '').length >= 3);
+        if (named) {
+          const v = await vehicleSummary(Number(named.id));
+          if (v && (!wantCategory || !v.category || String(v.category) === wantCategory)) {
+            return { vehicle: v, aiEnabled: false, method: 'pattern' };
+          }
+        }
+      }
+    }
   } catch (e) { console.error('REFERRAL_RESOLVE', e); }
   return none;
 }
@@ -160,7 +223,9 @@ export async function resolveForBurst(conv: { id: number; channel: string }, mes
   await ensureReferralSchema();
   const ref = await one<any>(`SELECT * FROM chat_referrals WHERE message_id IN (${ids.map(() => '?').join(',')}) ORDER BY id DESC LIMIT 1`, ids).catch(() => null);
   if (!ref) return { vehicle: null, aiEnabled: false, method: 'none' };
-  const res = await resolveReferral(channelOf(conv.channel), { source_id: ref.source_id, source_url: ref.source_url, headline: ref.headline, body: ref.body });
+  // The burst's conversation is passed through so an existing exact unit (current or human-selected)
+  // can be reused before falling back to text matching (GOAL 5 steps 3 and 4).
+  const res = await resolveReferral(channelOf(conv.channel), { source_id: ref.source_id, source_url: ref.source_url, headline: ref.headline, body: ref.body }, { conversationId: Number(conv.id) });
   await db().execute(`UPDATE chat_referrals SET matched_vehicle_id=?, match_method=? WHERE message_id IN (${ids.map(() => '?').join(',')}) AND matched_vehicle_id IS NULL`,
     [res.vehicle?.id || null, res.method, ...ids]).catch(() => {});
   return res;

@@ -14,7 +14,8 @@ import { transcriptLines, CONTEXT_LIMIT, roleOf } from './ai-rules/context';
 import { extractSlots, missingSlots, type Slots } from './ai-rules/slots';
 import { extractFacts, factsForCustomer, saveFacts } from './customer-facts';
 import { approvedLessons, lessonsNote } from './ai-learning';
-import { buildContextPack } from './ai-rules/context-pack';
+import { buildContextPack, humanRepliesNote, sameDayPatternsNote } from './ai-rules/context-pack';
+import { weakDailyHints } from './sales-patterns';
 
 /*
   Grounded sales assistant. Every fact the AI may state (vehicles, prices,
@@ -426,14 +427,18 @@ export async function salesReply(text: string, conversationId?: number, photoPla
     compaction: only the latest messages go to the model, the raw history stays in MySQL for the admin.
   */
   const lessons = await approvedLessons(5).catch(() => []);
+  // Step 11: today's REAL activity, used as weak hints only (never overrides exact facts).
+  const dayPatterns = await weakDailyHints(6).catch(() => []);
   const pack = buildContextPack({
     latestTurn: text,
     recentMessages: past,
     recentLimit: CONTEXT_LIMIT,
+    humanReplies: past.filter((m: any) => String(m.sender) === 'human').slice(-3),
     preferences: (facts as any)?.customer_preferences || {},
     facts: Object.entries((facts as any)?.customer_preferences || {}).map(([fact_key, fact_value]) => ({ fact_key, fact_value: String(fact_value) })),
     knowledge: Array.isArray(knowledge) ? knowledge : [],
     lessons,
+    sameDayPatterns: dayPatterns,
     catalogCount: Array.isArray(facts?.available_inventory_by_brand) ? facts.available_inventory_by_brand.length : null,
     currentVehicle: facts?.current_vehicle || null,
     summary: String(memory?.summary || ''),
@@ -443,7 +448,7 @@ export async function salesReply(text: string, conversationId?: number, photoPla
   const messages = [
     { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + (opts.note ? `
 
-SYSTEM NOTE: ${opts.note}${pack.prefsLine ? ` Stored customer preferences (never ask for these again): ${pack.prefsLine}.` : ''}${lessonsNote(lessons)}${pack.dropped ? ` (${pack.dropped} older message(s) are stored in the database but not repeated here.)` : ''}` : '') + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
+SYSTEM NOTE: ${opts.note}${humanRepliesNote(pack.humanReplies)}${pack.prefsLine ? ` Stored customer preferences (never ask for these again): ${pack.prefsLine}.` : ''}${lessonsNote(lessons)}${sameDayPatternsNote(pack.sameDayPatterns)}${pack.dropped ? ` (${pack.dropped} older message(s) are stored in the database but not repeated here.)` : ''}` : '') + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
     ...recent.map(m => ({ role: roleOf(m), content: String(m.body || '') })),
     { role: 'user', content: text },
   ];

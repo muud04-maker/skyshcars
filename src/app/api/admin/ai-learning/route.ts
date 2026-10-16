@@ -15,20 +15,23 @@ import { adminDenied } from '../../../../lib/admin-guard';
 import { getAdminSession } from '../../../../lib/admin';
 import { LEARNING_TYPES, learningStats, listLearningEvents, recordLearningEvent, typeFromReason, type LearningType } from '../../../../lib/ai-learning';
 import { one } from '../../../../lib/db';
+import { todayPatterns } from '../../../../lib/sales-patterns';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const d = await adminDenied(); if (d) return d;
   const q = new URL(req.url).searchParams;
-  const [events, stats] = await Promise.all([
+  const [events, stats, patterns] = await Promise.all([
     listLearningEvents({
       status: q.get('status') || '', type: q.get('type') || '', q: q.get('q') || '',
       customerId: Number(q.get('customer')) || 0, limit: Number(q.get('limit')) || 60,
     }).catch(() => []),
     learningStats().catch(() => ({ pending: 0, approved: 0, applied: 0, rejected: 0, total: 0 })),
+    // GOAL 3: the day's real human sales patterns (suggestions only, never automatic rules).
+    q.get('patterns') === '1' ? todayPatterns(q.get('day') || undefined).catch(() => null) : Promise.resolve(null),
   ]);
-  return NextResponse.json({ events, stats });
+  return NextResponse.json({ events, stats, patterns });
 }
 
 export async function POST(req: Request) {

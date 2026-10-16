@@ -25,6 +25,8 @@ export default function AiLearningClient() {
   const [draft, setDraft] = useState<{ lesson: string; applies_to: string }>({ lesson: '', applies_to: 'global' });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // GOAL 3: today's real human sales patterns (suggestions only - never automatic rules).
+  const [patterns, setPatterns] = useState<any>(null);
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams({ status, limit: '80' });
@@ -35,7 +37,27 @@ export default function AiLearningClient() {
     if (!r.ok) { setMsg(j.error || 'Could not load lessons'); return; }
     setEvents(j.events || []);
     setStats(j.stats || {});
+    if (j.patterns) setPatterns(j.patterns);
   }, [status, type, q]);
+
+  useEffect(() => { void (async () => {
+    const r = await fetch('/api/admin/ai-learning?patterns=1&status=&limit=1', { cache: 'no-store' });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.patterns) setPatterns(j.patterns);
+  })(); }, []);
+
+  /** A suggestion becomes a PENDING lesson: the admin still has to approve and apply it. */
+  async function addSuggested(text: string) {
+    setBusy(true); setMsg('');
+    const r = await fetch('/api/admin/ai-learning', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'create', event_type: 'business_rule', reason: 'suggested from today\'s sales patterns', lesson: text }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    setMsg(r.ok ? 'Suggestion saved as a pending lesson - approve it to make it official.' : (j.error || 'Could not save the suggestion'));
+    if (r.ok) await load();
+  }
 
   useEffect(() => { void load(); }, [load]);
 
@@ -62,9 +84,29 @@ export default function AiLearningClient() {
       </select></label>
       <label className="wide">Search<input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the question, reply or correction" /></label>
       <button type="button" className="btn" onClick={() => void load()}>Refresh</button>
+      <a className="btn" href={`/api/admin/ai-learning/export?status=${status || ''}${type ? `&type=${type}` : ''}`}>Download AI Learning (.txt)</a>
     </div>
     <p className="muted">{stats.pending || 0} pending | {stats.approved || 0} approved | {stats.applied || 0} applied | {stats.rejected || 0} rejected</p>
     {msg ? <div className="setupAlert">{msg}</div> : null}
+
+    {patterns ? <div className="chCard" style={{ marginBottom: 14 }}>
+      <h3>Today's Human Sales Patterns ({patterns.day})</h3>
+      <p className="muted" style={{ marginTop: 0 }}>Counted from today's real conversations and the answers staff actually gave. These are hints for context only - they never become rules without your approval, and they can never override an exact referral, stock or price.</p>
+      {patterns.groups?.length ? patterns.groups.map((g: any) => (
+        <div key={g.type} style={{ marginBottom: 8 }}>
+          <b style={{ fontSize: 12 }}>{g.label}</b>
+          <div className="chCodes">{g.items.map((it: any) => <em key={it.key} title={`confidence ${Math.round(it.confidence * 100)}%`}>{it.value || it.key} ({it.count})</em>)}</div>
+        </div>
+      )) : <p className="muted">Nothing recorded yet today. The learner runs daily (and can be run now with the cron endpoint).</p>}
+      {patterns.suggested?.length ? <div style={{ marginTop: 10 }}>
+        <b style={{ fontSize: 12 }}>Suggested lessons (need your approval)</b>
+        {patterns.suggested.map((s: string, i: number) => (
+          <div className="chFact" key={i}><span style={{ maxWidth: 700 }}>{s}</span>
+            <button type="button" className="miniBtn" disabled={busy} onClick={() => void addSuggested(s)}>Add as lesson</button>
+          </div>
+        ))}
+      </div> : null}
+    </div> : null}
 
     {events.length ? events.map((e) => (
       <div className={'learnCard ' + e.status} key={e.id}>

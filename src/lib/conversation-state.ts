@@ -94,7 +94,20 @@ export async function recordAiQueueAttempt(conversationId: number, result: strin
 
 export async function setCurrentCar(conversationId: number, vehicleId: number | null, source: string) {
   await getState(conversationId);
+  // Remember the previous value: the admin stream and the Facebook lead priority need to know which
+  // vehicle the AI had and which one a human chose afterwards.
+  const before = await one<any>('SELECT current_vehicle_id FROM conversation_state WHERE conversation_id=? LIMIT 1', [conversationId]).catch(() => null);
+  const previous = before?.current_vehicle_id ? Number(before.current_vehicle_id) : null;
   await db().execute(`UPDATE conversation_state SET current_vehicle_id=?, current_vehicle_source=? WHERE conversation_id=?`, [vehicleId, vehicleId ? source : null, conversationId]);
+  if (previous !== (vehicleId ? Number(vehicleId) : null)) {
+    const { recordVehicleEvent } = await import('./vehicle-events');
+    const { one: oneRow } = await import('./db');
+    const cust = await oneRow<any>('SELECT customer_id FROM conversations WHERE id=? LIMIT 1', [conversationId]).catch(() => null);
+    await recordVehicleEvent({
+      conversationId, customerId: cust?.customer_id ? Number(cust.customer_id) : null,
+      vehicleId: vehicleId ? Number(vehicleId) : null, previousVehicleId: previous, source, reason: 'current vehicle changed',
+    }).catch(() => {});
+  }
 }
 
 export async function saveSlots(conversationId: number, slots: Record<string, any>) {
