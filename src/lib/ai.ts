@@ -9,6 +9,7 @@ import { aiCarSql, aiCarById, catalogCounts, loadAiCars, loadDisabledCars } from
 import { flagForStaff, getState, saveSlots, setCurrentCar } from './conversation-state';
 import { matchVehicles } from './ai-rules/match';
 import { refersToCurrentCar } from './ai-rules/vehicle-intent';
+import { carTitle } from './ai-rules/vehicle-answer';
 import { transcriptLines, CONTEXT_LIMIT, roleOf } from './ai-rules/context';
 import { extractSlots, missingSlots, type Slots } from './ai-rules/slots';
 
@@ -79,7 +80,9 @@ async function rememberCurrentCar(conversationId: number | undefined, vehicleId?
  */
 export async function allowedVehicleNames(text: string, conversationId?: number, extra: any[] = []) {
   const names: string[] = [];
-  const push = (v: any) => { const t = [v?.model_year, v?.brand, v?.model, v?.trim_name].filter(Boolean).join(' ').trim(); if (t) names.push(t); };
+  // carTitle() normalises the name, so a title typed twice ("Honda CBR1000 Honda CBR1000") never
+  // enters the reply guard as a second, different vehicle.
+  const push = (v: any) => { if (!v) return; const t = carTitle(v); if (t && t !== 'Vehicle') names.push(t); };
   (extra || []).forEach(push);
   try { const cur = await currentCarFor(conversationId); if (cur) push(cur); } catch {}
   try { (await findVehicles(text)).slice(0, 8).forEach(push); } catch {}
@@ -181,7 +184,7 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
   const v = vehicles[0];
   // JPEG/PNG only, supplier photos via our own proxy URL (see exact-photos.ts).
   const images = (await whatsappPhotosForVehicle(Number(v.id), 3)).map(p => p.url);
-  const title = `${v.model_year || ''} ${v.brand || ''} ${v.model || ''}`.replace(/\s+/g,' ').trim();
+  const title = carTitle(v);
   return {
     vehicleId: Number(v.id), stockNo: String(v.stock_no || ''), title, images, exact: images.length > 0,
     caption: `${title}${v.stock_no ? ` | ${v.stock_no}` : ''}${v.price_usd ? ` | $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`
@@ -317,7 +320,7 @@ DATABASE FACTS:
 ${JSON.stringify(facts)}`;
 
 function compactVehicleLine(v:any, includeLink=false){
-  const title=[v.model_year,v.brand,v.model,v.trim_name].filter(Boolean).join(' ');
+  const title=carTitle(v);
   const price=v.price_usd!=null?`$${Number(v.price_usd).toLocaleString()}`:'Price on request';
   return `${title || 'Vehicle'} - ${price}${v.stock_no?` (${v.stock_no})`:''}${includeLink&&v.link?`\n${v.link}`:''}`;
 }

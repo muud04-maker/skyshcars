@@ -3,7 +3,6 @@
   Every trigger uses it: WhatsApp webhook, Messenger webhook, return-to-AI catch-up, "AI reply now",
   the pause sweeper. Lock, burst merge, answered marker, reply rule, welcome-once and link filter live in the core.
 */
-import axios from 'axios';
 import { one, rows } from './db';
 import { outbound } from './conversations';
 import { agentEvent } from './agent-events';
@@ -74,11 +73,8 @@ const deps: EngineDeps = {
   compose: i => composeReply(i),
   sendText: async (conv, text) => {
     if (conv.channel === 'whatsapp') return sendWhatsApp(conv.external_user_id, text);
-    const { GRAPH, facebookConfigured, resolvePageToken } = await import('./facebook');
-    if (!facebookConfigured()) throw new Error('Messenger sending needs setup (see Readiness)');
-    const token = await resolvePageToken();
-    const r = await axios.post(`${GRAPH}/me/messages`, { recipient: { id: conv.external_user_id }, messaging_type: 'RESPONSE', message: { text: text.slice(0, 2000) } }, { params: { access_token: token }, timeout: 20000 });
-    return r.data?.message_id || null;
+    const { sendMessenger } = await import('./facebook');
+    return sendMessenger(conv.external_user_id, text);
   },
   storeOutbound: (id, text, o) => outbound(id, 'ai', text, o.model || undefined, { externalId: o.externalId || null, status: o.status || null, error: o.error || null }),
   sendPhotos: async (conv, id, plan) => { if (conv.channel === 'whatsapp') await sendPlannedPhotos(conv.external_user_id, id, plan); },

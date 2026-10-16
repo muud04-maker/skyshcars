@@ -11,12 +11,15 @@
   customer already told us by tapping a post.
 */
 import { db, one, rows } from './db';
-import { loadAiCars, aiCarById, type AiCar } from './ai-catalog';
+import { aiCarById, loadReferralInventory, type AiCar } from './ai-catalog';
 import { sellableVehicleSql } from './exact-photos';
-import { matchVehicles, type VehicleLite } from './ai-rules/match';
+import { type VehicleLite } from './ai-rules/match';
+import { rankReferralCandidates, referralPrice, referralStock } from './ai-rules/referral-match';
 
 export type ReferralMethod = 'correction' | 'social_log' | 'headline' | 'none';
-export type ResolvedReferral = { vehicle: AiCar | VehicleLite | null; aiEnabled: boolean; method: ReferralMethod };
+/** A unit we recognised but may not be allowed to quote: name/stock/year (+ status) only, never price. */
+export type ReferralSummary = VehicleLite & { status?: string | null };
+export type ResolvedReferral = { vehicle: AiCar | ReferralSummary | null; aiEnabled: boolean; method: ReferralMethod };
 
 let ready: Promise<void> | null = null;
 export function ensureReferralSchema() {
@@ -66,22 +69,39 @@ export async function storeReferral(conv: { id: number; channel: string }, exter
     messageId = m?.id ? Number(m.id) : null;
   }
   const media = ref.media || {};
+  /*
+    Meta sends the ad identity in different places depending on the surface (Messenger post
+    referral, Click-to-WhatsApp ad, ads_context_data). Read every known field so a motorcycle ad
+    is never stored with an empty headline - that is what made the AI answer about another car.
+  */
+  const ads = ref.ads_context_data || {};
+  const sourceId = str(ref.source_id, 191) || str(ads.post_id, 191) || str(ref.post_id, 191) || str(ads.ad_ref, 191) || str(ref.ref, 191);
+  const sourceUrl = str(ref.source_url, 512) || str(ref.referer_uri, 512) || str(ads.post_url, 512) || str(ads.ad_url, 512);
+  const headline = str(ref.headline, 500) || str(ads.ad_title, 500) || str(ref.title, 500) || str(ads.title, 500);
+  const body = str(ref.body, 2000) || (headline ? null : str(ads.ad_title, 2000));
   const [r]: any = await db().execute(
     `INSERT IGNORE INTO chat_referrals(message_id,conversation_id,channel,source_type,source_id,source_url,headline,body,media_url,ctwa_clid)
      VALUES(?,?,?,?,?,?,?,?,?,?)`,
-    [messageId, conv.id, channelOf(conv.channel), str(ref.source_type, 60), str(ref.source_id, 191), str(ref.source_url, 512),
-     str(ref.headline), str(ref.body, 2000), str(media.image_url || media.video_url || media.source_url || media.url, 512), str(ref.ctwa_clid, 191)]);
+    [messageId, conv.id, channelOf(conv.channel), str(ref.source_type || ref.source || ref.type, 60), sourceId, sourceUrl,
+     headline, body, str(media.image_url || media.video_url || media.source_url || media.url || ads.photo_url || ads.video_url, 512), str(ref.ctwa_clid, 191)]);
   return Number(r?.affectedRows) === 1 ? Number(r.insertId) : null;
 }
 
-/** Minimal facts for a car that is NOT in the AI catalog: name only, never price or photos. */
-async function sellableSummary(vehicleId: number): Promise<VehicleLite | null> {
-  const r = await one<any>(`SELECT v.id,v.stock_no,v.brand,v.model,v.trim_name,v.model_year FROM vehicles v
-    WHERE v.id=? AND ${sellableVehicleSql('v')} LIMIT 1`, [vehicleId]);
-  return r ? { id: Number(r.id), stock_no: r.stock_no, brand: r.brand, model: r.model, trim_name: r.trim_name, model_year: r.model_year == null ? null : Number(r.model_year) } : null;
+/**
+ * Minimal facts for a unit that is NOT quotable by the AI: name/stock/year/category plus its status.
+ * Never price or photos. A correction the owner saved is honoured even when the unit is sold or
+ * reserved, so a corrected referral can never fall through to fuzzy matching again.
+ */
+async function vehicleSummary(vehicleId: number, opts: { sellableOnly?: boolean } = {}): Promise<ReferralSummary | null> {
+  const r = await one<any>(`SELECT v.id,v.stock_no,v.category,v.brand,v.model,v.trim_name,v.model_year,v.status FROM vehicles v
+    WHERE v.id=?${opts.sellableOnly ? ` AND ${sellableVehicleSql('v')}` : ''} LIMIT 1`, [vehicleId]);
+  return r ? {
+    id: Number(r.id), stock_no: r.stock_no, category: r.category || null, brand: r.brand, model: r.model, trim_name: r.trim_name,
+    model_year: r.model_year == null ? null : Number(r.model_year), status: r.status == null ? null : String(r.status),
+  } : null;
 }
 
-/** Resolve a referral to a vehicle. Tries the saved correction, the Facebook publish log, then a strict headline match. */
+/** Resolve a referral to a vehicle. Tries the saved correction, the Facebook publish log, then a strict referral match. */
 export async function resolveReferral(channel: string, r: { source_id?: string | null; source_url?: string | null; headline?: string | null; body?: string | null }): Promise<ResolvedReferral> {
   const none: ResolvedReferral = { vehicle: null, aiEnabled: false, method: 'none' };
   try {
@@ -94,7 +114,7 @@ export async function resolveReferral(channel: string, r: { source_id?: string |
       if (c?.vehicle_id) {
         const ai = await aiCarById(Number(c.vehicle_id));
         if (ai) return { vehicle: ai, aiEnabled: true, method: 'correction' };
-        const other = await sellableSummary(Number(c.vehicle_id));
+        const other = await vehicleSummary(Number(c.vehicle_id));
         if (other) return { vehicle: other, aiEnabled: false, method: 'correction' };
       }
     }
@@ -105,19 +125,28 @@ export async function resolveReferral(channel: string, r: { source_id?: string |
       if (p?.vehicle_id) {
         const ai = await aiCarById(Number(p.vehicle_id));
         if (ai) return { vehicle: ai, aiEnabled: true, method: 'social_log' };
-        const other = await sellableSummary(Number(p.vehicle_id));
+        const other = await vehicleSummary(Number(p.vehicle_id));
         if (other) return { vehicle: other, aiEnabled: false, method: 'social_log' };
       }
     }
 
-    // C. Strict headline/body match against the cars the AI is allowed to sell.
+    /*
+      C. Strict referral match against EVERY sellable unit (cars and motorcycles, AI-enabled or not).
+      The tapped post names one exact vehicle; the matcher requires model evidence and treats the
+      category as a hard filter, so a Honda motorcycle can never resolve to a Honda car.
+    */
     const q = [r.headline, r.body].filter(Boolean).join(' ');
     if (q) {
-      const cars = await loadAiCars(400).catch(() => []);
-      const m = matchVehicles(q, cars as any);
-      if (m.kind === 'one' && m.vehicle) {
-        const v = await aiCarById(Number(m.vehicle.id));
-        if (v) return { vehicle: v, aiEnabled: true, method: 'headline' };
+      const inventory = await loadReferralInventory(800).catch(() => []);
+      const decision = rankReferralCandidates(q, inventory as any, { price: referralPrice(q), stock: referralStock(q) });
+      if (decision.kind === 'one') {
+        const id = Number(decision.vehicle.id);
+        if (decision.vehicle.ai_enabled) {
+          const v = await aiCarById(id);
+          if (v) return { vehicle: v, aiEnabled: true, method: 'headline' };
+        }
+        const other = await vehicleSummary(id);
+        if (other) return { vehicle: other, aiEnabled: false, method: 'headline' };
       }
     }
   } catch (e) { console.error('REFERRAL_RESOLVE', e); }
@@ -149,13 +178,31 @@ export async function setReferralCorrection(input: { channel?: string; source_id
     [key, channelOf(input.channel), str(input.source_id, 191), str(input.source_url, 512), Number(input.vehicle_id)]);
   // Apply the correction to any stored referral rows that share this source.
   if (input.source_id) await db().execute(`UPDATE chat_referrals SET matched_vehicle_id=?, match_method='correction' WHERE source_id=?`, [Number(input.vehicle_id), String(input.source_id)]).catch(() => {});
+  if (input.source_url) await db().execute(`UPDATE chat_referrals SET matched_vehicle_id=?, match_method='correction' WHERE source_url=?`, [Number(input.vehicle_id), String(input.source_url)]).catch(() => {});
   return { source_key: key, vehicle_id: Number(input.vehicle_id) };
 }
 
 export async function recentReferrals(conversationId: number, limit = 10) {
   await ensureReferralSchema();
-  return (await rows<any>(`SELECT id,message_id,channel,source_type,source_id,source_url,headline,body,media_url,matched_vehicle_id,match_method,created_at
-    FROM chat_referrals WHERE conversation_id=? ORDER BY id DESC LIMIT ${Math.max(1, Math.min(50, limit))}`, [conversationId])).map(r => ({ ...r, id: Number(r.id), matched_vehicle_id: r.matched_vehicle_id ? Number(r.matched_vehicle_id) : null }));
+  /*
+    The admin needs to see WHICH vehicle a tapped post resolved to, and whether it looks right, e.g.
+    "Facebook referral: Motorcycle Honda CBR1000" -> "Resolved vehicle: Stock 859 - Honda CBR1000".
+    Extra read-only columns; no schema change.
+  */
+  return (await rows<any>(`SELECT r.id,r.message_id,r.channel,r.source_type,r.source_id,r.source_url,r.headline,r.body,r.media_url,
+      r.matched_vehicle_id,r.match_method,r.created_at,
+      v.stock_no resolved_stock_no, v.category resolved_category, v.model_year resolved_year,
+      v.brand resolved_brand, v.model resolved_model, v.trim_name resolved_trim, v.status resolved_status
+    FROM chat_referrals r LEFT JOIN vehicles v ON v.id=r.matched_vehicle_id
+    WHERE r.conversation_id=? ORDER BY r.id DESC LIMIT ${Math.max(1, Math.min(50, limit))}`, [conversationId]))
+    .map(r => ({
+      ...r,
+      id: Number(r.id),
+      matched_vehicle_id: r.matched_vehicle_id ? Number(r.matched_vehicle_id) : null,
+      resolved_vehicle: r.matched_vehicle_id
+        ? [r.resolved_year, r.resolved_brand, r.resolved_model, r.resolved_trim].filter(Boolean).join(' ') || null
+        : null,
+    }));
 }
 
 export async function referralStats(days = 7) {

@@ -75,6 +75,11 @@ export function needsReply(customerWords: string, lastOutbound?: string | null) 
 
 /** WhatsApp group (not a person). The AI never sends anything into a group. */
 export function isGroupRecipient(id: any) {
-  const s = String(id || '');
-  return /@g\.us$/i.test(s) || /^\d+-\d+$/.test(s) || !/^\+?\d{6,15}$/.test(s);
+  const s = String(id || '').trim();
+  if (!s) return true;                                 // unknown recipient: never send
+  if (/@g\.us$/i.test(s)) return true;                 // WhatsApp group jid
+  if (/^\d{1,20}-\d{1,20}$/.test(s)) return true;      // WhatsApp group id form
+  // Direct chats: a WhatsApp phone number (6-15 digits) OR a Messenger PSID (16-17 digits).
+  // The earlier 6-15 limit classified every Messenger customer as a group, so the AI never replied.
+  return !/^\+?\d{6,20}$/.test(s);
 }

@@ -52,6 +52,24 @@ export function graphError(e: any) {
   return d ? `${d.message || 'Graph API error'}${d.code ? ` (code ${d.code}${d.error_subcode ? '/' + d.error_subcode : ''})` : ''}` : (e?.message || String(e));
 }
 
+/**
+ * Send ONE text message to a Messenger user through the Page.
+ * Used by both the AI reply engine and the admin inbox, so staff can answer Facebook customers
+ * exactly like WhatsApp ones. Returns the Meta message id.
+ */
+export async function sendMessenger(externalUserId: string, text: string): Promise<string | null> {
+  const to = String(externalUserId || '').trim();
+  const body = String(text || '').trim();
+  if (!to) throw new Error('This conversation has no Messenger recipient id.');
+  if (!body) throw new Error('Message is empty.');
+  if (!facebookConfigured()) throw new Error('Messenger sending needs setup (see Readiness). Add META_PAGE_ID and META_PAGE_ACCESS_TOKEN.');
+  const token = await resolvePageToken();
+  const r = await axios.post(`${GRAPH}/me/messages`,
+    { recipient: { id: to }, messaging_type: 'RESPONSE', message: { text: body.slice(0, 2000) } },
+    { params: { access_token: token }, timeout: 20000 });
+  return r.data?.message_id || null;
+}
+
 export type FacebookStatus = {
   configured: boolean; connected: boolean; tokenSource: TokenSource;
   id?: string; name?: string; category?: string; link?: string;

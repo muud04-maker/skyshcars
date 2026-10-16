@@ -2,10 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   computeUnread, countdown, dayLabel, deliveryState, filterRows, isLocked, isPaused,
-  maxId, mergeMessages, pauseSecondsLeft, waitingLabel, type InboxFilter, type InboxMsg, type InboxRow,
+  draftFor, maxId, mergeMessages, pauseSecondsLeft, waitingLabel, withDraft,
+  type DraftMap, type InboxFilter, type InboxMsg, type InboxRow,
 } from '../../../lib/ai-rules/inbox';
 import { languageName, preferredToCode, type LangCode } from '../../../lib/ai-rules/language';
 import { countdownLabel, queueStatusLabel, secondsLeft } from '../../../lib/ai-rules/ai-queue';
+import { referralLooksMismatched } from '../../../lib/ai-rules/referral-match';
 
 type Mode = 'ai' | 'human' | 'paused' | 'both';
 const field = (v: any) => (v == null ? '' : String(v));
@@ -23,7 +25,8 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [pickId, setPickId] = useState('');
   const [links, setLinks] = useState<any>({ site: 'https://skyshcars.com', group_link: '', group_name: 'Sky second hand cars' });
-  const [text, setText] = useState('');
+  // Drafts are per conversation: switching chats never carries text over, and polling never clears them.
+  const [drafts, setDrafts] = useState<DraftMap>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
@@ -114,6 +117,14 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     return () => clearTimeout(timer);
   }, [activeId, atBottom, archived]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  /*
+    Phone layout: land on the conversation list, never with the customer drawer covering the chat.
+    Desktop keeps the three-pane desk with the drawer open.
+  */
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    if (window.matchMedia('(max-width: 900px)').matches) { setShowDrawer(false); setMobileChat(false); }
+  }, []);
   useEffect(() => {
     if (!activeId) return;
     const t = setTimeout(() => { if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return; void fetch(`/api/admin/conversations/${activeId}/read`, { method: 'POST' }).catch(() => {}); }, 1200);
@@ -159,13 +170,19 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   async function send(e: React.FormEvent) {
     e.preventDefault();
     if (!activeId || !text.trim()) return;
+    const conversationId = activeId;
     const j = await post(`/api/admin/conversations/${activeId}/reply`, { text });
-    if (j) { setText(''); setOk('Reply sent.'); await poll(); }
+    // Clear only the draft of the chat that was answered (never another chat's draft).
+    if (j) { setDrafts((d) => withDraft(d, conversationId, '')); setOk('Reply sent.'); await poll(); }
   }
   async function sendPhotos(vehicleId: number) { if (!activeId || !vehicleId) return; const j = await post(`/api/admin/conversations/${activeId}/photos`, { vehicle_id: vehicleId }); if (j) { setOk(`Sent ${j.sent} exact photo(s).`); await poll(); } }
   async function setCurrentCar(vehicleId: number) { if (!activeId || !vehicleId) return; const j = await post(`/api/admin/conversations/${activeId}/current-car`, { vehicle_id: vehicleId }); if (j) { setOk('Current car updated.'); await poll(); } }
   async function clearCurrentCar() { if (!activeId) return; const j = await post(`/api/admin/conversations/${activeId}/current-car`, { vehicle_id: null, clear: true }); if (j) { setOk('Current car cleared.'); await poll(); } }
-  async function correctReferral(ref: any, vehicleId: number) { const j = await post('/api/admin/referrals', { channel: ref.channel, source_id: ref.source_id, source_url: ref.source_url, vehicle_id: vehicleId }); if (j) { setOk('Referral corrected.'); await loadDetail(activeId ?? 0); } }
+  async function correctReferral(ref: any, vehicleId: number) {
+    // conversation_id makes the correction take effect immediately: this chat is pointed at the real vehicle.
+    const j = await post('/api/admin/referrals', { channel: ref.channel, source_id: ref.source_id, source_url: ref.source_url, vehicle_id: vehicleId, conversation_id: activeId });
+    if (j) { setOk('Referral corrected - this chat now uses that vehicle.'); await loadDetail(activeId ?? 0); }
+  }
   async function saveMemory() {
     if (!activeId) return;
     setMemoryMsg('Saving...');
@@ -192,7 +209,10 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const pendingAt = state?.pending_ai_reply_at ? Date.parse(String(state.pending_ai_reply_at).replace(' ', 'T')) : 0;
   const replyLeft = secondsLeft(pendingAt, now);
   const queueLabel = queueStatusLabel({ secondsLeft: replyLeft, lastResult: state?.pending_last_result, pending: replyLeft > 0 || !!state?.pending_ai_reply_at });
-  function insert(t: string) { setText((cur) => (cur ? cur + ' ' + t : t)); setShowQuick(false); }
+  // The composer text of the chat that is open right now (its own draft).
+  const text = draftFor(drafts, activeId);
+  function setText(v: string) { if (!activeId) return; setDrafts((d) => withDraft(d, activeId, v)); }
+  function insert(t: string) { setText(text ? text + ' ' + t : t); setShowQuick(false); }
 
   function onScroll() {
     const el = scrollBox.current; if (!el) return;
@@ -232,10 +252,10 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         return <div key={c.id} className={'chatRowWrap' + (activeId === c.id ? ' active' : '')}>
           <input className="chatPick" type="checkbox" checked={selected.includes(c.id)} onChange={() => toggleSelect(c.id)} />
           <button className="chatRow" onClick={() => { setActiveId(c.id); setMobileChat(true); }}>
-            <b>{computeUnread(c) ? <i style={{ color: '#1e88e5', marginRight: 6 }} title="Unread">*</i> : null}{c.full_name || c.phone || c.external_user_id}</b>
+            <b>{computeUnread(c) ? <i style={{ color: '#1e88e5', marginRight: 6 }} title="Unread">*</i> : null}<span className={'chan chan-' + String(c.channel || 'whatsapp')} title={c.channel === 'facebook' ? 'Facebook / Messenger' : 'WhatsApp'}>{c.channel === 'facebook' ? 'FB' : 'WA'}</span>{c.full_name || c.phone || c.external_user_id}</b>
             {Number(c.needs_reply) > 0 ? <em style={{ color: '#b3261e', fontStyle: 'normal', fontWeight: 800 }}> NEEDS REPLY</em> : null}
             <small>{modeChip(c.mode)}{paused ? ` | PAUSED ${countdown(pauseSecondsLeft(c, now))}` : ''}{locked ? ' | REPLYING' : ''}{Number(c.needs_staff) ? ' | needs staff' : ''}{c.current_stock_no ? ` | ${c.current_stock_no}` : ''}</small>
-            <small>{waitingLabel(c)}</small>
+            <small>{waitingLabel(c)}{c.last_message_at ? ` | ${new Date(String(c.last_message_at).replace(' ', 'T')).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}</small>
             <span>{c.preview || 'No message preview'}</span>
           </button>
         </div>;
@@ -266,7 +286,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
           {active.mode !== 'human' ? <button className="btn-success" disabled={busy} onClick={aiNow}>AI Reply Now</button> : null}
           {active.mode !== 'human' ? <button className="btn-warning" disabled={busy} onClick={() => setMode('human')}>Take Over</button> : <button className="btn-success" disabled={busy} onClick={() => setMode('ai')}>Return to AI</button>}
           {replyLeft > 0 ? <button className="btn-neutral" disabled={busy} onClick={cancelAiReply}>Cancel AI reply</button> : null}
-          <button type="button" className="drawerToggle" onClick={() => setShowDrawer((s) => !s)}>{showDrawer ? 'Hide customer' : 'Customer details'}</button>
+          <button type="button" className="drawerToggle" onClick={() => setShowDrawer((s) => !s)}>{showDrawer ? 'Hide details' : 'Details'}</button>
           <div className="quickMenu">
             <button type="button" className="btn-neutral" onClick={() => setShowMore((s) => !s)}>...</button>
             {showMore ? <div>
@@ -354,14 +374,20 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         </div>
       </div>
       {state?.slots && Object.keys(state.slots).length ? <div className="contextBlock"><b>Known answers</b><p className="muted">{Object.entries(state.slots).map(([k, v]) => `${k}: ${v}`).join(' | ')}</p></div> : null}
-      {referrals.length ? <div className="contextBlock"><b>Facebook referral</b>{referrals.slice(0, 3).map((r) => <div key={r.id} className="refCard">
-        <small>{r.source_type || 'post'} | {r.match_method || 'unmatched'}{r.matched_vehicle_id ? ` | vehicle #${r.matched_vehicle_id}` : ''}</small>
-        <p>{r.headline || r.body || r.source_id || '(no headline)'}</p>
-        <select defaultValue="" onChange={(e) => { const v = Number(e.target.value); if (v) correctReferral(r, v); }}>
-          <option value="">Correct this referral to...</option>
-          {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
-        </select>
-      </div>)}</div> : null}
+      {referrals.length ? <div className="contextBlock"><b>Facebook referral</b>{referrals.slice(0, 3).map((r) => {
+        const mismatch = r.matched_vehicle_id ? referralLooksMismatched(`${r.headline || ''} ${r.body || ''}`, { brand: r.resolved_brand, model: r.resolved_model, trim_name: r.resolved_trim }) : false;
+        return <div key={r.id} className={'refCard' + (r.matched_vehicle_id && mismatch ? ' refWarn' : '')}>
+          <small>{r.source_type || 'post'} | {r.match_method || 'unmatched'}</small>
+          <p><b>Facebook referral:</b> {r.headline || r.body || r.source_id || '(no headline)'}</p>
+          <p>{r.matched_vehicle_id
+            ? <><b>Resolved vehicle:</b> {r.resolved_vehicle || `#${r.matched_vehicle_id}`}{r.resolved_stock_no ? ` (stock ${r.resolved_stock_no})` : ''}{mismatch ? <em className="refMismatch"> - check this match</em> : null}</>
+            : <em className="refMismatch">Not resolved - the AI will ask which vehicle.</em>}</p>
+          <select defaultValue="" onChange={(e) => { const v = Number(e.target.value); if (v) correctReferral(r, v); }}>
+            <option value="">Correct this referral to...</option>
+            {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
+          </select>
+        </div>;
+      })}</div> : null}
       <div className="contextBlock">
         <label>Country<input value={memory.country} onChange={(e) => setMemory({ ...memory, country: e.target.value })} /></label>
         <label>Preferred language<input value={memory.preferred_language} onChange={(e) => setMemory({ ...memory, preferred_language: e.target.value })} /></label>

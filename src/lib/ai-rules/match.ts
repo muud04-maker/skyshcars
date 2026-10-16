@@ -11,7 +11,7 @@
 
 export type VehicleLite = {
   id: number; stock_no?: string | null; brand?: string | null; model?: string | null;
-  trim_name?: string | null; model_year?: number | null;
+  trim_name?: string | null; model_year?: number | null; category?: string | null;
 };
 export type MatchResult = { kind: 'one' | 'candidates' | 'none'; vehicle?: VehicleLite; list?: VehicleLite[]; reason: string };
 
@@ -46,6 +46,39 @@ function hasPhrase(q: string, phrase: string) {
   return new RegExp(`\\b${escapeRe(phrase)}\\b`).test(q);
 }
 const meaningful = (t: string) => t.length >= 3 && !GENERIC_WORDS.has(t) && !/^\d+$/.test(t);
+
+/*
+  Category separation. A motorcycle referral must never resolve to a car just because the brand
+  matches ("Honda CBR1000" -> "Honda XR-V"). Motorcycle words win when a text mentions both, because
+  our own page name ("Sky Cars & Motorcycles") appears in ad copy.
+*/
+export const MOTORCYCLE_RE = /\b(motorcycles?|motorbikes?|bikes?|scooters?|mopeds?|atvs?|moto|quad)\b/i;
+export const CAR_RE = /\b(cars?|suvs?|sedans?|saloon|hatchback|coupe|pickup|vans?|trucks?|automobiles?|jeep)\b/i;
+
+/** The vehicle category a text is talking about (null when it does not say). */
+export function categoryHint(text: unknown): 'motorcycle' | 'car' | null {
+  const t = String(text == null ? '' : text);
+  if (!t.trim()) return null;
+  if (MOTORCYCLE_RE.test(t)) return 'motorcycle';
+  if (CAR_RE.test(t)) return 'car';
+  return null;
+}
+
+/** Tokens of the query that no candidate explains: the evidence that we did not find what was named. */
+export function unexplainedTokens(query: unknown, list: VehicleLite[] = []) {
+  const q = normalize(query);
+  if (!q) return [] as string[];
+  const haystack = list.map((v) => `${normalize(v.brand)} ${normalize(v.model)} ${normalize(v.trim_name)}`).join(' ');
+  const hayCompact = compact(haystack);
+  const out: string[] = [];
+  for (const t of tokens(q)) {
+    if (!meaningful(t)) continue;
+    if (new RegExp(`\\b${escapeRe(t)}\\b`).test(haystack)) continue;
+    if (t.length >= 4 && hayCompact.includes(t)) continue;
+    out.push(t);
+  }
+  return out;
+}
 
 /** The whole text is generic filler ("hybrid suv", "send photos") with no brand/model evidence. */
 export function isGenericOnly(text: unknown) {
@@ -85,6 +118,7 @@ export function matchVehicles(query: unknown, list: VehicleLite[] = []): MatchRe
   const qCompact = compact(q);
   const qTokens = new Set(tokens(q));
   const year = yearIn(q);
+  const wantCategory = categoryHint(q);
 
   const scored = list.map((v) => {
     const brand = normalize(v.brand);
@@ -98,11 +132,22 @@ export function matchVehicles(query: unknown, list: VehicleLite[] = []): MatchRe
     const brandHit = phrase(brand) || tokenPart(brand);
     const modelHit = phrase(model) || tokenPart(model) || compactPart(model);
     const trimHit = phrase(trim) || compactPart(trim);
-    return { v, brandHit, modelHit, trimHit, score: (brandHit ? 1 : 0) + (modelHit ? 2 : 0) + (trimHit ? 2 : 0) };
+    const knownCategory = v.category === 'car' || v.category === 'motorcycle' ? String(v.category) : null;
+    return { v, brandHit, modelHit, trimHit, knownCategory, score: (brandHit ? 1 : 0) + (modelHit ? 2 : 0) + (trimHit ? 2 : 0) };
   });
 
   let pool = scored.filter((s) => s.brandHit || s.modelHit);
   if (!pool.length) return { kind: 'none', reason: 'no_brand_or_model' };
+
+  // A stated category is a hard filter: a motorcycle query can never fall back to a car of the
+  // same brand (the "Honda CBR1000 -> Honda XR-V" failure).
+  if (wantCategory) {
+    const same = pool.filter((s) => s.knownCategory === wantCategory);
+    const unknown = pool.filter((s) => !s.knownCategory);
+    const chosen = same.length ? same : unknown;
+    if (!chosen.length) return { kind: 'none', reason: 'category_mismatch' };
+    pool = chosen;
+  }
 
   if (year) {
     const exactYear = pool.filter((s) => Number(s.v.model_year) === year);
@@ -110,11 +155,21 @@ export function matchVehicles(query: unknown, list: VehicleLite[] = []): MatchRe
     if (exactYear.length) pool = exactYear;
   }
 
-  if (pool.length === 1) return { kind: 'one', vehicle: pool[0].v, reason: 'brand_or_model' };
+  // Evidence rule: brand-only evidence may never be forced into a single vehicle when the query
+  // names something we do not have. "Honda CBR1000" must not resolve to the only Honda (XR-V).
+  const strong = (s: { modelHit: boolean; trimHit: boolean }) => s.modelHit || s.trimHit;
+  const unexplained = unexplainedTokens(q, list);
+  if (pool.length === 1) {
+    if (!strong(pool[0]) && unexplained.length) return { kind: 'none', reason: 'brand_only_insufficient' };
+    return { kind: 'one', vehicle: pool[0].v, reason: 'brand_or_model' };
+  }
 
   const max = Math.max(...pool.map((s) => s.score));
   const best = pool.filter((s) => s.score === max);
-  if (best.length === 1) return { kind: 'one', vehicle: best[0].v, reason: 'best_match' };
+  if (best.length === 1) {
+    if (!strong(best[0]) && unexplained.length) return { kind: 'candidates', list: best.map((s) => s.v), reason: 'brand_only_insufficient' };
+    return { kind: 'one', vehicle: best[0].v, reason: 'best_match' };
+  }
   return { kind: 'candidates', list: pool.slice(0, 6).map((s) => s.v), reason: 'ambiguous' };
 }
 

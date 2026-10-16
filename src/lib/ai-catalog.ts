@@ -87,6 +87,31 @@ export async function loadDisabledCars(limit = 600) {
     .map(r => ({ id: Number(r.id), stock_no: r.stock_no, category: r.category, brand: r.brand, model: r.model, trim_name: r.trim_name, model_year: r.model_year == null ? null : Number(r.model_year) }));
 }
 
+/*
+  Referral resolution inventory: EVERY sellable unit (cars AND motorcycles), whether or not the AI
+  is allowed to sell it. A tapped Facebook ad/post names one exact vehicle, so we must be able to
+  identify it even before the owner enables it for AI replies. Price is only selected for AI-enabled
+  units, so a non-quotable vehicle can never leak a price into a reply.
+*/
+export type ReferralInventoryRow = {
+  id: number; stock_no: string; category: string | null; brand: string | null; model: string | null;
+  trim_name: string | null; model_year: number | null; price_usd: number | null; ai_enabled: boolean;
+};
+export async function loadReferralInventory(limit = 800): Promise<ReferralInventoryRow[]> {
+  await ensureAiCatalog();
+  const cap = Math.max(1, Math.min(2000, Number(limit) || 800));
+  return (await rows<any>(`SELECT v.id,v.stock_no,v.category,v.brand,v.model,v.trim_name,v.model_year,v.ai_enabled,
+      CASE WHEN v.ai_enabled=1 THEN v.price_usd ELSE NULL END price_usd
+    FROM vehicles v WHERE ${sellableVehicleSql('v')} ORDER BY v.created_at DESC, v.id DESC LIMIT ${cap}`))
+    .map(r => ({
+      id: Number(r.id), stock_no: r.stock_no, category: r.category || null, brand: r.brand || null,
+      model: r.model || null, trim_name: r.trim_name || null,
+      model_year: r.model_year == null ? null : Number(r.model_year),
+      price_usd: r.price_usd == null ? null : Number(r.price_usd),
+      ai_enabled: !!Number(r.ai_enabled),
+    }));
+}
+
 export async function isAiCar(vehicleId: number) {
   if (!vehicleId) return false;
   const cond = await aiCarSql('v');
