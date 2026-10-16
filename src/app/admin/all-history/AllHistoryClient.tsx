@@ -25,6 +25,8 @@ export default function AllHistoryClient() {
   const [exhausted, setExhausted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [diag, setDiag] = useState<any>(null);
+  const [showDiag, setShowDiag] = useState(false);
 
   const qs = useCallback((f: Filters, extra: Record<string, string> = {}) => {
     const p = new URLSearchParams(extra);
@@ -49,7 +51,7 @@ export default function AllHistoryClient() {
     const r = await fetch('/api/admin/all-history?' + qs(f, extra), { cache: 'no-store' });
     const j = await r.json().catch(() => ({}));
     setBusy(false);
-    if (!r.ok) { setMsg(j.error || 'Could not load history'); return; }
+    if (!r.ok) { setMsg(j.error || 'Could not load history'); if (j.hint) setMsg(j.error + ' ' + j.hint); return; }
     setRows((prev) => (more ? [...prev, ...(j.rows || [])] : (j.rows || [])));
     setCursor(j.nextCursor || null);
     setExhausted(!!j.exhausted);
@@ -60,6 +62,15 @@ export default function AllHistoryClient() {
 
   const exportUrl = useMemo(() => '/api/admin/all-history/export?' + qs(filters), [qs, filters]);
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+
+  /** Data check: proves which source tables exist and where the events really are (never guesses). */
+  async function loadDiagnostics() {
+    setShowDiag(true); setDiag(null);
+    const r = await fetch('/api/admin/all-history?diagnostics=1', { cache: 'no-store' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setMsg(j.error || 'Could not run the data check'); return; }
+    setDiag(j);
+  }
 
   return <>
     <div className="chTools">
@@ -90,6 +101,7 @@ export default function AllHistoryClient() {
       <button type="button" className="btn" onClick={() => { setCursor(null); void load(filters, false); }}>Search</button>
       <button type="button" className="miniBtn" onClick={() => setFilters(EMPTY)}>Clear</button>
       <a className="btn" href={exportUrl}>Download All History (.txt)</a>
+      <button type="button" className="miniBtn" onClick={() => void loadDiagnostics()}>Data check</button>
     </div>
     <p className="muted">
       {count != null ? `${count} matching event(s)` : 'history'} - showing {rows.length}
@@ -101,19 +113,35 @@ export default function AllHistoryClient() {
     <div className="chTimeline">
       {rows.length ? rows.map((r, i) => {
         const vehicle = [r.model_year, r.brand, r.model].filter(Boolean).join(' ');
-        const cls = r.kind === 'message' ? String(r.role) : r.kind;
+        const cls = r.kind === 'message' ? String(r.sender_role) : r.kind;
         return <div className={'chEvent ' + cls} key={r.source_id + ':' + i}>
           <small>
             {when(r.ts)} | {(r.channel || r.kind || 'system').toUpperCase()} |
             {' '}{r.customer_name || r.phone || r.psid || (r.customer_id ? `customer #${r.customer_id}` : 'unknown')} |
-            {' '}{r.kind === 'message' ? (ROLE_LABEL[r.role] || r.role) : (KIND_LABEL[r.kind] || r.kind).toUpperCase()}
+            {' '}{r.kind === 'message' ? (ROLE_LABEL[r.sender_role] || r.sender_role) : (KIND_LABEL[r.kind] || r.kind).toUpperCase()}
           </small>
           {vehicle || r.stock_no ? <div className="chMeta">Vehicle: {vehicle || '-'}{r.category ? ` (${r.category})` : ''}{r.stock_no ? ` | Stock: ${r.stock_no}` : ''}</div> : null}
           <p>{r.body || '-'}</p>
-          {r.conversation_id ? <div className="chMeta">conversation #{r.conversation_id}{r.meta ? ` | ${r.meta}` : ''} <a href={'/admin/whatsapp?conversation=' + r.conversation_id}>open in inbox</a></div> : (r.meta ? <div className="chMeta">{r.meta}</div> : null)}
+          <div className="chMeta">
+            {r.ref ? `ref ${r.ref}` : ''}{r.conversation_id ? ` | conversation #${r.conversation_id}` : ''}{r.customer_id ? ` | customer #${r.customer_id}` : ''}
+            {r.meta ? ` | ${r.meta}` : ''} {r.conversation_id ? <a href={'/admin/whatsapp?conversation=' + r.conversation_id}>open in inbox</a> : null}
+          </div>
         </div>;
       }) : <p className="muted">No history matches those filters.</p>}
     </div>
+
+    {showDiag ? <div className="chCard" style={{ marginTop: 14 }}>
+      <h3>Data check (source tables and counts)</h3>
+      {!diag ? <p className="muted">Reading the database...</p> : <>
+        <p className="muted" style={{ marginTop: 0 }}>{diag.explanation}</p>
+        <p className="muted">Source tables found: {(diag.tables || []).join(', ') || 'none'}</p>
+        <div className="chKV">
+          {Object.entries(diag.counts || {}).map(([k, v]) => <><b key={k + '-k'}>{k.replace(/_/g, ' ')}</b><span key={k + '-v'}>{v == null ? 'n/a (table missing)' : Array.isArray(v) ? (v as any[]).map((x: any) => `${x.sender}: ${x.count}`).join(', ') : String(v)}</span></>)}
+          <b>total history events</b><span>{diag.total_events ?? '-'}</span>
+        </div>
+      </>}
+      <button type="button" className="miniBtn" style={{ marginTop: 8 }} onClick={() => setShowDiag(false)}>Close</button>
+    </div> : null}
     {!exhausted && rows.length ? <div className="pager">
       <button type="button" className="miniBtn" disabled={busy} onClick={() => void load(filters, true)}>{busy ? 'Loading...' : 'Load more'}</button>
     </div> : null}

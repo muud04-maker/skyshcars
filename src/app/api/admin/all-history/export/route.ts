@@ -28,7 +28,9 @@ export async function GET(req: Request) {
   if (!admin) return Response.json({ error: 'Unauthorized' }, { status: 401 });
   const url = new URL(req.url);
   const filters = filtersFrom(url);
-  const total = await historyCount(filters).catch(() => 0);
+  const counted = await historyCount(filters).catch(() => ({ count: 0, error: 'count failed' as string | null }));
+  const total = counted.count;
+  const first = await historyPage(filters, { limit: 1, order: 'asc', cursor: null }).catch((e) => ({ rows: [], nextCursor: null, exhausted: true, error: String(e?.message || e), sources: [] as string[] }));
   const stamp = new Date().toISOString().slice(0, 10);
   const encoder = new TextEncoder();
 
@@ -36,9 +38,20 @@ export async function GET(req: Request) {
     async start(controller) {
       let sent = 0, cursor: any = null;
       try {
-        controller.enqueue(encoder.encode(historyHeader(filters, total)));
+        controller.enqueue(encoder.encode(historyHeader(filters, total, first.sources)));
+        if (first.error) {
+          controller.enqueue(encoder.encode(`*** THE DATABASE QUERY FAILED: ${first.error} ***\nThe export cannot read the history until this is fixed. Open /admin/all-history and run the "Data check".\n`));
+          return;
+        }
+        if (!total) {
+          controller.enqueue(encoder.encode('No events matched these filters.\n'));
+        }
         for (;;) {
           const page = await historyPage(filters, { limit: EXPORT_BATCH, order: 'asc', cursor });
+          if (page.error) {
+            controller.enqueue(encoder.encode(`\n*** EXPORT ERROR after ${sent} event(s): ${page.error} ***\n`));
+            break;
+          }
           for (const row of page.rows) {
             if (sent >= EXPORT_MAX) break;
             controller.enqueue(encoder.encode(historyBlock(row)));
