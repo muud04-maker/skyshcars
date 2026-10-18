@@ -1,16 +1,66 @@
 import './globals.css';
+import './design.css';
 import './inbox.css';
 import type {Metadata,Viewport} from 'next';
+import {Space_Grotesk,Inter} from 'next/font/google';
 import {SITE_URL,waLink} from '../lib/site';
 import {MiniMarketBar} from '../components/MarketplaceTools';
 import AuthStatus from '../components/AuthStatus';
 import SiteChrome from '../components/SiteChrome';
+import SiteNav,{PUBLIC_LINKS} from '../components/SiteNav';
 import WhatsAppGroupBanner from '../components/WhatsAppGroupBanner';
 import WhySkyCars from '../components/WhySkyCars';
-export const viewport:Viewport={width:'device-width',initialScale:1,themeColor:'#07182a'};
-export const metadata:Metadata={metadataBase:new URL(SITE_URL),title:{default:'Sky Cars & Motorcycles | Vehicle Marketplace from China',template:'%s'},description:'Browse real vehicle inventory, compare cars, estimate China-to-Africa shipping, request quotes and get export support.',openGraph:{type:'website',siteName:'Sky Cars & Motorcycles',title:'Sky Cars & Motorcycles | Vehicle Marketplace',description:'Cars, motorcycles, sourcing, shipping and export support from China.',url:SITE_URL},alternates:{canonical:SITE_URL}};
+
+const display=Space_Grotesk({subsets:['latin'],display:'swap',variable:'--font-space-grotesk'});
+const body=Inter({subsets:['latin'],display:'swap',variable:'--font-inter'});
+
+export const viewport:Viewport={width:'device-width',initialScale:1,themeColor:'#091827'};
+export const metadata:Metadata={
+  metadataBase:new URL(SITE_URL),
+  title:{default:'Sky Cars & Motorcycles | Vehicle Marketplace from China',template:'%s'},
+  description:'Explore verified cars and motorcycles in China, compare vehicles, estimate shipping to Africa and request a quote from Sky Cars.',
+  openGraph:{type:'website',siteName:'Sky Cars & Motorcycles',title:'Sky Cars & Motorcycles | Vehicle Marketplace',description:'Cars, motorcycles, sourcing, shipping and export support from China.',url:SITE_URL},
+  alternates:{canonical:SITE_URL},
+};
+
+/*
+  Public chrome only. /admin and /lab render their own shells (SiteChrome), so this header/footer never
+  affects the operational admin. All existing routes, auth and search behaviour are preserved.
+*/
 export default function RootLayout({children}:{children:React.ReactNode}){
- const before=<><div className="topMarketBar"><span>Vehicle marketplace from China</span><div><a href="/shipping">Shipping estimates</a><a href="/tracking">Track shipment</a><a href="/faq">Help</a></div></div><header><a className="logo" href="/"><span>SKY</span> CARS <em>& MOTORCYCLES</em></a><form className="headerSearch" action="/vehicles" role="search"><input name="q" placeholder="Search Toyota, BYD, SUV, stock number…" aria-label="Search vehicles"/><button aria-label="Search">Search</button></form><div className="headerTools"><MiniMarketBar/><AuthStatus/></div><nav className="nav"><a href="/vehicles">All Vehicles</a><a href="/sold-vehicles">Sold Vehicles</a><a href="/cars">Cars</a><a href="/motorcycles">Motorcycles</a><a href="/vehicles?fuel=electric">EV</a><a href="/shipping">Shipping</a><a href="/destinations">Destinations</a><a href="/quote">Get Quote</a><a href="/account">My Sky Cars</a></nav></header></>;
- const after=<><a className="whatsapp" href={waLink()} target="_blank" rel="noreferrer">WhatsApp Sales</a><footer><div className="footerBrand"><b>Sky Cars & Motorcycles</b><p>Vehicle marketplace, sourcing and export support from China.</p></div><div><b>Shop</b><a href="/vehicles">All vehicles</a><a href="/sold-vehicles">Sold vehicles</a><a href="/cars">Cars</a><a href="/motorcycles">Motorcycles</a><a href="/compare">Compare</a></div><div><b>Shipping</b><a href="/shipping">Estimate shipping</a><a href="/destinations">Destinations</a><a href="/tracking">Tracking</a></div><div><b>Support</b><a href="/about">About</a><a href="/contact">Contact</a><a href="/faq">FAQ</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div><small>© {new Date().getFullYear()} Sky Cars & Motorcycles. Vehicle and shipping availability must be confirmed before payment. Reference shipping ranges are estimates, not guaranteed freight quotations.</small></footer></>;
- return <html lang="en"><body><SiteChrome before={before} after={<><WhySkyCars/>{after}</>} banner={<WhatsAppGroupBanner/>}>{children}</SiteChrome></body></html>;
+  const before=<>
+    <div className="siteTopbar"><div><span>Vehicle marketplace and export support from China</span><div><a href="/shipping">Shipping estimates</a><a href="/tracking">Track shipment</a><a href="/faq">Help</a></div></div></div>
+    <header className="siteHeader">
+      <div className="siteHeaderInner">
+        <a className="siteLogo" href="/" aria-label="Sky Cars and Motorcycles home"><span className="siteLogoMark" aria-hidden="true">SC</span><span>SKY CARS<em>MOTORCYCLES</em></span></a>
+        <form className="siteSearch" action="/vehicles" role="search">
+          <input name="q" placeholder="Search Toyota, BYD, SUV, stock number..." aria-label="Search vehicles"/>
+          <button type="submit" aria-label="Search vehicles">Search</button>
+        </form>
+        <div className="siteTools"><MiniMarketBar/><AuthStatus/><a href={waLink()} target="_blank" rel="noreferrer" className="siteWa" style={{background:'var(--sc-green)',color:'#fff',borderRadius:'999px',padding:'9px 14px',fontWeight:800,fontFamily:'var(--font-display)',fontSize:'13px'}}>WhatsApp</a></div>
+        <details className="mobileMenu">
+          <summary aria-label="Open menu">Menu</summary>
+          <div className="mobileMenuPanel"><SiteNav mobile/><a href="/compare">Compare</a></div>
+        </details>
+      </div>
+      <nav className="siteNav" aria-label="Main navigation"><div className="siteNavInner"><SiteNav/></div></nav>
+    </header>
+  </>;
+  const after=<>
+    <WhySkyCars/>
+    <footer className="siteFooter">
+      <div className="siteFooterInner">
+        <div className="siteFooterBrand">
+          <b>SKY CARS &amp; MOTORCYCLES</b>
+          <p>Vehicle marketplace, sourcing and export support from China. We help you find the right car or motorcycle and coordinate international shipping.</p>
+          <div className="footerBadges"><span>Verified stock photos</span><span>WhatsApp support</span><span>Shipping guidance</span></div>
+        </div>
+        <div><h4>Shop</h4><a href="/vehicles">Available vehicles</a><a href="/sold-vehicles">Sold vehicles</a><a href="/cars">Cars</a><a href="/motorcycles">Motorcycles</a><a href="/compare">Compare</a></div>
+        <div><h4>Shipping</h4><a href="/shipping">Shipping estimates</a><a href="/destinations">Destinations</a><a href="/tracking">Track shipment</a><a href="/quote">Request a quote</a></div>
+        <div><h4>Company</h4><a href="/about">About Sky Cars</a><a href="/contact">Contact</a><a href="/faq">FAQ</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
+      </div>
+      <div className="siteFooterBottom"><span>&copy; {new Date().getFullYear()} Sky Cars &amp; Motorcycles. Vehicle availability and shipping must be confirmed before payment; ranges are estimates, not guaranteed quotations.</span><span><a href={waLink()} target="_blank" rel="noreferrer">WhatsApp sales</a></span></div>
+    </footer>
+  </>;
+  return <html lang="en" className={`${display.variable} ${body.variable}`}><body><SiteChrome before={before} after={after} banner={<WhatsAppGroupBanner/>}>{children}</SiteChrome></body></html>;
 }
