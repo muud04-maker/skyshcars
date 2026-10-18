@@ -8,6 +8,8 @@
     "src/lib/intent.ts",
     "src/lib/ai-catalog.ts",
     "src/lib/site.ts",
+    "src/lib/display-title.ts",
+    "src/lib/shipping-estimate.ts",
     "src/lib/customer-facts.ts",
     "src/lib/ai-learning.ts",
     "src/lib/staff-notes.ts",

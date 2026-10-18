@@ -1,3 +1,5 @@
+import {vehicleDisplayTitle} from './display-title';
+
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://skyshcars.com').replace(/\/$/, '');
 export const WA_NUMBER = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '8615778025441').replace(/\D/g, '');
 export const waLink = (text?: string) => `https://wa.me/${WA_NUMBER}${text ? '?text=' + encodeURIComponent(text) : ''}`;
@@ -21,8 +23,7 @@ export function canonicalVehicleUrl(id: string | number) {
 
 /** Vehicle title used in messages/metadata, de-duplicated ("2016 GAC Trumpchi GS4"). */
 export function vehicleTitle(v: any) {
-  const raw = [v?.model_year, v?.brand, v?.model].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-  return raw || String(v?.stock_no || 'Vehicle');
+  return vehicleDisplayTitle(v);
 }
 
 /**

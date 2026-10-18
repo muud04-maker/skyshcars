@@ -1,4 +1,4 @@
-import {vehicleWhatsAppLink} from '../lib/site';
+import {vehicleTitle,vehicleWhatsAppLink} from '../lib/site';
 import {FavoriteButton,CompareButton} from './MarketplaceTools';
 
 function specsOf(v:any){if(!v?.specs)return{};if(typeof v.specs==='object')return v.specs;try{return JSON.parse(v.specs)}catch{return{}}}
@@ -9,7 +9,7 @@ function specsOf(v:any){if(!v?.specs)return{};if(typeof v.specs==='object')retur
   carries a prominent SOLD badge so it can never read as in stock.
 */
 export default function VehicleCard({v}:{v:any}){
- const title=`${v.model_year||''} ${v.brand||''} ${v.model||''}`.replace(/\s+/g,' ').trim()||'Vehicle';
+ const title=vehicleTitle(v);
  const image=v.cover_url||null;
  const representative=v.photo_kind==='representative'||String(image||'').includes('/api/model-photo/')||String(image||'').includes('/api/representative-photo/');
  const status=String(v.status||'available');
@@ -42,11 +42,11 @@ export default function VehicleCard({v}:{v:any}){
      <div className="stockMeta"><span>Vehicle in China</span><i className={status==='available'?'dotOn':'dotWait'}/>{statusText}</div>
      <p className="stockNo">Stock {v.stock_no}</p>
      <div className="cardActions">
-       <a className="btn small" href={'/vehicles/'+v.id}>View details</a>
+       <a className="btn small cardPrimary" href={'/vehicles/'+v.id}>View details</a>
        {sold
-         ? <a className="btn small alt" href={'/vehicles?stock=available&brand='+encodeURIComponent(String(v.brand||''))}>Find similar</a>
-         : <a className="btn small alt" href={'/quote?vehicle='+encodeURIComponent(String(v.id))}>Get quote</a>}
-       <a className="miniPlus" href={wa} target="_blank" rel="noreferrer" aria-label={sold?`Ask about a similar vehicle to ${title}`:`WhatsApp about ${title}`}>WA</a>
+         ? <a className="btn small cardSecondary" href={'/vehicles?stock=available&brand='+encodeURIComponent(String(v.brand||''))}>Find similar</a>
+         : <a className="btn small cardSecondary" href={'/quote?vehicle='+encodeURIComponent(String(v.id))}>Get quote</a>}
+       <a className="cardWa" href={wa} target="_blank" rel="noreferrer" aria-label={sold?`Ask about a similar vehicle to ${title}`:`WhatsApp about ${title}`}><span className="waGlyph" aria-hidden="true">WA</span> WhatsApp</a>
      </div>
    </div>
  </article>;

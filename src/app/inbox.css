@@ -226,6 +226,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .whyCta p { margin: 4px 0 0; color: #c9dbea; }
 @media (max-width: 700px) { .whyCta { flex-direction: column; align-items: flex-start; } .whyActions .btn { width: 100%; text-align: center; } }
 
+/* Public trust section: a light, calm close before the dark footer. */
+.whySkyCars{background:linear-gradient(180deg,#f7fafc,#eef4f9);color:var(--sc-ink);padding:54px 5% 48px;margin-top:0;border-top:1px solid #d9e3ec}
+.whyHead h2{color:var(--sc-ink)}
+.whyCard{background:#fff;border:1px solid #dbe5ee;border-radius:14px;padding:18px;box-shadow:0 10px 30px -24px #0b2135}
+.whyCard b{color:#0d2135;font-family:var(--font-display);font-size:15px}
+.whyCard p{color:#5b6b7c;line-height:1.6}
+.whyCta{border-top:1px solid #d9e3ec;margin-top:24px;padding-top:20px}
+.whyCta b{color:var(--sc-ink)}
+.whyCta p{color:#5b6b7c}
+.whySkyCars .eyebrow{color:var(--sc-gold-deep)}
+
 /* ---------- public site / form mobile polish ---------- */
 .btn-primary, .btn-success, .btn-info, .btn-warning, .btn-danger, .btn-neutral {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;

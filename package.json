@@ -8,18 +8,20 @@
     "start": "next start",
     "check": "node scripts-check.js",
     "photos:import": "node tools/photo-pack/import_to_public.mjs",
-    "check:ai": "node scripts/check-ai/run.mjs"
+    "check:ai": "node scripts/check-ai/run.mjs",
+    "test:visual": "playwright test tests/visual/visual.spec.ts tests/visual/card-layout.spec.ts --reporter=list"
   },
   "dependencies": {
     "axios": "^1.12.2",
     "dotenv": "^17.2.2",
     "mysql2": "^3.15.3",
     "next": "16.3.8",
+    "next-auth": "^5.0.0-beta.25",
     "react": "19.1.1",
-    "react-dom": "19.1.1",
-    "next-auth": "^5.0.0-beta.25"
+    "react-dom": "19.1.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",

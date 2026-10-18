@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
+import {vehicleDisplayTitle} from '../lib/display-title';
 
 type VehicleLite={id:string|number;stock_no?:string;brand?:string;model?:string;model_year?:number;price_usd?:number;cover_url?:string|null};
 const FAV='sky_favorites_v1',RECENT='sky_recent_v1',COMPARE='sky_compare_v1';
@@ -23,10 +24,10 @@ export function MiniMarketBar(){
 export function LocalCollection({mode}:{mode:'favorites'|'recent'}){
  const key=mode==='favorites'?FAV:RECENT;const [items,setItems]=useState<any[]>([]);useEffect(()=>setItems(read(key)),[key]);
  if(!items.length)return <div className="card emptyCollection"><h3>{mode==='favorites'?'No saved vehicles yet':'No recently viewed vehicles yet'}</h3><p>Browse the marketplace and vehicles will appear here.</p><a className="btn" href="/vehicles">Browse vehicles</a></div>;
- return <div className="miniVehicleGrid">{items.map(v=><a className="miniVehicle" key={v.id} href={'/vehicles/'+v.id}>{v.cover_url?<img src={v.cover_url} alt=""/>:<div className="miniNoPhoto">SKY</div>}<div><b>{[v.model_year,v.brand,v.model].filter(Boolean).join(' ')}</b><span>{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</span><small>{v.stock_no||''}</small></div></a>)}</div>
+ return <div className="miniVehicleGrid">{items.map(v=><a className="miniVehicle" key={v.id} href={'/vehicles/'+v.id}>{v.cover_url?<img src={v.cover_url} alt=""/>:<div className="miniNoPhoto">SKY</div>}<div><b>{vehicleDisplayTitle(v)}</b><span>{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</span><small>{v.stock_no||''}</small></div></a>)}</div>
 }
 export function CompareTable(){
  const [items,setItems]=useState<any[]>([]);useEffect(()=>setItems(read(COMPARE)),[]);const fields=useMemo(()=>[['Price',(v:any)=>v.price_usd?'$'+Number(v.price_usd).toLocaleString():'On request'],['Year',(v:any)=>v.model_year||'—'],['Stock',(v:any)=>v.stock_no||'—']],[]);
  if(!items.length)return <div className="card emptyCollection"><h2>No vehicles selected</h2><p>Add up to four vehicles to compare them here.</p><a className="btn" href="/vehicles">Find vehicles</a></div>;
- return <div className="compareTableWrap"><table className="compareTable"><thead><tr><th>Compare</th>{items.map(v=><th key={v.id}>{v.cover_url?<img src={v.cover_url} alt=""/>:null}<a href={'/vehicles/'+v.id}>{[v.model_year,v.brand,v.model].filter(Boolean).join(' ')}</a></th>)}</tr></thead><tbody>{fields.map(([label,fn]:any)=><tr key={label}><th>{label}</th>{items.map(v=><td key={v.id}>{fn(v)}</td>)}</tr>)}</tbody></table></div>
+ return <div className="compareTableWrap"><table className="compareTable"><thead><tr><th>Compare</th>{items.map(v=><th key={v.id}>{v.cover_url?<img src={v.cover_url} alt=""/>:null}<a href={'/vehicles/'+v.id}>{vehicleDisplayTitle(v)}</a></th>)}</tr></thead><tbody>{fields.map(([label,fn]:any)=><tr key={label}><th>{label}</th>{items.map(v=><td key={v.id}>{fn(v)}</td>)}</tr>)}</tbody></table></div>
 }

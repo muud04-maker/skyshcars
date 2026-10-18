@@ -16,3 +16,7 @@ tools/whatsapp-group-bridge/.env
 # Local tool artifacts (never part of the app)
 .claude/
 Microsoft/
+
+playwright-report/
+test-results/
+tests/visual/screenshots/

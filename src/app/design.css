@@ -41,6 +41,7 @@ a:hover{text-decoration:none}
 /* ---------- header ---------- */
 .siteTopbar{background:var(--sc-charcoal);color:#c7d5e2;font-size:12.5px;letter-spacing:.02em}
 .siteTopbar > div{max-width:1440px;margin:0 auto;padding:7px 22px;display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
+.siteTopbar > div > div{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
 .siteTopbar a{color:#dbe6f0;opacity:.9}
 .siteTopbar a:hover{color:var(--sc-gold)}
 .siteHeader{position:sticky;top:0;z-index:70;background:rgba(9,24,39,.97);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.08);box-shadow:0 10px 30px -22px #000}
@@ -245,6 +246,172 @@ a:hover{text-decoration:none}
 .status{border-radius:12px;border:1px solid #cfe0ee;background:#f3f9ff;padding:11px 13px;color:#22435f}
 .status.danger{border-color:#efc4c4;background:#fff5f5;color:#8a1c1c}
 
+/* ---------- production visual repair: cards, homepage rhythm, marketplace ---------- */
+/* These rules intentionally win over the older stock-card overrides in globals.css. */
+.vehicleCard .vehicleImageWrap{position:relative;display:block;aspect-ratio:16/10;overflow:hidden;background:linear-gradient(135deg,#e8eef5,#f6f9fc)}
+.vehicleCard .vehicleImageWrap img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}
+.vehicleCard .vehicleBody{padding:16px 16px 18px;gap:7px}
+.vehicleCard .vehicleBody h3{min-height:2.5em;font-size:1.03rem;line-height:1.28}
+.vehicleCard .vehicleFacts{min-height:2.5em;line-height:1.45}
+.vehicleCard .price{font-size:1.55rem;line-height:1.1;color:var(--sc-ink);margin:5px 0 1px}
+.vehicleCard .stockMeta{min-height:22px}
+.vehicleCard .stockMeta span{background:#f1f5f9;border-radius:6px;padding:4px 7px;color:#52677b}
+.vehicleCard .stockNo{margin:1px 0 2px}
+.vehicleCard .cardActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:auto;padding-top:12px}
+.vehicleCard .cardActions .btn{min-height:37px;display:inline-flex;align-items:center;justify-content:center;margin:0;padding:8px 10px;font-size:12.5px;border-radius:10px}
+.vehicleCard .cardActions .cardPrimary{grid-column:1/-1;background:var(--sc-navy);color:#fff;border:1px solid var(--sc-navy)}
+.vehicleCard .cardActions .cardSecondary{background:#fff;color:var(--sc-navy);border:1px solid #cbd8e4}
+.vehicleCard .cardActions .cardWa{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:37px;padding:8px 7px;border-radius:10px;background:var(--sc-green);color:#fff;border:1px solid var(--sc-green);font-family:var(--font-display);font-size:11.5px;font-weight:700;white-space:nowrap}
+.vehicleCard .cardActions .cardWa:hover{background:var(--sc-green-deep);border-color:var(--sc-green-deep)}
+.waGlyph{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.2);font-size:9px;font-weight:800;letter-spacing:0}
+
+/* The old stylesheet anchored these badges on the opposite corners, which stretched them across
+   the photo. Each badge now has exactly one corner and shrink-to-fit content. */
+.vehicleCard .vehicleImageWrap .repPhotoTag,
+.vehicleCard .repPhotoTag{position:absolute;left:10px;right:auto;bottom:10px;top:auto;width:auto;max-width:calc(100% - 20px);display:inline-flex;align-items:center;font-size:10.5px;line-height:1.2;padding:5px 8px;border-radius:999px;z-index:3;background:rgba(9,24,39,.82);color:#fff;backdrop-filter:blur(6px);white-space:nowrap}
+.vehicleCard .steeringTag{position:absolute;left:auto;right:10px;bottom:10px;top:auto;width:auto;padding:4px 8px;border-radius:999px;background:#fff;color:var(--sc-ink);font-size:10.5px;line-height:1.2;z-index:3;box-shadow:0 3px 12px #0002}
+.vehicleCard .soldBadge{left:10px;right:auto;top:10px;bottom:auto;width:auto;font-size:11px;line-height:1.2;padding:6px 9px;letter-spacing:.12em}
+.vehicleCard .cardMediaActions{right:10px;left:auto;top:10px;bottom:auto;z-index:4}
+.vehicleCard .cardMediaActions .iconAction{width:33px;min-width:33px;height:33px;background:rgba(255,255,255,.96);color:var(--sc-ink);box-shadow:0 4px 16px #0002}
+.vehicleCard .cardMediaActions .iconAction.active{background:#fff2ef;color:#b3261e}
+
+/* Homepage rhythm */
+.heroSection{background:radial-gradient(1000px 520px at 82% -20%,rgba(249,188,37,.2),transparent 62%),linear-gradient(155deg,#071523,#0a2033 58%,#081723)}
+.heroGrid{padding-top:clamp(52px,7vw,102px);padding-bottom:clamp(46px,6vw,84px)}
+.heroTitle{font-size:clamp(2.55rem,4.8vw,4.35rem);letter-spacing:-.035em}
+.heroLead{font-size:clamp(1rem,1.2vw,1.13rem);line-height:1.7}
+.heroMedia{min-height:390px;border-radius:24px;border:1px solid rgba(255,255,255,.14);box-shadow:0 40px 100px -44px #000}
+.heroMedia img{min-height:390px;object-position:center}
+.heroMediaBadge{position:absolute;right:14px;top:14px;background:var(--sc-gold);color:#1a1300;border-radius:999px;padding:6px 10px;font-family:var(--font-display);font-size:11px;font-weight:800;letter-spacing:.03em}
+.heroMediaTag{left:14px;bottom:14px;border-radius:14px;padding:11px 14px;max-width:calc(100% - 28px)}
+.heroMediaTag b{font-size:15px}
+.heroMediaTag small{display:block;margin-top:2px;font-size:12px}
+.heroMediaEmpty{min-height:390px;background:radial-gradient(circle at 65% 30%,rgba(249,188,37,.14),transparent 36%),linear-gradient(145deg,#10283d,#081725)}
+.heroMediaEmpty .btn{margin-top:14px}
+.heroAlt{background:transparent!important;border-color:rgba(255,255,255,.38)!important;color:#fff!important}
+.heroAlt:hover{background:rgba(255,255,255,.08)!important;border-color:rgba(255,255,255,.62)!important}
+.heroTrust span{display:flex;flex-direction:column;gap:1px;line-height:1.4}
+.heroTrust b{font-size:12.5px;letter-spacing:.02em}
+
+.section--categories{background:linear-gradient(160deg,#0b1c2d,#11283d);color:#fff;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid #1b344a}
+.section--categories .sectionHead h2{color:#fff}
+.section--categories .sectionHead p{color:#a9bfd3}
+.section--categories .sectionHead>a{color:var(--sc-gold)}
+.categoryGrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.categoryTile{position:relative;display:flex;flex-direction:column;gap:9px;min-height:176px;padding:19px;border-radius:18px;background:linear-gradient(155deg,rgba(255,255,255,.075),rgba(255,255,255,.018));border:1px solid rgba(255,255,255,.12);overflow:hidden;transition:transform .2s ease,border-color .2s ease,background .2s ease}
+.categoryTile::after{content:"";position:absolute;width:150px;height:150px;right:-62px;bottom:-74px;border-radius:50%;background:radial-gradient(circle,rgba(249,188,37,.22),transparent 68%);pointer-events:none}
+.categoryTile:hover{transform:translateY(-3px);border-color:rgba(249,188,37,.5);background:linear-gradient(155deg,rgba(255,255,255,.11),rgba(255,255,255,.03))}
+.categoryMark{display:inline-grid;place-items:center;width:46px;height:46px;border-radius:12px;background:rgba(249,188,37,.14);border:1px solid rgba(249,188,37,.32);color:var(--sc-gold);font-family:var(--font-display);font-size:12px;font-weight:800;letter-spacing:.04em}
+.categoryTile b{font-family:var(--font-display);font-size:17px;color:#fff;margin-top:auto}
+.categoryTile small{color:#9fb6ca;font-size:12.5px;line-height:1.4;max-width:18ch}
+.categoryArrow{position:absolute;right:17px;top:17px;color:#8ba4ba;font-size:18px;transition:transform .2s ease,color .2s ease}
+.categoryTile:hover .categoryArrow{transform:translateX(3px);color:var(--sc-gold)}
+.brandRowDark{margin-top:20px}
+.brandRowDark a{background:rgba(255,255,255,.045);border-color:rgba(255,255,255,.14);color:#c8d8e6}
+.brandRowDark a:hover{border-color:var(--sc-gold);color:var(--sc-gold);background:rgba(249,188,37,.08)}
+
+.section--arrivals{background:linear-gradient(180deg,#fbf8f2,#f4efe6);border-top:1px solid #e5dccd;border-bottom:1px solid #e2d8c9}
+.section--arrivals .eyebrow{color:#9a6a00}
+.arrivalsEmpty{background:rgba(255,255,255,.68);border-color:#d8cdbd;box-shadow:0 18px 50px -34px #6f5b3a}
+.arrivalsEmpty .btn{background:var(--sc-gold);color:#201700;border-color:var(--sc-gold)}
+
+.section--blue{background:linear-gradient(155deg,#122f49,#0c2033)}
+.section--blue .sectionHead h2,.section--blue h2{color:#fff}
+.shippingSection .sectionHead{margin-top:0}
+.shippingGrid{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:clamp(24px,4vw,48px);align-items:start}
+.shippingCopy .lead{color:#d4e2ee}
+.shippingCopy .muted{color:#a5bdd0}
+.shippingCopy .pager{margin-top:22px}
+.shippingEstimator{max-width:none;width:100%;margin:0;padding:22px;border:1px solid rgba(255,255,255,.16);background:#fff;color:var(--sc-ink);box-shadow:0 30px 80px -44px #000}
+.shippingEstimator .sectionHead{margin-bottom:14px}
+.shippingEstimator .sectionHead h2{font-size:1.35rem}
+.estimateInputs label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5f7286}
+.estimateInputs select{padding:11px;border:1px solid #cddae7;border-radius:10px;background:#fbfdff;color:var(--sc-ink);font:inherit;font-size:14px}
+.estimateResult{background:linear-gradient(145deg,#f4f8fc,#eef4fa);border:1px solid #d7e3ee;border-radius:14px;padding:18px}
+.estimateResult small{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#60768b;font-weight:800}
+.estimateResult strong{font-family:var(--font-display);font-size:clamp(1.9rem,3vw,2.5rem);color:var(--sc-ink);margin:5px 0}
+.estimateFlag{margin-top:12px;padding:10px 12px;border-radius:10px;background:#fff6df;border:1px solid #ead08a;color:#6d5200;display:grid;gap:3px}
+.estimateFlag b{font-size:12.5px}
+.estimateFlag span{font-size:11.5px;line-height:1.5;color:#715c20}
+.estimateDisclaimer{color:#64788c}
+.estimateFooter{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px}
+.estimateFooter span{font-size:11.5px;color:#64788c;max-width:58ch}
+.estimateFooter .btn{flex:0 0 auto;margin:0}
+
+.sourcingBand{position:relative;background:linear-gradient(90deg,#071827,#0a263b);background-size:cover;background-position:center;color:#fff;padding:clamp(58px,8vw,108px) 22px;border-top:1px solid rgba(255,255,255,.08);overflow:hidden}
+.sourcingBand::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,15,26,.94),rgba(4,15,26,.54) 55%,rgba(4,15,26,.2));pointer-events:none}
+.sourcingInner{position:relative;z-index:1;max-width:1440px;margin:auto;max-width:760px}
+.sourcingInner h2{font-size:clamp(1.9rem,3.6vw,3rem);color:#fff;max-width:18ch}
+.sourcingInner p{color:#b9cddd;max-width:58ch;font-size:1.02rem;line-height:1.7}
+.sourcingInner .pager{margin-top:22px}
+
+.section--sold{background:linear-gradient(160deg,#101820,#1a2632);color:#fff;border-top:1px solid #263543;border-bottom:1px solid #263543}
+.section--sold .sectionHead h2{color:#fff}
+.section--sold .sectionHead p{color:#a8bac9}
+.section--sold .sectionHead>a{color:var(--sc-gold)}
+.soldStatsRow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 24px}
+.soldStatsRow div{padding:15px 16px;border-radius:13px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.05)}
+.soldStatsRow b{display:block;font-family:var(--font-display);font-size:1.65rem;color:var(--sc-gold);line-height:1}
+.soldStatsRow span{display:block;margin-top:5px;font-size:11.5px;color:#a8bac9}
+.soldEmpty{display:grid;place-items:center;text-align:center;gap:8px;padding:36px 20px;border:1px dashed #435667;border-radius:18px;background:rgba(255,255,255,.035);color:#a8bac9}
+.soldEmpty b{font-family:var(--font-display);font-size:17px;color:#fff}
+.soldEmpty .btn{margin-top:6px}
+.section--trust{background:#f7fafc}
+
+/* Catalogue header */
+.catalogHero{background:radial-gradient(900px 420px at 82% -20%,rgba(249,188,37,.16),transparent 60%),linear-gradient(150deg,#081725,#0d2b43);color:#fff;padding:44px 0 40px;border-bottom:1px solid #1d3549}
+.catalogHeroInner{max-width:1440px;margin:auto;padding:0 22px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap}
+.catalogHero h1{font-size:clamp(2.25rem,4vw,3.5rem);color:#fff;margin:.16em 0 .18em}
+.catalogHero p{color:#b9cddd;max-width:66ch;margin:0;line-height:1.65}
+.catalogHeroMeta{display:flex;flex-direction:column;align-items:flex-end;padding:12px 16px;border:1px solid rgba(255,255,255,.15);border-radius:14px;background:rgba(255,255,255,.05)}
+.catalogHeroMeta b{font-family:var(--font-display);font-size:1.9rem;line-height:1;color:var(--sc-gold)}
+.catalogHeroMeta span{font-size:11.5px;color:#a8bfd1}
+.catalogShell{padding-top:26px}
+.catalogCount h2{font-size:1.35rem}
+.catalogFilters{border-radius:16px}
+.mobileFilterDrawer{display:none}
+
+/* Sold page */
+.soldPage{max-width:1440px!important;margin:0 auto;padding:26px 22px 40px}
+.soldHero{border-radius:26px;background:linear-gradient(145deg,#0b1f31,#123c5e);background-size:cover;background-position:center;color:#fff;padding:clamp(28px,4vw,52px);overflow:hidden;box-shadow:0 30px 80px -50px #000}
+.soldHero h1{font-size:clamp(2.3rem,4.3vw,3.6rem);color:#fff;margin:.16em 0 .2em}
+.soldHero p{color:#c3d5e3;max-width:72ch;line-height:1.65}
+.soldStats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:24px}
+.soldStats div{padding:14px 15px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(0,0,0,.18);backdrop-filter:blur(6px)}
+.soldStats b{display:block;font-family:var(--font-display);font-size:1.55rem;line-height:1;color:var(--sc-gold)}
+.soldStats span{display:block;margin-top:4px;font-size:11.5px;color:#b7c9d8}
+.soldFilter{margin:18px 0 24px;padding:18px;border-radius:16px}
+.soldFilterGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.soldFilterGrid label{display:grid;gap:5px;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#5f7286}
+.soldFilterGrid input,.soldFilterGrid select{padding:10px 11px;border:1px solid #cddae7;border-radius:10px;background:#fbfdff;color:var(--sc-ink);font:inherit;font-size:14px;text-transform:none;letter-spacing:0}
+.soldFilterGrid .wide{grid-column:1/-1}
+.soldFilterActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.soldFilterActions .btn{margin:0}
+
+/* Vehicle detail polish */
+.vehicleGallery{background:#0a1724;border-color:#1d3448;padding:12px;border-radius:24px}
+.galleryMain{height:clamp(360px,48vw,620px);border-radius:16px;background:#07111b}
+.galleryMain img{object-fit:contain;background:#07111b}
+.galleryMain .galleryZoom{display:block;width:100%;height:100%;padding:0;border:0;background:none;cursor:zoom-in}
+.galleryNav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(7,17,27,.72);color:#fff;font-size:24px;cursor:pointer;z-index:2}
+.galleryNav.prev{left:12px}.galleryNav.next{right:12px}
+.galleryCount{position:absolute;right:12px;bottom:12px;background:rgba(7,17,27,.76);color:#fff;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800}
+.galleryThumbs{display:flex;gap:8px;overflow-x:auto;padding:10px 0 2px}
+.galleryThumbs button{flex:0 0 88px;padding:0;border:2px solid transparent;border-radius:9px;overflow:hidden;background:none;cursor:pointer;opacity:.72}
+.galleryThumbs button.on{border-color:var(--sc-gold);opacity:1}
+.galleryThumbs img{display:block;width:84px;height:62px;object-fit:cover}
+.vehicleInfoPanel{border-radius:24px}
+.vehicleInfoPanel h1{line-height:1.12}
+.specGrid{border-radius:14px;background:#dbe4ee}
+.specGrid div{background:#fff}
+.specNote{margin:10px 0 0;font-size:12.5px;color:#64788c;line-height:1.55}
+.detailTopline .badge{padding:6px 10px;letter-spacing:.08em}
+.detailActions .btn{border-radius:11px}
+
+/* Admin/navigation helpers that also serve the public shell */
+.siteWa{background:var(--sc-green);color:#fff;border-radius:999px;padding:9px 14px;font-weight:800;font-family:var(--font-display);font-size:13px;white-space:nowrap}
+.siteWa:hover{background:var(--sc-green-deep);color:#fff}
+
 /* ---------- responsive ---------- */
 @media (max-width:1200px){
   .siteHeaderInner{grid-template-columns:auto minmax(180px,1fr) auto;gap:12px}
@@ -297,4 +464,71 @@ a:hover{text-decoration:none}
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
   .vehicleCard:hover{transform:none}
   .vehicleCard:hover .vehiclePhoto{transform:none}
+}
+
+@media (max-width:1180px){
+  .categoryGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .categoryTile{min-height:158px}
+}
+@media (max-width:980px){
+  .shippingGrid{grid-template-columns:1fr}
+  .catalogSidebar{display:none}
+  .mobileFilterDrawer{display:block;margin:0 0 12px;border:1px solid var(--sc-line);border-radius:14px;background:#fff;box-shadow:var(--sc-shadow-sm);overflow:hidden}
+  .mobileFilterDrawer>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:13px 15px;font-family:var(--font-display);font-weight:700;color:var(--sc-ink)}
+  .mobileFilterDrawer>summary::-webkit-details-marker{display:none}
+  .mobileFilterDrawer>summary::after{content:'+';font-size:20px;color:var(--sc-blue);line-height:1}
+  .mobileFilterDrawer[open]>summary::after{content:'−'}
+  .mobileFilterDrawer .catalogFilters{position:static;border:0;box-shadow:none;border-radius:0;border-top:1px solid var(--sc-line)}
+  .catalogHeroInner{align-items:flex-start}
+  .catalogHeroMeta{align-items:flex-start}
+  .soldFilterGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .soldStats,.soldStatsRow{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .heroMedia{min-height:300px}
+  .heroMedia img{min-height:300px}
+  .heroMediaEmpty{min-height:300px}
+}
+@media (max-width:820px){
+  .siteTools{display:none}
+  .siteHeaderInner{grid-template-columns:auto auto;justify-content:space-between;row-gap:0}
+  .mobileMenu{position:static;margin-left:0}
+  .mobileMenuPanel{position:absolute;left:12px;right:12px;top:calc(100% + 8px);z-index:90;width:auto}
+  .catalogHeroInner{padding:0 16px}
+  .catalogHero{padding:34px 0 30px}
+  .catalogHeroMeta{display:none}
+  .soldPage{padding:16px 14px 30px}
+  .soldHero{border-radius:20px}
+  .sourcingInner{max-width:100%}
+}
+@media (max-width:560px){
+  .siteTopbar > div{padding:6px 14px;gap:3px;flex-direction:column;align-items:flex-start;font-size:11.5px}
+  .siteTopbar > div > div{gap:13px}
+  .siteHeaderInner{padding:10px 14px}
+  .heroGrid{padding-top:38px;padding-bottom:34px}
+  .heroTitle{font-size:clamp(2.2rem,10vw,3rem)}
+  .heroMedia,.heroMedia img,.heroMediaEmpty{min-height:250px}
+  .categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .categoryTile{min-height:146px;padding:15px;border-radius:14px}
+  .categoryMark{width:40px;height:40px;font-size:10.5px}
+  .categoryTile b{font-size:15px}
+  .categoryTile small{font-size:11.5px}
+  .section--arrivals .sectionHead{margin-bottom:18px}
+  .soldStats,.soldStatsRow{grid-template-columns:1fr 1fr}
+  .soldFilterGrid{grid-template-columns:1fr}
+  .soldFilterGrid .wide{grid-column:auto}
+  .soldFilterActions .btn{flex:1 1 100%}
+  .soldFilterActions .btn.dark{flex:1 1 100%}
+  .shippingEstimator{padding:15px}
+  .estimateFooter{align-items:stretch;flex-direction:column}
+  .estimateFooter .btn{width:100%;text-align:center}
+  .vehicleCard .vehicleBody h3{min-height:0}
+  .vehicleCard .vehicleFacts{min-height:0}
+  .vehicleCard .cardActions .cardWa{font-size:11px}
+  .vehicleCard .cardActions .btn{font-size:12px}
+  .catalogHero h1{font-size:2.2rem}
+  .soldHero{padding:24px 18px;border-radius:18px}
+  .soldHero h1{font-size:2.2rem}
+  .vehicleGallery{padding:8px;border-radius:18px}
+  .galleryMain{height:300px;border-radius:12px}
+  .galleryThumbs button{flex-basis:74px}
+  .galleryThumbs img{width:70px;height:54px}
 }

@@ -2,52 +2,90 @@ import {notFound} from 'next/navigation';
 import type {Metadata} from 'next';
 import {getVehicle,getVehicleMedia,getVehicles} from '../../../lib/vehicles';
 import VehicleGallery from '../../../components/VehicleGallery';
-import {SITE_URL,waLink,vehicleEnquiryMessage,vehicleWhatsAppLink,vehicleSeoMetadata} from '../../../lib/site';
+import {SITE_URL,vehicleWhatsAppLink,vehicleSeoMetadata,vehicleTitle} from '../../../lib/site';
 import ShippingEstimator from '../../../components/ShippingEstimator';
 import VehicleGrid from '../../../components/VehicleGrid';
 import {FavoriteButton,CompareButton,RecentlyViewedTracker} from '../../../components/MarketplaceTools';
+import {getBusinessPolicy} from '../../../lib/business-policy';
 export const dynamic='force-dynamic';
 
-const titleOf=(v:any)=>`${v.model_year||''} ${v.brand||''} ${v.model||''}`.trim()||'Vehicle';
-
 export async function generateMetadata({params}:{params:Promise<{id:string}>}):Promise<Metadata>{
- const {id}=await params;const v:any=await getVehicle(id).catch(()=>null);
- if(!v)return {title:'Vehicle not found | Sky Cars'};
- return vehicleSeoMetadata(v);
+  const {id}=await params;
+  const v:any=await getVehicle(id).catch(()=>null);
+  if(!v)return {title:'Vehicle not found | Sky Cars'};
+  return vehicleSeoMetadata(v);
 }
 
+const cleanValue=(value:any)=>{
+  const text=String(value==null?'':value).trim();
+  return /^(unknown|on request|n\/?a|null|undefined|-)$/i.test(text)?'':text;
+};
+
 export default async function Detail({params}:{params:Promise<{id:string}>}){
- const {id}=await params;const v:any=await getVehicle(id);if(!v)notFound();
- const media=await getVehicleMedia(v.id);
- const similar=(await getVehicles({category:v.category||'car',brand:v.brand||undefined,limit:5})).filter((x:any)=>String(x.id)!==String(v.id)).slice(0,4);
- const images:string[]=media.map((m:any)=>m.url);
- const hasRepresentativePhotos = media.some((m:any)=>m.is_representative);
- const status=String(v.status||'available');const statusText=status==='pending_verification'?'check availability':status.replaceAll('_',' ');
- const title=titleOf(v);const sx=typeof v.specs==='object'&&v.specs?v.specs:(()=>{try{return JSON.parse(v.specs||'{}')}catch{return{}}})();
- const jsonLd:any={'@context':'https://schema.org','@type':'Vehicle',name:title,sku:v.stock_no,brand:v.brand?{'@type':'Brand',name:v.brand}:undefined,model:v.model||undefined,vehicleModelDate:v.model_year?String(v.model_year):undefined,mileageFromOdometer:v.mileage_km?{'@type':'QuantitativeValue',value:Number(v.mileage_km),unitCode:'KMT'}:undefined,fuelType:v.fuel_type||undefined,vehicleTransmission:v.transmission||undefined,color:v.color||undefined,url:`${SITE_URL}/vehicles/${v.id}`,image:media.length?media.slice(0,6).map((m:any)=>String(m.url).startsWith('/')?SITE_URL+m.url:m.url):undefined,offers:v.price_usd?{'@type':'Offer',price:Number(v.price_usd),priceCurrency:'USD',availability:status==='sold'?'https://schema.org/SoldOut':status==='reserved'?'https://schema.org/LimitedAvailability':'https://schema.org/InStock',url:`${SITE_URL}/vehicles/${v.id}`}:undefined};
- const lite={id:v.id,stock_no:v.stock_no,brand:v.brand,model:v.model,model_year:v.model_year,price_usd:v.price_usd,cover_url:v.cover_url};
- return <main className="wrap vehicleDetailPage"><RecentlyViewedTracker vehicle={lite}/>
-  <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(jsonLd).replace(/</g,'\\u003c')}}/>
-  <nav className="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> › <a href={v.category==='motorcycle'?'/motorcycles':'/cars'}>{v.category==='motorcycle'?'Motorcycles':'Cars'}</a> › <span>{title}</span></nav>
-  <div className="vehicleDetailGrid">
-   <section className="vehicleGallery card">
-    {images.length?<><VehicleGallery images={images} alt={title}/>{hasRepresentativePhotos&&<div className="repPhotoDetailNote"><strong>Representative photo set</strong><p>These images match the vehicle model and help browsing. Final buying decisions should be confirmed with the latest stock-unit photos from Sky Cars.</p></div>}</>:<div className="detailNoPhoto"><span>SKY CARS</span><strong>Current photos available on request</strong><p>Contact us and we will send the latest vehicle photos before you decide.</p></div>}
-   </section>
-   <section className="card vehicleInfoPanel">
-    <div className="detailTopline"><span className={'badge '+(status==='pending_verification'||status==='reserved'?'pending':status==='sold'?'sold':'')}>{statusText}</span><span>Stock No. {v.stock_no}</span></div>
-    <h1>{title}</h1>
-    <div className="price">{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</div>{status==='sold'?<p className="soldNotice"><b>SOLD</b> - this unit is no longer available. The figure above is its last listed price, not a current offer.</p>:null}{status==='sold'?<p className="soldNotice"><b>SOLD</b> - this unit is no longer available. The figure above is its last listed price, not a current offer.</p>:null}
-    <p className="muted">Price shown is the vehicle price in China. Shipping, destination charges and documents are quoted separately.</p>
-    <div className="specGrid">
-      <div><small>Year</small><b>{v.model_year||'On request'}</b></div><div><small>Mileage</small><b>{sx.mileage_range|| (v.mileage_km?Number(v.mileage_km).toLocaleString()+'+ km':'On request')}</b></div>
-      <div><small>Transmission</small><b>{v.transmission||'On request'}</b></div><div><small>Fuel</small><b>{v.fuel_type||'On request'}</b></div>
-      <div><small>Engine</small><b>{v.engine||'On request'}</b></div><div><small>Steering</small><b>{v.steering||'On request'}</b></div>
-      <div><small>Body type</small><b>{sx.body_type||'On request'}</b></div><div><small>Stock status</small><b>{sx.stock_status||statusText}</b></div><div><small>Color</small><b>{v.color||'On request'}</b></div><div><small>Location</small><b>{v.location||'China'}</b></div>
+  const {id}=await params;
+  const v:any=await getVehicle(id);
+  if(!v)notFound();
+  const [media,policy]=await Promise.all([getVehicleMedia(v.id),getBusinessPolicy()]);
+  const similar=(await getVehicles({category:v.category||'car',brand:v.brand||undefined,limit:5})).filter((x:any)=>String(x.id)!==String(v.id)).slice(0,4);
+  const images:string[]=media.map((m:any)=>m.url);
+  const hasRepresentativePhotos=media.some((m:any)=>m.is_representative);
+  const status=String(v.status||'available');
+  const statusText=status==='pending_verification'?'check availability':status.replaceAll('_',' ');
+  const title=vehicleTitle(v);
+  const sx=typeof v.specs==='object'&&v.specs?v.specs:(()=>{try{return JSON.parse(v.specs||'{}')}catch{return{}}})();
+  const mileageRaw=cleanValue(sx.mileage_range)||cleanValue(v.mileage_km);
+  const mileageNumber=Number(String(mileageRaw).replace(/[^\d.]/g,''));
+  const mileageText=cleanValue(sx.mileage_range)||(mileageRaw&&Number.isFinite(mileageNumber)&&mileageNumber>0?`${mileageNumber.toLocaleString()}+ km`:mileageRaw);
+  const specRows:[string,any][]=[
+    ['Year',v.model_year],
+    ['Mileage',mileageText],
+    ['Transmission',v.transmission],
+    ['Fuel',v.fuel_type],
+    ['Engine',v.engine],
+    ['Steering',v.steering],
+    ['Body type',sx.body_type],
+    ['Stock status',sx.stock_status||statusText],
+    ['Color',v.color],
+    ['Location',v.location||'China'],
+  ];
+  const knownSpecs=specRows.filter(([,value])=>cleanValue(value));
+  const unknownSpecs=specRows.filter(([label])=>!knownSpecs.some(([known])=>known===label)).map(([label])=>label).filter(label=>!['Stock status','Location'].includes(label));
+  const mileageValue=v.mileage_km&&Number.isFinite(Number(v.mileage_km))?Number(v.mileage_km):undefined;
+  const jsonLd:any={
+    '@context':'https://schema.org','@type':'Vehicle',name:title,sku:v.stock_no,
+    brand:v.brand?{'@type':'Brand',name:v.brand}:undefined,model:v.model||undefined,
+    vehicleModelDate:v.model_year?String(v.model_year):undefined,
+    mileageFromOdometer:mileageValue?{'@type':'QuantitativeValue',value:mileageValue,unitCode:'KMT'}:undefined,
+    fuelType:v.fuel_type||undefined,vehicleTransmission:v.transmission||undefined,color:v.color||undefined,
+    url:`${SITE_URL}/vehicles/${v.id}`,
+    image:media.length?media.slice(0,6).map((m:any)=>String(m.url).startsWith('/')?SITE_URL+m.url:m.url):undefined,
+    offers:v.price_usd?{'@type':'Offer',price:Number(v.price_usd),priceCurrency:'USD',availability:status==='sold'?'https://schema.org/SoldOut':status==='reserved'?'https://schema.org/LimitedAvailability':'https://schema.org/InStock',url:`${SITE_URL}/vehicles/${v.id}`}:undefined,
+  };
+  const lite={id:v.id,stock_no:v.stock_no,brand:v.brand,model:v.model,model_year:v.model_year,price_usd:v.price_usd,cover_url:v.cover_url};
+  return <main className="wrap vehicleDetailPage"><RecentlyViewedTracker vehicle={lite}/>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(jsonLd).replace(/</g,'\\u003c')}}/>
+    <nav className="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> / <a href={v.category==='motorcycle'?'/motorcycles':'/cars'}>{v.category==='motorcycle'?'Motorcycles':'Cars'}</a> / <span>{title}</span></nav>
+    <div className="vehicleDetailGrid">
+      <section className="vehicleGallery card">
+        {images.length?<><VehicleGallery images={images} alt={title}/>{hasRepresentativePhotos&&<div className="repPhotoDetailNote"><strong>Representative photo set</strong><p>These images match the vehicle model and help browsing. Final buying decisions should be confirmed with the latest stock-unit photos from Sky Cars.</p></div>}</>:<div className="detailNoPhoto"><span>SKY CARS</span><strong>Current photos available on request</strong><p>Contact us and we will send the latest vehicle photos before you decide.</p></div>}
+      </section>
+      <section className="card vehicleInfoPanel">
+        <div className="detailTopline"><span className={'badge '+(status==='pending_verification'||status==='reserved'?'pending':status==='sold'?'sold':'')}>{statusText}</span><span>Stock No. {v.stock_no}</span></div>
+        <h1>{title}</h1>
+        <div className="price">{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</div>
+        {status==='sold'?<p className="soldNotice"><b>SOLD</b> - this unit is no longer available. The figure above is its last listed price, not a current offer.</p>:null}
+        <p className="muted">Price shown is the vehicle price in China. Shipping, destination charges and documents are quoted separately.</p>
+        <div className="specGrid">{knownSpecs.map(([label,value])=><div key={label}><small>{label}</small><b>{String(value)}</b></div>)}</div>
+        {unknownSpecs.length>0&&<p className="specNote">Additional details available on request: {unknownSpecs.join(', ')}.</p>}
+        <div className="detailTools"><FavoriteButton vehicle={lite}/><CompareButton vehicle={lite}/></div>
+        <div className="detailActions">
+          {status==='sold'
+            ? <><a className="btn wa" href={vehicleWhatsAppLink(v)} target="_blank" rel="noreferrer">Ask About a Similar Vehicle</a><a className="btn" href={'/vehicles?stock=available&brand='+encodeURIComponent(String(v.brand||''))}>Find Similar Vehicle</a></>
+            : <><a className="btn" href={'/quote?vehicle='+v.id}>Get Total Quote</a><a className="btn wa" href={vehicleWhatsAppLink(v)} target="_blank" rel="noreferrer">Send This Vehicle to WhatsApp</a></>}
+        </div>
+      </section>
     </div>
-    <div className="detailTools"><FavoriteButton vehicle={lite}/><CompareButton vehicle={lite}/></div><div className="detailActions">{status==='sold'?<><a className="btn wa" href={vehicleWhatsAppLink(v)} target="_blank" rel="noreferrer">Ask About a Similar Vehicle</a><a className="btn" href={'/vehicles?stock=available&brand='+encodeURIComponent(String(v.brand||''))}>Find Similar Vehicle</a></>:<><a className="btn" href={'/quote?vehicle='+v.id}>Get Total Quote</a><a className="btn wa" href={vehicleWhatsAppLink(v)} target="_blank" rel="noreferrer">Send This Vehicle to WhatsApp</a></>}</div>
-   </section>
-  </div>
-  <ShippingEstimator vehiclePrice={v.price_usd?Number(v.price_usd):undefined}/>
-  {similar.length>0&&<section className="similarVehicles"><div className="sectionHead"><div><span className="eyebrow">YOU MAY ALSO LIKE</span><h2>Similar {v.brand||''} vehicles</h2></div><a href={'/vehicles?brand='+encodeURIComponent(v.brand||'')}>See more →</a></div><VehicleGrid list={similar}/></section>}
- </main>
+    <ShippingEstimator vehiclePrice={v.price_usd?Number(v.price_usd):undefined} category={v.category} ranges={policy.shipping}/>
+    {similar.length>0&&<section className="similarVehicles"><div className="sectionHead"><div><span className="eyebrow">YOU MAY ALSO LIKE</span><h2>Similar {v.brand||''} vehicles</h2></div><a href={'/vehicles?brand='+encodeURIComponent(v.brand||'')}>See more</a></div><VehicleGrid list={similar}/></section>}
+  </main>;
 }

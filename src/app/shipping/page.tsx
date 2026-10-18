@@ -1,3 +1,25 @@
 import ShippingEstimator from '../../components/ShippingEstimator';
 import rates from '../../../data/shipping_reference.json';
-export default function Shipping(){const countries=Array.from(new Set((rates as any[]).map(x=>x.country)));return <main className="wrap pageShipping"><section className="shippingHero"><span className="eyebrow">CHINA → AFRICA</span><h1>Vehicle shipping made easier to understand.</h1><p>Explore reference shipping ranges by country and gateway, then request a confirmed Sky Cars quote for the exact vehicle and destination.</p></section><ShippingEstimator/><div className="sectionHead"><div><span className="eyebrow">DELIVERY OPTIONS</span><h2>Shipping methods</h2></div></div><div className="grid shippingMethods">{[['RORO','Cost-effective vehicle shipping on supported routes.'],['20ft Container','Container option for selected vehicles and destinations.'],['40ft Container','Useful for multiple units or suitable combined loads.'],['Special / DG','For EV battery, oversized or route-specific requirements when applicable.']].map(x=><div className="card" key={x[0]}><h3>{x[0]}</h3><p>{x[1]}</p></div>)}</div><div className="sectionHead"><div><span className="eyebrow">NETWORK</span><h2>{countries.length} African markets in the reference guide</h2></div><a href="/destinations">Explore destinations →</a></div><div className="marketCountryCloud">{countries.map(c=><a href={'/destinations?country='+encodeURIComponent(c)} key={c}>{c}</a>)}</div><div className="sectionHead"><div><span className="eyebrow">PROCESS</span><h2>From vehicle to destination</h2></div></div><div className="processRail">{['Vehicle confirmed','Collection & inspection','Export documents','Port & loading','Ocean / inland transport','Destination arrival'].map((x,i)=><div key={x}><b>{i+1}</b><span>{x}</span></div>)}</div></main>}
+import {getBusinessPolicy} from '../../lib/business-policy';
+
+export const dynamic='force-dynamic';
+
+export default async function Shipping(){
+  const policy=await getBusinessPolicy();
+  const countries=Array.from(new Set((rates as any[]).map(x=>x.country)));
+  return <main className="wrap pageShipping">
+    <section className="shippingHero">
+      <span className="eyebrow">CHINA → AFRICA</span>
+      <h1>Vehicle shipping made easier to understand.</h1>
+      <p>Explore reference shipping ranges by country and gateway, then request a confirmed Sky Cars quote for the exact vehicle and destination.</p>
+      <div className="shippingHeroFacts"><span><b>Cars</b> ${policy.shipping.car_min.toLocaleString()}–${policy.shipping.car_max.toLocaleString()} general guidance</span><span><b>Motorcycles</b> ${policy.shipping.motorcycle_min.toLocaleString()}–${policy.shipping.motorcycle_max.toLocaleString()} general guidance</span><span><b>Route</b> confirmed per vehicle</span></div>
+    </section>
+    <ShippingEstimator ranges={policy.shipping}/>
+    <div className="sectionHead"><div><span className="eyebrow">DELIVERY OPTIONS</span><h2>Shipping methods</h2></div></div>
+    <div className="grid shippingMethods">{[['RORO','Cost-effective vehicle shipping on supported routes.'],['20ft Container','Container option for selected vehicles and destinations.'],['40ft Container','Useful for multiple units or suitable combined loads.'],['Special / DG','For EV battery, oversized or route-specific requirements when applicable.']].map(x=><div className="card" key={x[0]}><h3>{x[0]}</h3><p>{x[1]}</p></div>)}</div>
+    <div className="sectionHead"><div><span className="eyebrow">NETWORK</span><h2>{countries.length} African markets in the reference guide</h2></div><a href="/destinations">Explore destinations →</a></div>
+    <div className="marketCountryCloud">{countries.map(c=><a href={'/destinations?country='+encodeURIComponent(c)} key={c}>{c}</a>)}</div>
+    <div className="sectionHead"><div><span className="eyebrow">PROCESS</span><h2>From vehicle to destination</h2></div></div>
+    <div className="processRail">{['Vehicle confirmed','Collection & inspection','Export documents','Port & loading','Ocean / inland transport','Destination arrival'].map((x,i)=><div key={x}><b>{i+1}</b><span>{x}</span></div>)}</div>
+  </main>;
+}

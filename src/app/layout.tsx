@@ -37,10 +37,10 @@ export default function RootLayout({children}:{children:React.ReactNode}){
           <input name="q" placeholder="Search Toyota, BYD, SUV, stock number..." aria-label="Search vehicles"/>
           <button type="submit" aria-label="Search vehicles">Search</button>
         </form>
-        <div className="siteTools"><MiniMarketBar/><AuthStatus/><a href={waLink()} target="_blank" rel="noreferrer" className="siteWa" style={{background:'var(--sc-green)',color:'#fff',borderRadius:'999px',padding:'9px 14px',fontWeight:800,fontFamily:'var(--font-display)',fontSize:'13px'}}>WhatsApp</a></div>
+        <div className="siteTools"><MiniMarketBar/><AuthStatus/><a href={waLink()} target="_blank" rel="noreferrer" className="siteWa">WhatsApp</a></div>
         <details className="mobileMenu">
           <summary aria-label="Open menu">Menu</summary>
-          <div className="mobileMenuPanel"><SiteNav mobile/><a href="/compare">Compare</a></div>
+          <div className="mobileMenuPanel"><SiteNav mobile/><a href="/account#favorites">Saved vehicles</a><a href="/compare">Compare</a><a href="/tracking">Track shipment</a><a href={waLink('Hello Sky Cars, I would like help choosing a vehicle.')} target="_blank" rel="noreferrer">WhatsApp support</a></div>
         </details>
       </div>
       <nav className="siteNav" aria-label="Main navigation"><div className="siteNavInner"><SiteNav/></div></nav>
