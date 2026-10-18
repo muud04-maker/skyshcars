@@ -9,7 +9,7 @@
     "check": "node scripts-check.js",
     "photos:import": "node tools/photo-pack/import_to_public.mjs",
     "check:ai": "node scripts/check-ai/run.mjs",
-    "test:visual": "playwright test tests/visual/visual.spec.ts tests/visual/card-layout.spec.ts --reporter=list"
+    "test:visual": "playwright test tests/visual/visual.spec.ts tests/visual/card-layout.spec.ts tests/visual/analytics.spec.ts --reporter=list"
   },
   "dependencies": {
     "axios": "^1.12.2",

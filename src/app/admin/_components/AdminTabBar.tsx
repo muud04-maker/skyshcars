@@ -8,6 +8,7 @@ const TABS: [string, string][] = [
   ['/admin/vehicles', 'Inventory'],
   ['/admin/vehicles/new', 'Add car'],
   ['/admin/quotes', 'Quotes'],
+  ['/admin/analytics', 'Reports'],
   ['/admin/launch', 'More'],
 ];
 

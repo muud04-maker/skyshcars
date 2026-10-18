@@ -1,4 +1,8 @@
-import {defineConfig,devices} from '@playwright/test';
+import {defineConfig} from '@playwright/test';
+// Test-only legacy admin credentials let the browser suite render the protected analytics shell
+// without touching production data or requiring a real administrator password.
+process.env.ADMIN_EMAIL=process.env.ADMIN_EMAIL||'visual-admin@skyshcars.invalid';
+process.env.ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||'visual-test-only';
 export default defineConfig({
   testDir:'./tests/visual',
   timeout:120000,

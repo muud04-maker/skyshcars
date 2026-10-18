@@ -127,6 +127,7 @@ export default async function Admin() {
 
     <div className="card" style={{ marginTop: 12 }}><h3>Quick actions</h3>
       <div className="pager">
+        <a className="btn-primary" href="/admin/analytics">Open Business Analytics</a>
         <a className="btn" href="/admin/vehicles/new">+ Add vehicle</a>
         <a className="miniBtn" href="/admin/whatsapp">Inbox</a>
         <a className="miniBtn" href="/admin/ai-catalog">AI Catalog</a>
