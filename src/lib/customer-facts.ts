@@ -26,6 +26,9 @@ export const FACT_KEYS = [
   // Written by staff, not by the customer: the team's latest guidance for this customer. It is
   // customer-scoped context for the same chat/person only - never a global rule.
   'last_human_guidance',
+  // Brief items 50/78: vehicles this customer already declined (stock numbers, comma separated), so the
+  // AI never keeps recommending an option that was rejected.
+  'rejected_vehicles',
 ] as const;
 
 let ready: Promise<void> | null = null;

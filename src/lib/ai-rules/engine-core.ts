@@ -189,6 +189,15 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
         if (needsStaffPhotoRequest(composed.photoPlan)) {
           await deps.flagStaff(conversationId, `photo request: no exact photos for ${composed.photoPlan?.stockNo || composed.photoPlan?.title || 'that vehicle'}`).catch(() => {});
           await deps.event(conversationId, lastExt, 'photo_request', 'needs_staff', { stock_no: composed.photoPlan?.stockNo || null }).catch(() => {});
+          // Brief items 87-89: a REAL queued task (deduplicated) so the request is not just a flag.
+          try {
+            const { createTask } = await import('../staff-tasks');
+            await createTask({
+              type: 'photo', conversationId, stockNo: composed.photoPlan?.stockNo || null,
+              vehicleId: composed.photoPlan?.vehicleId || null, priority: 2,
+              reason: `customer asked for photos${composed.photoPlan?.stockNo ? ` of stock ${composed.photoPlan.stockNo}` : ''} - no exact photos on file`,
+            });
+          } catch { /* task creation must never break a reply */ }
         }
         // A colleague already told the customer this car is sold / not available: never contradict them.
         const staffText = deps.lastStaffBody ? await deps.lastStaffBody(conversationId).catch(() => null) : null;

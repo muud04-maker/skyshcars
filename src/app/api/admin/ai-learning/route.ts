@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import { adminDenied } from '../../../../lib/admin-guard';
 import { getAdminSession } from '../../../../lib/admin';
-import { LEARNING_TYPES, learningStats, listLearningEvents, recordLearningEvent, typeFromReason, type LearningType } from '../../../../lib/ai-learning';
+import { LEARNING_TYPES, detectContradictions, learningStats, listLearningEvents, recordLearningEvent, typeFromReason, type LearningType } from '../../../../lib/ai-learning';
 import { one } from '../../../../lib/db';
 import { todayPatterns } from '../../../../lib/sales-patterns';
 
@@ -31,7 +31,10 @@ export async function GET(req: Request) {
     // GOAL 3: the day's real human sales patterns (suggestions only, never automatic rules).
     q.get('patterns') === '1' ? todayPatterns(q.get('day') || undefined).catch(() => null) : Promise.resolve(null),
   ]);
-  return NextResponse.json({ events, stats, patterns });
+  // Brief item 33: warn the admin when two approved lessons say different things in similar situations.
+  const contradictions = detectContradictions(events.filter((e: any) => ['approved', 'applied'].includes(String(e.status)))
+    .map((e: any) => ({ id: e.id, event_type: e.event_type, lesson: e.lesson, question: e.question })));
+  return NextResponse.json({ events, stats, patterns, contradictions });
 }
 
 export async function POST(req: Request) {

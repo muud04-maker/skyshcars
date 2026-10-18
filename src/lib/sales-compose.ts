@@ -16,6 +16,7 @@ import { detectCustomerLanguage, saveDetectedLanguage } from './language-detect'
 import { filterInventory, inventoryAnswer, inventoryIntent } from './ai-rules/inventory-intent';
 import { buyingSignal, needsHumanNow, signalNextStep, signalStaffReason } from './ai-rules/buying-signal';
 import { flagForStaff } from './conversation-state';
+import { createTask } from './staff-tasks';
 
 /** Recent customer wording (for language inheritance when the latest message is short/ambiguous). */
 async function recentCustomerText(conversationId?: number) {
@@ -34,6 +35,21 @@ async function preferredLanguageOf(conversationId?: number) {
     const r = await one<any>('SELECT c.preferred_language FROM conversations co LEFT JOIN customers c ON c.id=co.customer_id WHERE co.id=? LIMIT 1', [conversationId]);
     return r?.preferred_language || null;
   } catch { return null; }
+}
+
+/**
+ * Brief items 50/78: stocks this customer already declined. Stored as an admin-set customer fact
+ * (customer-scoped, never global) and used to filter alternatives so a rejected option never comes back.
+ */
+async function rejectedStocksFor(conversationId?: number): Promise<string[]> {
+  if (!conversationId) return [];
+  try {
+    const { one } = await import('./db');
+    const r = await one<any>(`SELECT f.fact_value FROM customer_facts f
+      JOIN conversations c ON c.customer_id=f.customer_id
+      WHERE c.id=? AND f.fact_key='rejected_vehicles' AND f.active=1 LIMIT 1`, [conversationId]);
+    return String(r?.fact_value || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+  } catch { return []; }
 }
 import type { ComposeIn, ComposeOut } from './ai-rules/engine-core';
 
@@ -82,6 +98,18 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
     if (needsHumanNow(signal)) {
       await flagForStaff(Number(i.conversationId), signalStaffReason(signal)).catch(() => {});
     }
+    /*
+      Brief items 57/58/96-98/104-105: turn real requests into a queued task a human can finish and
+      mark done. Deduplicated per chat (one open request per type), never created for a greeting.
+    */
+    try {
+      const cid = Number(i.conversationId);
+      if (signal === 'ready_to_buy' || signal === 'payment') {
+        await createTask({ type: 'serious_buyer', conversationId: cid, priority: 1, reason: signalStaffReason(signal) });
+      } else if (signal === 'shipping' && /\b(to|in)\s+[A-Za-z]/.test(String(i.words || ''))) {
+        await createTask({ type: 'freight', conversationId: cid, priority: 3, reason: 'customer asked for shipping to a destination - confirm the freight rate' });
+      }
+    } catch { /* tasks must never break a reply */ }
   }
   // Customer language: latest message -> explicit admin preference -> recent conversation -> English.
   const recent = await recentCustomerText(i.conversationId);
@@ -107,7 +135,7 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
         const current: any = i.referralVehicle || (currentId ? await aiCarById(currentId).catch(() => null) : null);
         const namesAnother = !!(named?.brand && current && String(current.brand || '').toLowerCase() !== String(named.brand).toLowerCase());
         if (current && !namesAnother) {
-          const alts = alternatives(cats, current, { limit: 3 });
+          const alts = alternatives(cats, current, { limit: 3, excludeStocks: await rejectedStocksFor(i.conversationId) });
           const lines = vIntent === 'alternatives'
             ? (alternativeLines(alts, lang) || vehicleDetails(current, lang, { maxLines: 4 }))
             : `${vehicleDetails(current, lang, { maxLines: vIntent === 'price' ? 4 : 9 })}${alts.length ? `\n\n${alternativeLines(alts, lang)}` : ''}`;
@@ -134,6 +162,13 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
       const inv = inventoryIntent(i.words, [...new Set(cars.map((c: any) => String(c.brand || '')).filter(Boolean))]);
       if (inv) {
         const matched = filterInventory(cars as any, inv);
+        /*
+          Brief items 58/73: a named brand/model we do not stock is a SOURCING request, not an
+          availability answer. Queue it once per chat so a human can source it and mark it done.
+        */
+        if (!matched.length && inv.kind === 'brand' && inv.brand) {
+          await createTask({ type: 'sourcing', conversationId: Number(i.conversationId) || null, priority: 4, reason: `customer asked for ${inv.brand} - not in the current AI catalogue` }).catch(() => {});
+        }
         const names = (matched.length ? matched : cars).slice(0, 8).map((v: any) => [v.model_year, v.brand, v.model].filter(Boolean).join(' '));
         if (isHardcodedLang(lang)) {
           const ans = inventoryAnswer(inv, matched, lang, { totalAi: cars.length });

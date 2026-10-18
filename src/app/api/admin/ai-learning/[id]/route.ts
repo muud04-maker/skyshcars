@@ -9,13 +9,19 @@
 import { NextResponse } from 'next/server';
 import { adminDenied } from '../../../../../lib/admin-guard';
 import { getAdminSession } from '../../../../../lib/admin';
-import { applyLearningEvent, learningEventById, reviewLearningEvent } from '../../../../../lib/ai-learning';
+import { applyLearningEvent, evaluateLearningEvent, learningEventById, reviewLearningEvent, undoLearningEvent } from '../../../../../lib/ai-learning';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const d = await adminDenied(); if (d) return d;
   const { id } = await params;
+  const url = new URL(_req.url);
+  if (url.searchParams.get('evaluate') === '1') {
+    const evaluation = await evaluateLearningEvent(Number(id)).catch(() => null);
+    if (!evaluation) return NextResponse.json({ error: 'Could not evaluate this lesson' }, { status: 400 });
+    return NextResponse.json({ evaluation });
+  }
   const event = await learningEventById(Number(id)).catch(() => null);
   if (!event) return NextResponse.json({ error: 'Lesson not found' }, { status: 404 });
   return NextResponse.json({ event });
@@ -31,7 +37,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const out = action === 'apply'
       ? await applyLearningEvent(Number(id), by)
-      : await reviewLearningEvent(Number(id), action as any, { lesson: b.lesson ?? null, appliesTo: b.applies_to, by });
+      : action === 'undo'
+        ? await undoLearningEvent(Number(id), by)
+        : await reviewLearningEvent(Number(id), action as any, { lesson: b.lesson ?? null, appliesTo: b.applies_to, by, confidence: b.confidence, category: b.category, expiresAt: b.expires_at });
     const event = await learningEventById(Number(id));
     return NextResponse.json({ ok: true, ...out, event });
   } catch (e: any) {

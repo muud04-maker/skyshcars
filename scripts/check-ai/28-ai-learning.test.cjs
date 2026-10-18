@@ -96,7 +96,7 @@ test('12. applying a lesson picks the right permanent form', () => {
   const src = read('src/lib/ai-learning.ts');
   assert.ok(src.includes("ev.event_type === 'referral_correction' && payload?.vehicle_id"), 'referral lessons become deterministic mappings');
   assert.ok(src.includes('setReferralCorrection('), 'using the existing correction store');
-  assert.ok(src.includes("ref = 'ai_knowledge'"), 'business rules become knowledge entries');
+  assert.ok(src.includes('ai_knowledge:'), 'business rules become knowledge entries (with the exact id for undo)');
   assert.ok(src.includes("ref = 'prompt_context'"), 'everything else becomes prompt context');
   assert.ok(src.includes('lessonTitle('), 'knowledge entries get a readable title');
   assert.ok(lessonTitle('business_rule', 'shipping').includes('Business rule'));

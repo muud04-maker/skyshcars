@@ -17,13 +17,33 @@ export type LearningStatus = 'pending' | 'approved' | 'rejected' | 'applied';
 export type LearningType =
   | 'wrong_vehicle' | 'wrong_price' | 'wrong_category' | 'wrong_language' | 'wrong_shipping_answer'
   | 'missing_information' | 'bad_tone' | 'referral_correction' | 'better_sales_reply'
-  | 'business_rule' | 'unnecessary_hold' | 'bad_recommendation' | 'good_reply' | 'other';
+  | 'business_rule' | 'unnecessary_hold' | 'bad_recommendation' | 'good_reply'
+  | 'missing_photo' | 'availability' | 'inappropriate_wording' | 'objection' | 'negotiation' | 'other';
 
 export const LEARNING_TYPES: LearningType[] = [
   'wrong_vehicle', 'wrong_price', 'wrong_category', 'wrong_language', 'wrong_shipping_answer',
   'missing_information', 'bad_tone', 'referral_correction', 'better_sales_reply',
-  'business_rule', 'unnecessary_hold', 'bad_recommendation', 'good_reply', 'other',
+  'business_rule', 'unnecessary_hold', 'bad_recommendation', 'good_reply',
+  // Added for the supervised-learning upgrade (brief items 23, 26, 30).
+  'missing_photo', 'availability', 'inappropriate_wording', 'objection', 'negotiation', 'other',
 ];
+
+/** Human-readable lesson category (brief item 30): pricing, photos, shipping, negotiation, ... */
+export const LESSON_CATEGORIES = ['vehicle', 'pricing', 'photos', 'shipping', 'language', 'availability', 'tone', 'process', 'other'] as const;
+export type LessonCategory = (typeof LESSON_CATEGORIES)[number];
+export function categoryForType(type: string): LessonCategory {
+  switch (String(type)) {
+    case 'wrong_vehicle': case 'wrong_category': case 'referral_correction': case 'bad_recommendation': return 'vehicle';
+    case 'wrong_price': case 'negotiation': return 'pricing';
+    case 'missing_photo': return 'photos';
+    case 'wrong_shipping_answer': return 'shipping';
+    case 'wrong_language': return 'language';
+    case 'availability': return 'availability';
+    case 'bad_tone': case 'inappropriate_wording': case 'objection': return 'tone';
+    case 'business_rule': case 'missing_information': case 'unnecessary_hold': case 'better_sales_reply': case 'good_reply': return 'process';
+    default: return 'other';
+  }
+}
 
 /** Reasons a staff member can pick on a thumbs-down (Part 10). */
 export const LEARNING_REASONS = [
@@ -71,6 +91,20 @@ export function ensureAiLearningSchema() {
       INDEX idx_learning_type(event_type,status),
       INDEX idx_learning_conversation(conversation_id,created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    /*
+      Supervised-learning upgrade (brief items 30-38, 118): confidence is a REVIEW AID (never proof),
+      every lesson carries its category and evidence reference, outdated lessons expire, and an undo
+      leaves a trace. Additive columns with the usual "already exists" guard.
+    */
+    for (const sql of [
+      `ALTER TABLE ai_learning_events ADD COLUMN confidence DECIMAL(4,2) NULL`,
+      `ALTER TABLE ai_learning_events ADD COLUMN category VARCHAR(40) NULL`,
+      `ALTER TABLE ai_learning_events ADD COLUMN evidence_ref VARCHAR(191) NULL`,
+      `ALTER TABLE ai_learning_events ADD COLUMN expires_at DATETIME NULL`,
+      `ALTER TABLE ai_learning_events ADD COLUMN undone_at DATETIME NULL`,
+      `ALTER TABLE ai_learning_events ADD COLUMN undone_by VARCHAR(191) NULL`,
+      `ALTER TABLE ai_learning_events ADD INDEX idx_learning_expiry(expires_at)`,
+    ]) { try { await db().execute(sql); } catch (e: any) { if (e?.code !== 'ER_DUP_FIELDNAME' && e?.code !== 'ER_DUP_KEYNAME') console.error('LEARNING_COLUMN', e?.code); } }
   })().catch(e => { ready = null; throw e; });
   return ready;
 }
@@ -124,13 +158,16 @@ export async function recordLearningEvent(input: {
   question?: string | null; aiReply?: string | null; correction?: string | null;
   eventType?: string; reason?: string | null; lesson?: string | null;
   appliesTo?: 'global' | 'customer'; payload?: any; createdBy?: string | null; status?: LearningStatus;
+  confidence?: number | null; category?: string | null; evidence?: string | null; expiresAt?: string | null;
 }) {
   await ensureAiLearningSchema();
   const type = LEARNING_TYPES.includes(String(input.eventType) as LearningType) ? String(input.eventType) : 'other';
   const status: LearningStatus = input.status || 'pending';
+  const confidence = input.confidence == null ? null : Math.max(0, Math.min(1, Number(input.confidence)));
+  const category = LESSON_CATEGORIES.includes(String(input.category) as LessonCategory) ? String(input.category) : categoryForType(type);
   const [r]: any = await db().execute(
-    `INSERT INTO ai_learning_events(conversation_id,customer_id,message_id,question,ai_reply,correction,event_type,reason,lesson,applies_to,payload,status,created_by)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO ai_learning_events(conversation_id,customer_id,message_id,question,ai_reply,correction,event_type,reason,lesson,applies_to,payload,status,created_by,confidence,category,evidence_ref,expires_at)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [input.conversationId || null, input.customerId || null, input.messageId || null,
      input.question ? String(input.question).slice(0, 4000) : null,
      input.aiReply ? String(input.aiReply).slice(0, 4000) : null,
@@ -139,7 +176,10 @@ export async function recordLearningEvent(input: {
      input.lesson ? String(input.lesson).slice(0, 4000) : null,
      input.appliesTo === 'customer' ? 'customer' : 'global',
      input.payload ? JSON.stringify(input.payload).slice(0, 6000) : null,
-     status, String(input.createdBy || 'admin').slice(0, 191)]);
+     status, String(input.createdBy || 'admin').slice(0, 191),
+     confidence, category,
+     input.evidence ? String(input.evidence).slice(0, 191) : (input.messageId ? `msg:${input.messageId}` : null),
+     input.expiresAt || null]);
   return { ok: true, id: Number(r?.insertId), status, event_type: type };
 }
 
@@ -179,15 +219,18 @@ export async function learningStats() {
 }
 
 /** Approve / reject / reopen. An admin may also edit the lesson text while reviewing it. */
-export async function reviewLearningEvent(id: number, action: 'approve' | 'reject' | 'reopen', opts: { lesson?: string | null; appliesTo?: 'global' | 'customer'; by?: string | null } = {}) {
+export async function reviewLearningEvent(id: number, action: 'approve' | 'reject' | 'reopen', opts: { lesson?: string | null; appliesTo?: 'global' | 'customer'; by?: string | null; confidence?: number | null; category?: string | null; expiresAt?: string | null } = {}) {
   const ev: any = await learningEventById(id);
   if (!ev) throw new Error('Learning event not found');
   const status = nextStatus(action, ev.status);
   if (!status) throw new Error(`Cannot ${action} a ${ev.status} lesson`);
   const lesson = opts.lesson != null ? String(opts.lesson).slice(0, 4000) : ev.lesson;
   const appliesTo = opts.appliesTo === 'customer' || opts.appliesTo === 'global' ? opts.appliesTo : ev.applies_to;
-  await db().execute('UPDATE ai_learning_events SET status=?, lesson=?, applies_to=?, reviewed_by=?, reviewed_at=NOW() WHERE id=?',
-    [status, lesson || null, appliesTo, String(opts.by || 'admin').slice(0, 191), Number(id)]);
+  const confidence = opts.confidence == null ? ev.confidence : Math.max(0, Math.min(1, Number(opts.confidence)));
+  const category = opts.category && LESSON_CATEGORIES.includes(String(opts.category) as LessonCategory) ? String(opts.category) : ev.category;
+  const expiresAt = opts.expiresAt === undefined ? ev.expires_at : (opts.expiresAt || null);
+  await db().execute('UPDATE ai_learning_events SET status=?, lesson=?, applies_to=?, confidence=?, category=?, expires_at=?, reviewed_by=?, reviewed_at=NOW() WHERE id=?',
+    [status, lesson || null, appliesTo, confidence, category, expiresAt, String(opts.by || 'admin').slice(0, 191), Number(id)]);
   return { ok: true, id: Number(id), status };
 }
 
@@ -211,9 +254,10 @@ export async function applyLearningEvent(id: number, by?: string | null) {
   } else if (ev.event_type === 'business_rule' && ev.lesson) {
     const { ensureAiKnowledgeSchema } = await import('./knowledge');
     await ensureAiKnowledgeSchema();
-    await db().execute(`INSERT INTO ai_knowledge(title,content,active,source) VALUES(?,?,1,'ai_learning')`,
+    const [k]: any = await db().execute(`INSERT INTO ai_knowledge(title,content,active,source) VALUES(?,?,1,'ai_learning')`,
       [lessonTitle(ev.event_type, ev.reason), String(ev.lesson).slice(0, 8000)]);
-    ref = 'ai_knowledge';
+    // Keep the exact knowledge id so an undo can deactivate THIS entry and nothing else.
+    ref = `ai_knowledge:${Number(k?.insertId) || ''}`;
   }
 
   await db().execute('UPDATE ai_learning_events SET status=\'applied\', applied_at=NOW(), applied_ref=?, reviewed_by=COALESCE(reviewed_by,?) WHERE id=?',
@@ -231,8 +275,104 @@ export async function approvedLessons(limit = 5) {
     const n = Math.max(1, Math.min(20, Number(limit) || 5));
     return rows<any>(`SELECT id,event_type,lesson,reason,applied_ref FROM ai_learning_events
       WHERE status IN ('approved','applied') AND applies_to='global' AND COALESCE(lesson,'')<>''
+        AND (expires_at IS NULL OR expires_at > NOW()) AND undone_at IS NULL
       ORDER BY (status='applied') DESC, id DESC LIMIT ${n}`);
   } catch { return []; }
+}
+
+// ---------------------------------------------------------------- supervised-learning upgrade
+/** Significant tokens for comparing two lessons/cases (stop words removed). */
+const STOP = new Set(('the a an and or of to in on for with is are was were be been it this that these those you your our we they them ' +
+  'i me my he she his her they them what which who how when where why do does did can could should would will shall may might must ' +
+  'not no yes ok please send sent ask tell give show need want looking vehicle car bike price cost stock photo photos').split(' '));
+export function tokensOf(text: unknown) {
+  return [...new Set(String(text == null ? '' : text).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/)
+    .filter((t) => t.length >= 3 && !STOP.has(t)))];
+}
+/** 0..1 overlap between two texts (Jaccard) - used for case similarity and contradiction scanning. */
+export function similarity(a: unknown, b: unknown) {
+  const A = new Set(tokensOf(a)), B = new Set(tokensOf(b));
+  if (!A.size || !B.size) return 0;
+  let hit = 0;
+  for (const t of A) if (B.has(t)) hit++;
+  return hit / (A.size + B.size - hit);
+}
+
+/**
+ * Brief item 33: two approved lessons that apply to similar situations but say different things are a
+ * real risk. Returns pairs (with the lesson ids) so the admin can resolve them - never auto-resolves.
+ */
+export function detectContradictions(lessons: { id: number | string; event_type?: string | null; lesson?: string | null; question?: string | null }[]) {
+  const use = (lessons || []).filter((l) => String(l?.lesson || '').trim().length > 12);
+  const out: { a: number | string; b: number | string; type: string; similarity: number; reason: string }[] = [];
+  for (let i = 0; i < use.length; i++) {
+    for (let j = i + 1; j < use.length; j++) {
+      const a = use[i], b = use[j];
+      if (String(a.event_type || '') !== String(b.event_type || '')) continue;
+      const sim = similarity(`${a.question || ''} ${a.lesson}`, `${b.question || ''} ${b.lesson}`);
+      const sameWording = similarity(a.lesson, b.lesson) > 0.85;
+      if (sim >= 0.3 && !sameWording) out.push({ a: a.id, b: b.id, type: String(a.event_type), similarity: Math.round(sim * 100) / 100, reason: 'similar situation, different lesson wording' });
+    }
+  }
+  return out.sort((x, y) => y.similarity - x.similarity).slice(0, 20);
+}
+
+/**
+ * Brief item 38/118: evaluate a proposed lesson against the historical cases we already store, BEFORE
+ * it goes global. This is coverage + agreement evidence, never an accuracy claim: it counts how often a
+ * similar customer question appeared, how often staff had to correct the AI, and whether the lesson's
+ * wording matches those corrections.
+ */
+export async function evaluateLearningEvent(id: number) {
+  const ev: any = await learningEventById(id);
+  if (!ev) throw new Error('Learning event not found');
+  await ensureAiLearningSchema();
+  const cases = await rows<any>(`SELECT id, question, ai_reply, correction, lesson, event_type FROM ai_learning_events
+    WHERE event_type=? AND question IS NOT NULL AND id<>? ORDER BY id DESC LIMIT 300`, [ev.event_type, Number(id)]).catch(() => []);
+  const similar = cases
+    .map((c) => ({ ...c, score: similarity(ev.question, c.question) }))
+    .filter((c) => c.score >= 0.35)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 25);
+  const withCorrection = similar.filter((c) => String(c.correction || '').trim()).length;
+  const wordingMatch = similar.filter((c) => similarity(ev.lesson, c.lesson) >= 0.4).length;
+  return {
+    id: Number(id),
+    similar_cases: similar.length,
+    cases_with_human_correction: withCorrection,
+    cases_supporting_this_wording: wordingMatch,
+    coverage: cases.length ? Math.round((similar.length / cases.length) * 100) : 0,
+    agreement: withCorrection ? Math.round((wordingMatch / withCorrection) * 100) : null,
+    examples: similar.slice(0, 5).map((c) => ({ id: Number(c.id), score: Math.round(c.score * 100) / 100, question: String(c.question || '').slice(0, 120) })),
+    note: 'Coverage = share of stored cases for this type that look like this one. Agreement = share of those human-corrected cases whose lesson wording matches. Neither proves correctness.',
+  };
+}
+
+/**
+ * Brief item 37: undo an applied lesson. The status returns to `approved` so it stops influencing replies
+ * immediately; a knowledge entry created by it is deactivated (exact id). Referral mappings are NOT
+ * deleted automatically because a human may have relied on them - the response says so.
+ */
+export async function undoLearningEvent(id: number, by?: string | null) {
+  const ev: any = await learningEventById(id);
+  if (!ev) throw new Error('Learning event not found');
+  if (ev.status !== 'applied' && ev.status !== 'approved') throw new Error('Only an approved or applied lesson can be undone');
+  let reverted = 'prompt_context';
+  const ref = String(ev.applied_ref || '');
+  if (ref.startsWith('ai_knowledge:')) {
+    const kId = Number(ref.split(':')[1]);
+    if (kId) {
+      const { ensureAiKnowledgeSchema } = await import('./knowledge');
+      await ensureAiKnowledgeSchema();
+      await db().execute('UPDATE ai_knowledge SET active=0 WHERE id=?', [kId]).catch(() => {});
+      reverted = `knowledge entry #${kId} deactivated`;
+    }
+  } else if (ref.startsWith('referral_correction:')) {
+    reverted = 'referral mapping kept (a human may depend on it) - review it in the conversation drawer';
+  }
+  await db().execute(`UPDATE ai_learning_events SET status='approved', applied_at=NULL, applied_ref=NULL, undone_at=NOW(), undone_by=? WHERE id=?`,
+    [String(by || 'admin').slice(0, 191), Number(id)]);
+  return { ok: true, id: Number(id), status: 'approved', reverted };
 }
 
 /** One-line prompt note built from approved lessons (Part 13 step 9). */

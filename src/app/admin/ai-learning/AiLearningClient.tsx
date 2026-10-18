@@ -27,6 +27,8 @@ export default function AiLearningClient() {
   const [msg, setMsg] = useState('');
   // GOAL 3: today's real human sales patterns (suggestions only - never automatic rules).
   const [patterns, setPatterns] = useState<any>(null);
+  const [contradictions, setContradictions] = useState<any[]>([]);
+  const [evaluation, setEvaluation] = useState<Record<number, any>>({});
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams({ status, limit: '80' });
@@ -38,6 +40,7 @@ export default function AiLearningClient() {
     setEvents(j.events || []);
     setStats(j.stats || {});
     if (j.patterns) setPatterns(j.patterns);
+    setContradictions(j.contradictions || []);
   }, [status, type, q]);
 
   useEffect(() => { void (async () => {
@@ -57,6 +60,20 @@ export default function AiLearningClient() {
     setBusy(false);
     setMsg(r.ok ? 'Suggestion saved as a pending lesson - approve it to make it official.' : (j.error || 'Could not save the suggestion'));
     if (r.ok) await load();
+  }
+
+  /** Brief item 38/118: evaluate a proposed lesson against stored historical cases before applying it. */
+  async function evaluateLesson(id: number) {
+    setMsg('');
+    const r = await fetch(`/api/admin/ai-learning/${id}?evaluate=1`, { cache: 'no-store' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setMsg(j.error || 'Could not evaluate'); return; }
+    setEvaluation((e) => ({ ...e, [id]: j.evaluation }));
+  }
+  /** Brief item 37: undo an applied lesson. It stops influencing replies immediately. */
+  async function undo(id: number) {
+    if (!confirm('Undo this lesson? It will stop influencing AI replies immediately.')) return;
+    await review(id, 'undo');
   }
 
   useEffect(() => { void load(); }, [load]);
@@ -89,6 +106,12 @@ export default function AiLearningClient() {
     <p className="muted">{stats.pending || 0} pending | {stats.approved || 0} approved | {stats.applied || 0} applied | {stats.rejected || 0} rejected</p>
     {msg ? <div className="setupAlert">{msg}</div> : null}
 
+    {contradictions.length ? <div className="chCard" style={{ borderColor: '#e7b4b4', background: '#fff6f6', marginBottom: 14 }}>
+      <h3>Contradictory lessons ({contradictions.length})</h3>
+      <p className="muted" style={{ marginTop: 0 }}>Two approved lessons give different instructions for a similar situation. Review them before they steer a reply.</p>
+      {contradictions.slice(0, 6).map((c, i) => <div className="chFact" key={i}><span>#{c.a} vs #{c.b} · {label(c.type)} · similarity {Math.round(c.similarity * 100)}%</span><small className="muted">{c.reason}</small></div>)}
+    </div> : null}
+
     {patterns ? <div className="chCard" style={{ marginBottom: 14 }}>
       <h3>Today's Human Sales Patterns ({patterns.day})</h3>
       <p className="muted" style={{ marginTop: 0 }}>Counted from today's real conversations and the answers staff actually gave. These are hints for context only - they never become rules without your approval, and they can never override an exact referral, stock or price.</p>
@@ -114,7 +137,7 @@ export default function AiLearningClient() {
           {e.customer_name ? ` | ${e.customer_name}` : ''}{e.channel ? ` | ${e.channel === 'facebook' ? 'Messenger' : e.channel}` : ''}
           {e.applies_to === 'customer' ? ' | this customer only' : ''}
         </h4>
-        <small className="muted">{when(e.created_at)}{e.created_by ? ` | raised by ${e.created_by}` : ''}{e.reason ? ` | ${e.reason}` : ''}</small>
+        <small className="muted">{when(e.created_at)}{e.created_by ? ` | raised by ${e.created_by}` : ''}{e.reason ? ` | ${e.reason}` : ''}{e.category ? ` | ${e.category}` : ''}{e.confidence != null ? ` | confidence ${Math.round(Number(e.confidence) * 100)}%` : ''}{e.expires_at ? ` | expires ${when(e.expires_at) !== '-' ? String(e.expires_at).slice(0, 10) : '-'}` : ''}{e.undone_at ? ' | UNDONE' : ''}</small>
         {e.question ? <div className="learnBlock"><b>Customer question</b>{e.question}</div> : null}
         {e.ai_reply ? <div className="learnBlock"><b>AI reply</b>{e.ai_reply}</div> : null}
         {e.correction ? <div className="learnBlock"><b>Staff correction</b>{e.correction}</div> : null}
@@ -131,11 +154,18 @@ export default function AiLearningClient() {
           </div>
           : (e.lesson ? <div className="learnBlock"><b>Lesson</b>{e.lesson}</div> : null)}
         {e.applied_ref ? <small className="muted">Applied as: {e.applied_ref} {e.applied_at ? `| ${when(e.applied_at)}` : ''}</small> : null}
+        {evaluation[e.id] ? <div className="learnBlock"><b>Historical evaluation (evidence, not proof)</b>
+          {`${evaluation[e.id].similar_cases} similar case(s) · ${evaluation[e.id].cases_with_human_correction} with a human correction · coverage ${evaluation[e.id].coverage}%`}
+          {evaluation[e.id].agreement != null ? ` · wording agreement ${evaluation[e.id].agreement}%` : ''}
+          <div className="muted" style={{ marginTop: 4 }}>{evaluation[e.id].note}</div>
+        </div> : null}
         <div className="chInline" style={{ marginTop: 8 }}>
           {e.status === 'pending' ? <button type="button" className="miniBtn" disabled={busy} onClick={() => review(e.id, 'approve', editing === e.id ? draft : {})}>Approve</button> : null}
           {e.status === 'pending' ? <button type="button" className="miniBtn danger" disabled={busy} onClick={() => review(e.id, 'reject')}>Reject</button> : null}
           {e.status === 'rejected' ? <button type="button" className="miniBtn" disabled={busy} onClick={() => review(e.id, 'reopen')}>Reopen</button> : null}
           {e.status === 'approved' ? <button type="button" className="miniBtn" disabled={busy} onClick={() => review(e.id, 'apply')}>Apply</button> : null}
+          {e.status === 'approved' || e.status === 'applied' ? <button type="button" className="miniBtn" disabled={busy} onClick={() => evaluateLesson(e.id)}>Evaluate</button> : null}
+          {e.status === 'approved' || e.status === 'applied' ? <button type="button" className="miniBtn danger" disabled={busy} onClick={() => undo(e.id)}>Undo</button> : null}
           {e.status !== 'applied' ? (editing === e.id
             ? <button type="button" className="miniBtn" disabled={busy} onClick={() => review(e.id, e.status === 'pending' ? 'approve' : 'approve', draft)}>Save lesson</button>
             : <button type="button" className="miniBtn" disabled={busy} onClick={() => { setEditing(e.id); setDraft({ lesson: e.lesson || '', applies_to: e.applies_to || 'global' }); }}>Edit</button>) : null}

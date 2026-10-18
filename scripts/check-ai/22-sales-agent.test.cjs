@@ -72,7 +72,8 @@ test('13. referral / current car / matched record are the vehicle sources (prior
 test('14/29. alternatives come from the AI Catalog only, max 3', () => {
   const compose = read('src/lib/sales-compose.ts');
   assert.ok(compose.includes('loadAiCars(300)'), 'AI-enabled Available rows only');
-  assert.ok(compose.includes('alternatives(cats, current, { limit: 3 })'));
+  // Still max 3 alternatives; the customer's rejected-vehicle list is applied too (upgrade items 50/78).
+  assert.ok(compose.includes('alternatives(cats, current, { limit: 3, excludeStocks:'));
   const catalog = read('src/lib/ai-catalog.ts');
   assert.ok(catalog.includes('aiCarSqlFor'), 'catalog mode + ai_enabled + Available enforced');
 });
