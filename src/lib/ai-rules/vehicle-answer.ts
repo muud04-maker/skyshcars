@@ -115,11 +115,13 @@ const sameCategory = (a: AnyCar, b?: AnyCar | null) => {
  * The category decided first: when the conversation is about a motorcycle, only motorcycles may be
  * suggested (never a random car such as a BYD Qin EV just because it is cheap), and vice versa.
  */
-export function alternatives(cars: AnyCar[], like?: AnyCar | null, opts: { limit?: number; maxPrice?: number | null } = {}) {
+export function alternatives(cars: AnyCar[], like?: AnyCar | null, opts: { limit?: number; maxPrice?: number | null; excludeStocks?: string[] } = {}) {
   const limit = Math.max(1, Math.min(3, Number(opts.limit || 3)));
   const base = Number(like?.price_usd || 0);
   const sameId = Number(like?.id || 0);
   const likeCategory = String(like?.category || '').toLowerCase();
+  // Brief items 50/78: never recommend a vehicle this customer already declined.
+  const rejected = new Set((opts.excludeStocks || []).map((s) => String(s || '').trim().toUpperCase()).filter(Boolean));
   const score = (c: AnyCar) => {
     let s = 0;
     if (like?.model && String(c.model || '').toLowerCase() === String(like.model).toLowerCase()) s += 8;
@@ -130,6 +132,7 @@ export function alternatives(cars: AnyCar[], like?: AnyCar | null, opts: { limit
   };
   return (cars || [])
     .filter((c) => Number(c.id || 0) !== sameId)
+    .filter((c) => !rejected.size || !rejected.has(String(c.stock_no || '').trim().toUpperCase()))
     // Hard category filter: a motorcycle never gets car alternatives, a car never gets motorcycles.
     .filter((c) => (likeCategory === 'car' || likeCategory === 'motorcycle' ? !String(c.category || '') || sameCategory(c, like) : true))
     .filter((c) => (opts.maxPrice == null ? true : Number(c.price_usd) > 0 && Number(c.price_usd) <= Number(opts.maxPrice)))

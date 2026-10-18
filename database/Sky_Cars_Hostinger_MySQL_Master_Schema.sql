@@ -368,3 +368,148 @@ CREATE TABLE IF NOT EXISTS customer_accounts (
 
 -- Phase 3: each Group Reader post owns one pending vehicle (also added automatically by the app).
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS vehicle_id BIGINT UNSIGNED NULL;
+
+-- ============================================================================
+-- AI learning / customer context / staff workflow (all additive, all idempotent)
+-- The app creates these at runtime too (CREATE TABLE IF NOT EXISTS), so running this file on an
+-- existing production database is safe and changes nothing that already exists.
+-- ============================================================================
+
+-- One customer, one fact per key. A new value supersedes the old one; every change is logged below.
+CREATE TABLE IF NOT EXISTS customer_facts (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ customer_id BIGINT UNSIGNED NOT NULL,
+ fact_key VARCHAR(60) NOT NULL,
+ fact_value VARCHAR(255) NOT NULL,
+ source VARCHAR(40) NOT NULL DEFAULT 'customer_message',
+ source_message_id BIGINT UNSIGNED NULL,
+ confidence DECIMAL(4,2) NULL,
+ active TINYINT(1) NOT NULL DEFAULT 1,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_customer_fact(customer_id,fact_key),
+ INDEX idx_fact_customer(customer_id,active),
+ INDEX idx_fact_key(fact_key,active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS customer_fact_events (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ customer_id BIGINT UNSIGNED NOT NULL,
+ fact_key VARCHAR(60) NOT NULL,
+ old_value VARCHAR(255) NULL,
+ new_value VARCHAR(255) NULL,
+ action VARCHAR(20) NOT NULL,
+ source VARCHAR(40) NULL,
+ changed_by VARCHAR(191) NULL,
+ changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_fact_event_customer(customer_id,changed_at),
+ INDEX idx_fact_event_key(fact_key,changed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Private staff notes per customer (soft-deleted, never shown publicly).
+CREATE TABLE IF NOT EXISTS staff_notes (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ customer_id BIGINT UNSIGNED NOT NULL,
+ note TEXT NOT NULL,
+ author VARCHAR(191) NULL,
+ active TINYINT(1) NOT NULL DEFAULT 1,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ INDEX idx_note_customer(customer_id,active,created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Every change of the vehicle a chat is about, with its source (ai / referral / staff / correction).
+CREATE TABLE IF NOT EXISTS conversation_vehicle_events (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ conversation_id BIGINT UNSIGNED NOT NULL,
+ customer_id BIGINT UNSIGNED NULL,
+ vehicle_id BIGINT UNSIGNED NULL,
+ previous_vehicle_id BIGINT UNSIGNED NULL,
+ source VARCHAR(40) NOT NULL DEFAULT 'ai',
+ reason VARCHAR(191) NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_vehicle_event_conv(conversation_id,created_at),
+ INDEX idx_vehicle_event_customer(customer_id,created_at),
+ INDEX idx_vehicle_event_vehicle(vehicle_id,created_at),
+ INDEX idx_vehicle_event_source(source,created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Supervised learning: nothing becomes a global rule without an admin approving (and applying) it.
+CREATE TABLE IF NOT EXISTS ai_learning_events (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ conversation_id BIGINT UNSIGNED NULL,
+ customer_id BIGINT UNSIGNED NULL,
+ message_id BIGINT UNSIGNED NULL,
+ question TEXT NULL,
+ ai_reply TEXT NULL,
+ correction TEXT NULL,
+ event_type VARCHAR(60) NOT NULL DEFAULT 'other',
+ reason VARCHAR(191) NULL,
+ lesson TEXT NULL,
+ applies_to ENUM('global','customer') NOT NULL DEFAULT 'global',
+ payload JSON NULL,
+ status ENUM('pending','approved','rejected','applied') NOT NULL DEFAULT 'pending',
+ created_by VARCHAR(191) NULL,
+ reviewed_by VARCHAR(191) NULL,
+ reviewed_at DATETIME NULL,
+ applied_at DATETIME NULL,
+ applied_ref VARCHAR(191) NULL,
+ confidence DECIMAL(4,2) NULL,
+ category VARCHAR(40) NULL,
+ evidence_ref VARCHAR(191) NULL,
+ expires_at DATETIME NULL,
+ undone_at DATETIME NULL,
+ undone_by VARCHAR(191) NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ INDEX idx_learning_status(status,created_at),
+ INDEX idx_learning_customer(customer_id,created_at),
+ INDEX idx_learning_type(event_type,status),
+ INDEX idx_learning_conversation(conversation_id,created_at),
+ INDEX idx_learning_expiry(expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Daily, deterministic summary of real human sales activity (weak hints only, never rules).
+CREATE TABLE IF NOT EXISTS daily_ai_sales_patterns (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ pattern_date DATE NOT NULL,
+ pattern_type VARCHAR(60) NOT NULL,
+ pattern_key VARCHAR(191) NOT NULL,
+ pattern_value TEXT NULL,
+ sample_count INT NOT NULL DEFAULT 1,
+ confidence DECIMAL(4,2) NOT NULL DEFAULT 0.50,
+ source VARCHAR(60) NOT NULL DEFAULT 'daily_learner',
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_pattern(pattern_date,pattern_type,pattern_key),
+ INDEX idx_pattern_date_type(pattern_date,pattern_type),
+ INDEX idx_pattern_key(pattern_key,pattern_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- One auditable queue for work only a human can finish: photos, freight, sourcing, serious buyers.
+CREATE TABLE IF NOT EXISTS staff_tasks (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ request_type VARCHAR(40) NOT NULL,
+ dedupe_key VARCHAR(191) NULL,
+ conversation_id BIGINT UNSIGNED NULL,
+ customer_id BIGINT UNSIGNED NULL,
+ vehicle_id BIGINT UNSIGNED NULL,
+ stock_no VARCHAR(60) NULL,
+ reason VARCHAR(255) NULL,
+ status VARCHAR(20) NOT NULL DEFAULT 'pending',
+ priority TINYINT NOT NULL DEFAULT 5,
+ notes TEXT NULL,
+ created_by VARCHAR(191) NULL,
+ handled_by VARCHAR(191) NULL,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ completed_at DATETIME NULL,
+ UNIQUE KEY uq_task_dedupe(dedupe_key),
+ INDEX idx_task_status(status,priority,created_at),
+ INDEX idx_task_type(request_type,status),
+ INDEX idx_task_conversation(conversation_id,created_at),
+ INDEX idx_task_customer(customer_id,created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Who on the team owns a customer (added by the app at runtime as well).
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS assigned_staff VARCHAR(191) NULL;
