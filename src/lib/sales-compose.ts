@@ -5,7 +5,8 @@
 import { salesReply, AI_MODEL, allowedVehicleNames } from './ai';
 import { planPhotos } from './whatsapp-photos';
 import { aiCarById, loadAiCars } from './ai-catalog';
-import { alternativeLines, alternatives, carTitle, clarifyVehicle, vehicleDetails, vehicleIntent } from './ai-rules/vehicle-answer';
+import { alternativeLines, alternatives, carTitle, clarifyVehicle, soldVehicleReply, vehicleDetails, vehicleIntent } from './ai-rules/vehicle-answer';
+import { publicVehicleByStockOrUrl } from './vehicles';
 import { detectLanguage } from './ai-rules/welcome';
 import { shouldHold } from './ai-rules/hold';
 import { isQuestion, isRequest } from './intent';
@@ -135,6 +136,19 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
     try {
       const vIntent = vehicleIntent(i.words);
       if (vIntent && vIntent !== 'photos' && vIntent !== 'shipping') {
+        /*
+          Brief section 6: a stock number or vehicle URL the customer pasted may point at a unit that is
+          already SOLD. Answer its real status (never as an offer, never its old price as current) and
+          offer verified available alternatives - instead of asking "which car?" or switching to another
+          unit because it happens to have photos.
+        */
+        const namedVehicle = await publicVehicleByStockOrUrl(i.words).catch(() => null);
+        if (namedVehicle && String(namedVehicle.status) === 'sold') {
+          const cats: any[] = await loadAiCars(200).catch(() => []);
+          const soldAlts = alternatives(cats, { id: namedVehicle.id, category: namedVehicle.category, brand: namedVehicle.brand, price_usd: namedVehicle.price_usd }, { limit: 3, excludeStocks: await rejectedStocksFor(i.conversationId) });
+          if (isHardcodedLang(lang)) return { text: soldVehicleReply(namedVehicle as any, soldAlts as any, lang), lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: soldAlts.map((c: any) => carTitle(c)), needsStaff: null };
+          vehicleFactNote = ` The vehicle the customer referenced (${carTitle(namedVehicle as any)}, stock ${namedVehicle.stock_no}) is SOLD. Say clearly that it is already sold, never quote its old price as a current offer, and offer only these verified available alternatives: ${soldAlts.map((c: any) => carTitle(c)).join('; ') || 'none'}. Answer in ${languageName(lang)} in 1-2 short sentences.`;
+        }
         const st: any = await getState(i.conversationId).catch(() => null);
         const currentId = Number(st?.current_vehicle_id || 0);
         const cats: any[] = await loadAiCars(300).catch(() => []);

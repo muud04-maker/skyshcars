@@ -99,13 +99,19 @@ export type VehicleQuery = {
   limit?: number; category?: string; search?: string; brand?: string; steering?: string; fuel?: string; bodyType?: string;
   minPrice?: number; maxPrice?: number; minYear?: number; maxYear?: number; minMileage?: number; maxMileage?: number;
   stock?: string; sort?: string; onlyAvailable?: boolean; createdWithinDays?: number;
+  /** Public stock view: available (default, unchanged), sold, or all sellable incl. sold. */
+  stockStatus?: 'available' | 'sold' | 'all';
+  offset?: number;
 };
+
+import { publicStatusCondition } from './bulk-vehicles';
+export { publicStatusCondition };
 
 function num(v: any) { const n = Number(v); return Number.isFinite(n) ? n : null; }
 // Group Reader posts stay private until an admin approves them.
 export const NOT_PENDING_GROUP = `NOT (COALESCE(v.source,'')='whatsapp_group' AND v.status='pending_verification')`;
 function buildWhere(opts: VehicleQuery) {
-  const args: any[] = []; let where = `v.status IN ('available','reserved','pending_verification') AND ${NOT_PENDING_GROUP}`;
+  const args: any[] = []; let where = `${publicStatusCondition(opts.stockStatus, 'v')} AND ${NOT_PENDING_GROUP}`;
   where += ` AND NOT (v.category='motorcycle' AND (TRIM(COALESCE(v.brand,''))='' OR TRIM(COALESCE(v.model,''))=''))`;
   if (opts.category) { where += ' AND v.category=?'; args.push(opts.category); }
   if (opts.brand) { where += ' AND LOWER(v.brand)=?'; args.push(String(opts.brand).toLowerCase()); }
@@ -140,6 +146,8 @@ export async function getVehicles(q: VehicleQuery | number = {}) {
   const opts: VehicleQuery = typeof q === 'number' ? { limit: q } : q; const limit = lim(opts.limit ?? 1200);
   if (!dbConfigured()) {
     let list = combinedFallbackInventory();
+    if (opts.stockStatus === 'sold') list = list.filter((v: any) => String(v.status || '') === 'sold');
+    else if (opts.stockStatus !== 'all') list = list.filter((v: any) => String(v.status || '') !== 'sold');
     if (opts.category) list = list.filter((v: any) => v.category === opts.category);
     if (opts.brand) list = list.filter((v: any) => String(v.brand || '').toLowerCase() === String(opts.brand).toLowerCase());
     if (opts.search) { const s = String(opts.search).toLowerCase(); list = list.filter((v: any) => `${v.brand} ${v.model} ${v.stock_no}`.toLowerCase().includes(s)); }
@@ -149,9 +157,60 @@ export async function getVehicles(q: VehicleQuery | number = {}) {
   try {
     await ensureCatalogueReady();
     const { where, args } = buildWhere(opts);
-    const list = await rows<any>(`SELECT v.*, ${COVER} FROM vehicles v WHERE ${where} ORDER BY ${orderOf(opts.sort)} LIMIT ${limit}`, args);
+    const offset = Math.max(0, Number(opts.offset) || 0);
+    const list = await rows<any>(`SELECT v.*, ${COVER} FROM vehicles v WHERE ${where} ORDER BY ${orderOf(opts.sort)} LIMIT ${limit} OFFSET ${offset}`, args);
     return list.map(withRepresentative);
   } catch (e) { console.error('GET_VEHICLES_DB_ERROR', e); return []; }
+}
+
+/**
+ * Sold vehicles that were publicly listed (brief section 3): the SAME inventory table, no copy. Always
+ * excludes hidden, pending and group drafts, and never exposes supplier identity.
+ */
+export async function getSoldVehicles(opts: Omit<VehicleQuery, 'stockStatus'> = {}) {
+  return getVehicles({ ...opts, stockStatus: 'sold' });
+}
+
+/**
+ * AI-side resolution of a vehicle named in a customer message: an exact stock number or a public
+ * vehicle URL. Returns the real record (including a SOLD one) so the agent can answer with its true
+ * status instead of asking "which car?" or offering a sold unit as available.
+ */
+export async function publicVehicleByStockOrUrl(text: unknown) {
+  const t = String(text == null ? '' : text);
+  if (!t.trim()) return null;
+  const urlId = /\/vehicles\/(\d{1,10})/.exec(t)?.[1] || '';
+  // Only an explicit stock number counts - never a year or a price ("Stock number: 873", "SC-873").
+  const stock = (/(?:\bstock\s*(?:number|no\.?)?\s*[:#]?\s*|\bsc[-\s]?)0*(\d{2,7})\b/i.exec(t)?.[1] || '');
+  const stockNo = stock ? 'SC' + String(stock).padStart(5, '0') : '';
+  if (!urlId && !stockNo) return null;
+  if (!dbConfigured()) {
+    const list = combinedFallbackInventory();
+    return list.find((v: any) => (urlId && String(v.id) === urlId) || (stockNo && String(v.stock_no || '').replace(/\D/g, '').replace(/^0+/, '') === String(stock).replace(/^0+/, ''))) || null;
+  }
+  try {
+    const where = urlId ? 'v.id=?' : `REPLACE(REPLACE(v.stock_no,'-',''),' ','')=?`;
+    const arg = urlId ? Number(urlId) : stockNo;
+    const row = await one<any>(`SELECT v.* FROM vehicles v WHERE ${where} AND ${publicStatusCondition('all', 'v')} AND ${NOT_PENDING_GROUP}
+      AND NOT (v.category='motorcycle' AND (TRIM(COALESCE(v.brand,''))='' OR TRIM(COALESCE(v.model,''))='')) LIMIT 1`, [arg]);
+    return row || null;
+  } catch { return null; }
+}
+
+/** Real counts behind the Sold showcase (labelled "marked Sold", never "completed sales"). */
+export async function soldStats() {
+  if (!dbConfigured()) {
+    const list = combinedFallbackInventory().filter((v: any) => String(v.status || '') === 'sold');
+    return { total: list.length, cars: list.filter((v: any) => v.category !== 'motorcycle').length, motorcycles: list.filter((v: any) => v.category === 'motorcycle').length, recent_30d: 0 };
+  }
+  try {
+    const r = await one<any>(`SELECT COUNT(*) total,
+        SUM(category<>'motorcycle') cars, SUM(category='motorcycle') motorcycles,
+        SUM(updated_at >= (NOW() - INTERVAL 30 DAY)) recent_30d
+      FROM vehicles v WHERE ${publicStatusCondition('sold', 'v')} AND ${NOT_PENDING_GROUP}
+        AND NOT (v.category='motorcycle' AND (TRIM(COALESCE(v.brand,''))='' OR TRIM(COALESCE(v.model,''))=''))`);
+    return { total: Number(r?.total || 0), cars: Number(r?.cars || 0), motorcycles: Number(r?.motorcycles || 0), recent_30d: Number(r?.recent_30d || 0) };
+  } catch { return { total: 0, cars: 0, motorcycles: 0, recent_30d: 0 }; }
 }
 
 /**

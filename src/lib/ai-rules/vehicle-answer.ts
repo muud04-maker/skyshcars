@@ -151,3 +151,21 @@ export function alternativeLines(cars: AnyCar[], lang = 'en') {
 /** ONE concise clarification when the vehicle truly cannot be resolved (never a vague hold). */
 export function clarifyVehicle(lang = 'en') { return L(lang).askVehicle; }
 export function clarifyDestination(lang = 'en') { return L(lang).askDestination; }
+
+/**
+ * Reply for a vehicle the customer named that is already SOLD (brief section 6). It states the true
+ * status, never quotes the old price as a current offer, never promises photos of another unit, and
+ * offers real available alternatives with the same category first.
+ */
+export function soldVehicleReply(sold: AnyCar, alternativesList: AnyCar[] = [], lang = 'en') {
+  const title = carTitle(sold);
+  const stock = sold.stock_no ? ` (stock ${sold.stock_no})` : '';
+  const alts = (alternativesList || []).slice(0, 3);
+  const altLines = alts.length && lang === 'en'
+    ? '\n\nAvailable alternatives:\n' + alts.map((c) => `- ${carTitle(c)}${money(c.price_usd) ? ` - ${money(c.price_usd)}` : ''}`).join('\n')
+    : '';
+  if (lang === 'so') return `Baabuurka ${title}${stock} waa la iibiyay. Waxaan kuu raadin karnaa mid la mid ah. Ma rabtaa inaan hubinno waxa hadda diyaar ah?${altLines}`;
+  if (lang === 'ar') return `\u0627\u0644\u0633\u064a\u0627\u0631\u0629 ${title}${stock} \u0642\u062f \u0628\u064a\u0639\u062a \u0628\u0627\u0644\u0641\u0639\u0644. \u064a\u0645\u0643\u0646\u0646\u0627 \u0645\u0633\u0627\u0639\u062f\u062a\u0643 \u0641\u064a \u0625\u064a\u062c\u0627\u062f \u0645\u0627 \u064a\u0634\u0628\u0647\u0647\u0627. \u0647\u0644 \u062a\u0631\u064a\u062f \u0623\u0646 \u0646\u062a\u062d\u0642\u0642 \u0645\u0645\u0627 \u0647\u0648 \u0645\u062a\u0648\u0641\u0631 \u0627\u0644\u0622\u0646\u061f${altLines}`;
+  if (lang === 'zh') return `\u8fd9\u8f86 ${title}${stock} \u5df2\u552e\u51fa\u3002\u6211\u4eec\u53ef\u4ee5\u5e2e\u60a8\u627e\u4e00\u8f86\u7c7b\u4f3c\u7684\u8f66\u3002\u9700\u8981\u6211\u4eec\u67e5\u4e00\u4e0b\u73b0\u5728\u6709\u54ea\u4e9b\u53ef\u9009\u5417\uff1f${altLines}`;
+  return `That vehicle (${title}${stock}) has already been sold. We can help you find a similar one - would you like us to check what's available?${altLines}`;
+}

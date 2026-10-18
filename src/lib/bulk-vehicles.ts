@@ -22,6 +22,16 @@ export type BulkSelection = {
 export const STATUSES = ['available', 'sold', 'reserved', 'pending_verification', 'hidden'] as const;
 export const CATEGORIES = ['car', 'motorcycle', 'truck', 'van', 'bus', 'machinery', 'other'] as const;
 
+/**
+ * Public stock rules (brief section 1): Sold is public but never purchasable; Hidden is never public;
+ * 'all' never publishes pending/hidden; 'available' keeps the site's long-standing behaviour.
+ */
+export function publicStatusCondition(mode?: 'available' | 'sold' | 'all', alias = 'v') {
+  if (mode === 'sold') return `${alias}.status='sold'`;
+  if (mode === 'all') return `${alias}.status IN ('available','reserved','sold')`;
+  return `${alias}.status IN ('available','reserved','pending_verification')`;
+}
+
 /** Validate an action; anything else (including 'hidden') is refused. */
 export function normalizeBulkAction(v: unknown): BulkAction | null {
   const s = String(v || '').toLowerCase();

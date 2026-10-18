@@ -2,7 +2,7 @@ import {notFound} from 'next/navigation';
 import type {Metadata} from 'next';
 import {getVehicle,getVehicleMedia,getVehicles} from '../../../lib/vehicles';
 import VehicleGallery from '../../../components/VehicleGallery';
-import {SITE_URL,waLink,vehicleEnquiryMessage} from '../../../lib/site';
+import {SITE_URL,waLink,vehicleEnquiryMessage,vehicleWhatsAppLink,vehicleSeoMetadata} from '../../../lib/site';
 import ShippingEstimator from '../../../components/ShippingEstimator';
 import VehicleGrid from '../../../components/VehicleGrid';
 import {FavoriteButton,CompareButton,RecentlyViewedTracker} from '../../../components/MarketplaceTools';
@@ -13,8 +13,7 @@ const titleOf=(v:any)=>`${v.model_year||''} ${v.brand||''} ${v.model||''}`.trim(
 export async function generateMetadata({params}:{params:Promise<{id:string}>}):Promise<Metadata>{
  const {id}=await params;const v:any=await getVehicle(id).catch(()=>null);
  if(!v)return {title:'Vehicle not found | Sky Cars'};
- const t=titleOf(v);const price=v.price_usd?` Price $${Number(v.price_usd).toLocaleString()}.`:'';
- return {title:`${t} for sale | Sky Cars`,description:`${t} (${v.stock_no}) in ${v.location||'China'}.${price} Export support from Sky Cars.`,alternates:{canonical:`${SITE_URL}/vehicles/${v.id}`},openGraph:{title:`${t} | Sky Cars`,url:`${SITE_URL}/vehicles/${v.id}`,type:'website',images:v.exact_cover_url?[{url:String(v.exact_cover_url).startsWith('/')?SITE_URL+v.exact_cover_url:v.exact_cover_url}]:undefined}};
+ return vehicleSeoMetadata(v);
 }
 
 export default async function Detail({params}:{params:Promise<{id:string}>}){
@@ -37,7 +36,7 @@ export default async function Detail({params}:{params:Promise<{id:string}>}){
    <section className="card vehicleInfoPanel">
     <div className="detailTopline"><span className={'badge '+(status==='pending_verification'||status==='reserved'?'pending':status==='sold'?'sold':'')}>{statusText}</span><span>Stock No. {v.stock_no}</span></div>
     <h1>{title}</h1>
-    <div className="price">{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</div>
+    <div className="price">{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</div>{status==='sold'?<p className="soldNotice"><b>SOLD</b> - this unit is no longer available. The figure above is its last listed price, not a current offer.</p>:null}{status==='sold'?<p className="soldNotice"><b>SOLD</b> - this unit is no longer available. The figure above is its last listed price, not a current offer.</p>:null}
     <p className="muted">Price shown is the vehicle price in China. Shipping, destination charges and documents are quoted separately.</p>
     <div className="specGrid">
       <div><small>Year</small><b>{v.model_year||'On request'}</b></div><div><small>Mileage</small><b>{sx.mileage_range|| (v.mileage_km?Number(v.mileage_km).toLocaleString()+'+ km':'On request')}</b></div>
@@ -45,7 +44,7 @@ export default async function Detail({params}:{params:Promise<{id:string}>}){
       <div><small>Engine</small><b>{v.engine||'On request'}</b></div><div><small>Steering</small><b>{v.steering||'On request'}</b></div>
       <div><small>Body type</small><b>{sx.body_type||'On request'}</b></div><div><small>Stock status</small><b>{sx.stock_status||statusText}</b></div><div><small>Color</small><b>{v.color||'On request'}</b></div><div><small>Location</small><b>{v.location||'China'}</b></div>
     </div>
-    <div className="detailTools"><FavoriteButton vehicle={lite}/><CompareButton vehicle={lite}/></div><div className="detailActions"><a className="btn" href={'/quote?vehicle='+v.id}>Get Total Quote</a><a className="btn wa" href={waLink(vehicleEnquiryMessage(v.stock_no,title,`${SITE_URL}/vehicles/${v.id}`))} target="_blank" rel="noreferrer">Chat on WhatsApp</a></div>
+    <div className="detailTools"><FavoriteButton vehicle={lite}/><CompareButton vehicle={lite}/></div><div className="detailActions">{status==='sold'?<><a className="btn wa" href={vehicleWhatsAppLink(v)} target="_blank" rel="noreferrer">Ask About a Similar Vehicle</a><a className="btn" href={'/vehicles?stock=available&brand='+encodeURIComponent(String(v.brand||''))}>Find Similar Vehicle</a></>:<><a className="btn" href={'/quote?vehicle='+v.id}>Get Total Quote</a><a className="btn wa" href={vehicleWhatsAppLink(v)} target="_blank" rel="noreferrer">Send This Vehicle to WhatsApp</a></>}</div>
    </section>
   </div>
   <ShippingEstimator vehiclePrice={v.price_usd?Number(v.price_usd):undefined}/>

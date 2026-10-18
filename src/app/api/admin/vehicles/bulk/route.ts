@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     if (!ids.length) { await conn.rollback(); return NextResponse.json({ ok: true, updated: 0, skipped: 0, failed: 0, note: 'Nothing matched that selection.' }); }
 
     // No-op rows are "skipped" (already in the target status) so the counts are honest.
-    const [res]: any = await conn.query(`UPDATE vehicles SET status=?, updated_at=NOW() WHERE id IN (${ids.map(() => '?').join(',')}) AND status<>?`, [action, ...ids, action]);
+    const [res]: any = await conn.query(`UPDATE vehicles SET status=?, updated_at=NOW() WHERE id IN (${ids.map(() => '?').join(',')}) AND status<>? AND (${action === 'sold' ? "status IN ('available','reserved','sold')" : '1=1'})`, [action, ...ids, action]);
     const updated = Number(res?.affectedRows || 0);
     const skipped = ids.length - updated;
     await conn.commit();
