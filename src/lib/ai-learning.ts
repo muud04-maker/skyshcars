@@ -105,6 +105,16 @@ export function ensureAiLearningSchema() {
       `ALTER TABLE ai_learning_events ADD COLUMN undone_by VARCHAR(191) NULL`,
       `ALTER TABLE ai_learning_events ADD INDEX idx_learning_expiry(expires_at)`,
     ]) { try { await db().execute(sql); } catch (e: any) { if (e?.code !== 'ER_DUP_FIELDNAME' && e?.code !== 'ER_DUP_KEYNAME') console.error('LEARNING_COLUMN', e?.code); } }
+    /*
+      Never assume the ALTERs above succeeded: verify the columns really exist. A swallowed failure
+      used to leave the app "running" while every query that selects expires_at/confidence failed at
+      request time. Fail loudly here (the schema promise is retried on the next call) instead.
+    */
+    const required = ['confidence', 'category', 'evidence_ref', 'expires_at', 'undone_at', 'undone_by'];
+    const found = await rows<any>(`SELECT COLUMN_NAME n FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ai_learning_events'`).catch(() => [] as any[]);
+    const have = new Set(found.map((r: any) => String(r.n)));
+    const missing = required.filter((c) => !have.has(c));
+    if (missing.length) { ready = null; throw new Error(`ai_learning_events is missing column(s): ${missing.join(', ')}`); }
   })().catch(e => { ready = null; throw e; });
   return ready;
 }

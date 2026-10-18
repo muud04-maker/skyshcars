@@ -16,16 +16,28 @@ export default function StaffTasksClient() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [notes, setNotes] = useState<Record<number, string>>({});
+  const [health, setHealth] = useState<any>(null);
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams({ status, limit: '120' });
     if (type) qs.set('type', type);
     const r = await fetch('/api/admin/staff-tasks?' + qs, { cache: 'no-store' });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setMsg(j.error || 'Could not load tasks'); return; }
+    if (!r.ok) {
+      const detail = [j.error, j.missing_columns?.length ? `missing: ${j.missing_columns.join(', ')}` : null, j.detail, j.hint].filter(Boolean).join(' · ');
+      setMsg(detail || 'Could not load tasks'); return;
+    }
     setTasks(j.tasks || []); setStats(j.stats || {});
   }, [status, type]);
   useEffect(() => { void load(); }, [load]);
+
+  /** Release check: prove every critical table/column exists (a failed migration must not look like "no tasks"). */
+  async function checkSchema() {
+    setHealth(null);
+    const r = await fetch('/api/admin/schema-health', { cache: 'no-store' });
+    const j = await r.json().catch(() => ({}));
+    setHealth({ ...j, http: r.status });
+  }
 
   async function act(id: number, action: string) {
     setBusy(true); setMsg('');
@@ -49,12 +61,23 @@ export default function StaffTasksClient() {
         {Object.keys(LABEL).map((k) => <option key={k} value={k}>{LABEL[k]}</option>)}
       </select></label>
       <button type="button" className="btn" onClick={() => void load()}>Refresh</button>
+      <button type="button" className="miniBtn" onClick={() => void checkSchema()}>Database check</button>
     </div>
     <p className="muted">
       {stats.pending || 0} pending · {stats.in_progress || 0} in progress · {stats.done || 0} done · {stats.declined || 0} declined
       {' '}| open photos {stats.photos_open || 0} · freight {stats.freight_open || 0} · sourcing {stats.sourcing_open || 0}
     </p>
     {msg ? <div className="setupAlert">{msg}</div> : null}
+    {health ? <div className="chCard" style={{ marginBottom: 12, borderColor: health.ok ? '#bfe3cd' : '#e7b4b4' }}>
+      <h3>Database check {health.ok ? '· all tables ready' : '· PROBLEM FOUND'}</h3>
+      {(health.checks || []).map((c: any) => (
+        <div className="chFact" key={c.table}><span>{c.ok ? 'OK' : 'FAIL'} · {c.table}</span>
+          <small className="muted">{c.ok ? 'columns present' : `${c.missing_columns?.length ? 'missing: ' + c.missing_columns.join(', ') : ''}${c.error ? (c.missing_columns?.length ? ' · ' : '') + c.error : ''}`}</small>
+        </div>
+      ))}
+      {!health.checks?.length ? <p className="muted">{health.error || health.detail || 'Could not run the check.'}</p> : null}
+      <button type="button" className="miniBtn" style={{ marginTop: 6 }} onClick={() => setHealth(null)}>Close</button>
+    </div> : null}
     <div className="chList">
       {tasks.length ? tasks.map((t) => (
         <div className="chCard" key={t.id}>
