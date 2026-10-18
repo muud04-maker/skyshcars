@@ -32,10 +32,19 @@ const LIST_SELECT = `
   s.pending_ai_reply_at,
   s.pending_attempts, s.pending_last_result, s.pending_last_attempt_at,
   s.current_vehicle_id, s.answered_through_id, s.last_read_message_id, s.slots,
-  (SELECT v.stock_no FROM vehicles v WHERE v.id=s.current_vehicle_id) current_stock_no`;
+  (SELECT v.stock_no FROM vehicles v WHERE v.id=s.current_vehicle_id) current_stock_no,
+  /* Open staff-task flags feed the practical inbox filters (serious buyers, payment, shipping, photos, sourcing, follow-up). */
+  EXISTS(SELECT 1 FROM staff_tasks t WHERE t.conversation_id=co.id AND t.status IN ('pending','in_progress') AND t.request_type='serious_buyer') task_serious,
+  EXISTS(SELECT 1 FROM staff_tasks t WHERE t.conversation_id=co.id AND t.status IN ('pending','in_progress') AND t.request_type='serious_buyer' AND COALESCE(t.reason,'') LIKE '%pay%') task_payment,
+  EXISTS(SELECT 1 FROM staff_tasks t WHERE t.conversation_id=co.id AND t.status IN ('pending','in_progress') AND t.request_type='freight') task_shipping,
+  EXISTS(SELECT 1 FROM staff_tasks t WHERE t.conversation_id=co.id AND t.status IN ('pending','in_progress') AND t.request_type='photo') task_photo,
+  EXISTS(SELECT 1 FROM staff_tasks t WHERE t.conversation_id=co.id AND t.status IN ('pending','in_progress') AND t.request_type='sourcing') task_sourcing,
+  EXISTS(SELECT 1 FROM staff_tasks t WHERE t.conversation_id=co.id AND t.status IN ('pending','in_progress') AND t.request_type='follow_up') task_followup`;
 
 export async function listConversations(limit = INBOX_LIMIT, opts: { archived?: boolean } = {}): Promise<InboxRow[]> {
   await ensureConversationState().catch(() => {});
+  // The task flags below need the table; create it on demand (idempotent).
+  try { const t = await import('./staff-tasks'); await t.ensureStaffTasksSchema(); } catch { /* filters just won't match */ }
   const cap = Math.max(1, Math.min(1000, Number(limit) || INBOX_LIMIT));
   const arch = opts.archived ? 'co.archived_at IS NOT NULL' : 'co.archived_at IS NULL';
   try {

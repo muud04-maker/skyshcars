@@ -9,8 +9,13 @@ export type InboxRow = {
   needs_reply?: number | null; needs_staff?: number | null; ai_paused_until?: string | null; lock_until?: string | null;
   current_vehicle_id?: number | null; current_stock_no?: string | null; waiting_minutes?: number | null;
   last_inbound_id?: number | null; last_read_message_id?: number | null; unread?: number | null;
+  /** Open staff-task flags (from staff_tasks), used by the practical inbox filters. */
+  task_serious?: number | null; task_payment?: number | null; task_shipping?: number | null;
+  task_photo?: number | null; task_sourcing?: number | null; task_followup?: number | null;
+  pending_last_result?: string | null;
 };
-export type InboxFilter = 'all' | 'waiting' | 'ai' | 'human' | 'paused' | 'needs_staff';
+export type InboxFilter = 'all' | 'waiting' | 'ai' | 'human' | 'paused' | 'needs_staff'
+  | 'serious' | 'payment' | 'shipping' | 'photos' | 'sourcing' | 'follow_up' | 'ai_error';
 export type InboxMsg = { id: number | string; sender?: string | null; body?: string | null; message_type?: string | null; created_at?: string | null; [k: string]: any };
 
 const ms = (v: any) => { const t = v ? Date.parse(String(v).replace(' ', 'T')) : NaN; return Number.isFinite(t) ? t : 0; };
@@ -56,6 +61,14 @@ export function filterRows(rows: InboxRow[], filter: InboxFilter = 'all', q = ''
     if (filter === 'waiting' && !r.needs_reply) return false;
     if (filter === 'needs_staff' && !r.needs_staff) return false;
     if ((filter === 'ai' || filter === 'human' || filter === 'paused') && String(r.mode || '') !== filter) return false;
+    // Practical filters (brief section 8) - all backed by real stored data, no new pipeline.
+    if (filter === 'serious' && !Number(r.task_serious || 0)) return false;
+    if (filter === 'payment' && !Number(r.task_payment || 0)) return false;
+    if (filter === 'shipping' && !Number(r.task_shipping || 0)) return false;
+    if (filter === 'photos' && !Number(r.task_photo || 0)) return false;
+    if (filter === 'sourcing' && !Number(r.task_sourcing || 0)) return false;
+    if (filter === 'follow_up' && !Number(r.task_followup || 0)) return false;
+    if (filter === 'ai_error' && !String(r.pending_last_result || '').toLowerCase().startsWith('failed')) return false;
     if (query) {
       const hay = [r.full_name, r.phone, r.external_user_id, r.preview, r.current_stock_no].map((x) => String(x || '').toLowerCase()).join(' ');
       if (!hay.includes(query)) return false;

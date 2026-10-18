@@ -10,6 +10,7 @@ export default function BusinessPolicyCard({ initial }: { initial: any }) {
   const [p, setP] = useState<any>(initial || {});
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<any[] | null>(null);
   const set = (group: string, key: string, value: any) => setP((cur: any) => ({ ...cur, [group]: { ...(cur[group] || {}), [key]: value } }));
   async function save() {
     setBusy(true); setMsg('Saving...');
@@ -18,6 +19,13 @@ export default function BusinessPolicyCard({ initial }: { initial: any }) {
     setBusy(false);
     if (!r.ok) { setMsg(j.error || 'Could not save'); return; }
     setP(j.policy); setMsg(`Saved as version ${j.policy.version}. The AI will use it on the next reply.`);
+  }
+  /** Read-only version history (brief section 7): who changed what and when. No restore button. */
+  async function loadHistory() {
+    const r = await fetch('/api/admin/business-policy/history', { cache: 'no-store' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setMsg(j.error || 'Could not load the history'); return; }
+    setHistory(j.versions || []);
   }
   const s = p.shipping || {}, pay = p.payment || {}, st = p.style || {};
   return <section className="card" style={{ marginTop: 18 }}>
@@ -42,8 +50,17 @@ export default function BusinessPolicyCard({ initial }: { initial: any }) {
     </div>
     <div className="actions" style={{ marginTop: 10 }}>
       <button type="button" className="btn" disabled={busy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save policy'}</button>
+      <button type="button" className="miniBtn" onClick={() => void loadHistory()}>Version history</button>
       {msg ? <span className="muted">{msg}</span> : null}
     </div>
+    {history ? <div style={{ marginTop: 10 }}>
+      <b style={{ fontSize: 12 }}>Version history (read-only)</b>
+      {history.length ? history.map((h) => <div className="chFact" key={h.version + '-' + h.at}>
+        <span>v{h.version ?? '?'} · {h.at ? new Date(String(h.at).replace(' ', 'T')).toLocaleString() : '-'} · {h.by || 'admin'}</span>
+        <small className="muted">{h.changed?.length ? h.changed.join(', ') : 'no field changes recorded'}</small>
+      </div>) : <p className="muted">No saved versions yet.</p>}
+      <button type="button" className="miniBtn" onClick={() => setHistory(null)}>Close</button>
+    </div> : null}
     <p className="hint">Shipping figures are indicative estimates, never a quotation. The AI must confirm the destination and port before a final price. No bank details or payment guarantees are ever sent.</p>
   </section>;
 }

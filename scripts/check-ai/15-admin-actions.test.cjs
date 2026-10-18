@@ -143,7 +143,9 @@ test('19. the admin button colour system exists and is used', () => {
 test('20. the old inline create form is gone (one creation path only)', () => {
   const manager = read(MANAGER);
   assert.ok(manager.includes('href="/admin/vehicles/new"'), 'prominent add button links to the 5-step flow');
-  assert.ok(!/method: 'POST'/.test(manager), 'the list must not POST to create vehicles');
+  // The list may POST to the BULK status endpoint, but never to the create endpoint.
+  assert.ok(!manager.includes("fetch('/api/admin/vehicles', { method: 'POST'"), 'the list must not POST to create vehicles');
+  assert.ok(manager.includes('/api/admin/vehicles/bulk'), 'bulk availability uses its own endpoint');
   assert.ok(read(ADD_CLIENT).includes('Save Vehicle'));
 });
 

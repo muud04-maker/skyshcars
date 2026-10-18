@@ -269,8 +269,12 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
       <div className="inboxTools">
         <input placeholder="Search name, phone, stock no." value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={filter} onChange={(e) => setFilter(e.target.value as InboxFilter)}>
-          <option value="all">All</option><option value="waiting">Waiting</option><option value="needs_staff">Needs staff</option>
-          <option value="ai">AI</option><option value="human">Human</option><option value="paused">Paused</option>
+          <option value="all">All</option><option value="waiting">Waiting for staff</option><option value="needs_staff">Needs staff</option>
+          <option value="serious">Serious buyers</option><option value="payment">Payment questions</option>
+          <option value="shipping">Shipping requests</option><option value="photos">Missing vehicle photos</option>
+          <option value="sourcing">Vehicle sourcing</option><option value="follow_up">Follow-up required</option>
+          <option value="ai_error">AI errors</option>
+          <option value="ai">AI mode</option><option value="human">Human takeover</option><option value="paused">Paused</option>
         </select>
       </div>
       <div className="bulkBar">
