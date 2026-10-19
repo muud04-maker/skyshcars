@@ -50,12 +50,35 @@ test('shipping precedence: no route falls back to general car policy guidance', 
   assert.equal(car.aboveGeneralGuidance, false);
 });
 
-test('card CSS resets every badge corner and does not stretch photo overlays', () => {
+test('card photos own their frame and photo-state labels stay outside the image', () => {
   const css = read('src/app/design.css');
-  assert.ok(/\.vehicleCard \.vehicleImageWrap \.repPhotoTag[\s\S]*?left:10px;right:auto;bottom:10px;top:auto/.test(css), 'rep photo tag anchored to one corner');
   assert.ok(/\.vehicleCard \.steeringTag[\s\S]*?left:auto;right:10px;bottom:10px;top:auto/.test(css), 'steering tag anchored to one corner');
   assert.ok(/\.vehicleCard \.soldBadge[\s\S]*?left:10px;right:auto;top:10px;bottom:auto/.test(css), 'sold badge anchored to one corner');
   assert.ok(css.includes('.vehicleCard .vehicleImageWrap img{display:block;width:100%;height:100%;object-fit:cover'), 'photo fills its own frame');
+  assert.ok(css.includes('.vehiclePhotoFallback'), 'failed photos have a neutral fallback');
+  assert.ok(css.includes('.photoKind'), 'photo-kind label is styled in the card body');
+  const card = read('src/components/VehicleCard.tsx');
+  assert.ok(card.includes('cardMetaLine') && card.includes('photoKind'), 'photo-state label lives in the card body');
+  assert.ok(!card.includes('repPhotoTag'), 'no decorative photo badge is rendered over the vehicle image');
+  assert.ok(!card.includes("background:'#0b7a3b'"), 'no green photo overlay remains');
+  assert.ok(read('src/components/VehiclePhoto.tsx').includes('onError'), 'image failures switch to a fallback');
+});
+
+test('public pages carry distinct, scoped visual identities', () => {
+  const catalog = read('src/components/CatalogPage.tsx');
+  const css = read('src/app/design.css');
+  assert.ok(catalog.includes("'catalogPage theme-'+theme"), 'catalogue themes are applied at page level');
+  for (const theme of ['cars', 'motorcycles', 'electric', 'sold']) {
+    assert.ok(css.includes(`theme-${theme}`), `${theme} theme is defined`);
+  }
+  assert.ok(css.includes('.catalogPage.theme-motorcycles'), 'motorcycle identity is scoped');
+  assert.ok(css.includes('.theme-sold .vehicleCard'), 'sold archive card treatment is scoped');
+  assert.ok(css.includes('.pageShipping') && css.includes('.pageDestinations'), 'shipping and destination identities exist');
+  assert.ok(css.includes('.pageQuote') && css.includes('.theme-auth') && css.includes('.theme-compare'), 'quote, auth and compare identities exist');
+  assert.ok(read('src/app/cars/page.tsx').includes('theme="cars"'), 'cars page uses the graphite theme');
+  assert.ok(read('src/app/motorcycles/page.tsx').includes('theme="motorcycles"'), 'motorcycles page uses the ice-blue theme');
+  assert.ok(read('src/app/vehicles/page.tsx').includes("theme={electric?'electric':'vehicles'}"), 'electric landing uses the cyan theme');
+  assert.ok(read('src/app/sold-vehicles/page.tsx').includes('theme-sold'), 'sold page uses the archive theme');
 });
 
 test('public pages use the shared display formatter', () => {

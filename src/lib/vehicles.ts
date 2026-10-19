@@ -97,6 +97,7 @@ function withRepresentative(v: any) {
 
 export type VehicleQuery = {
   limit?: number; category?: string; search?: string; brand?: string; steering?: string; fuel?: string; bodyType?: string;
+  transmission?: string; engine?: string;
   minPrice?: number; maxPrice?: number; minYear?: number; maxYear?: number; minMileage?: number; maxMileage?: number;
   stock?: string; sort?: string; onlyAvailable?: boolean; createdWithinDays?: number;
   /** Public stock view: available (default, unchanged), sold, or all sellable incl. sold. */
@@ -120,7 +121,14 @@ function buildWhere(opts: VehicleQuery) {
     const s = '%' + String(opts.search).toLowerCase() + '%'; args.push(s, s, s, s);
   }
   if (opts.steering && ['LHD', 'RHD'].includes(opts.steering)) { where += ' AND v.steering=?'; args.push(opts.steering); }
-  if (opts.fuel) { where += ` AND LOWER(COALESCE(v.fuel_type,''))=?`; args.push(String(opts.fuel).toLowerCase()); }
+  if (opts.fuel) {
+    const fuel = String(opts.fuel).toLowerCase();
+    // The public Electric page is an EV/hybrid landing page, not only one exact fuel label.
+    if (fuel === 'electric') where += ` AND LOWER(COALESCE(v.fuel_type,'')) IN ('electric','hybrid','phev','plug-in hybrid')`;
+    else { where += ` AND LOWER(COALESCE(v.fuel_type,''))=?`; args.push(fuel); }
+  }
+  if (opts.transmission) { where += ` AND LOWER(COALESCE(v.transmission,''))=?`; args.push(String(opts.transmission).toLowerCase()); }
+  if (opts.engine) { where += ` AND LOWER(TRIM(COALESCE(v.engine,''))) = ?`; args.push(String(opts.engine).trim().toLowerCase()); }
   if (opts.bodyType) { where += ` AND LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(v.specs,'$.body_type')),''))=?`; args.push(String(opts.bodyType).toLowerCase()); }
   const minP = num(opts.minPrice), maxP = num(opts.maxPrice), minY = num(opts.minYear), maxY = num(opts.maxYear), minM = num(opts.minMileage), maxM = num(opts.maxMileage);
   if (minP !== null) { where += ' AND v.price_usd>=?'; args.push(minP); } if (maxP !== null) { where += ' AND v.price_usd<=?'; args.push(maxP); }
@@ -151,8 +159,37 @@ export async function getVehicles(q: VehicleQuery | number = {}) {
     if (opts.category) list = list.filter((v: any) => v.category === opts.category);
     if (opts.brand) list = list.filter((v: any) => String(v.brand || '').toLowerCase() === String(opts.brand).toLowerCase());
     if (opts.search) { const s = String(opts.search).toLowerCase(); list = list.filter((v: any) => `${v.brand} ${v.model} ${v.stock_no}`.toLowerCase().includes(s)); }
+    if (opts.steering) list = list.filter((v: any) => String(v.steering || '').toUpperCase() === String(opts.steering).toUpperCase());
+    if (opts.fuel) {
+      const fuel = String(opts.fuel).toLowerCase();
+      const allowed = fuel === 'electric' ? ['electric', 'hybrid', 'phev', 'plug-in hybrid'] : [fuel];
+      list = list.filter((v: any) => allowed.includes(String(v.fuel_type || '').toLowerCase()));
+    }
+    if (opts.transmission) list = list.filter((v: any) => String(v.transmission || '').toLowerCase() === String(opts.transmission).toLowerCase());
+    if (opts.engine) list = list.filter((v: any) => String(v.engine || '').trim().toLowerCase() === String(opts.engine).trim().toLowerCase());
+    if (opts.bodyType) list = list.filter((v: any) => {
+      const specs = typeof v.specs === 'object' && v.specs ? v.specs : {};
+      return String(specs.body_type || v.body_type || '').toLowerCase() === String(opts.bodyType).toLowerCase();
+    });
+    const minP = num(opts.minPrice), maxP = num(opts.maxPrice), minY = num(opts.minYear), maxY = num(opts.maxYear), minM = num(opts.minMileage), maxM = num(opts.maxMileage);
+    if (minP !== null) list = list.filter((v: any) => Number(v.price_usd) >= minP);
+    if (maxP !== null) list = list.filter((v: any) => Number(v.price_usd) <= maxP);
+    if (minY !== null) list = list.filter((v: any) => Number(v.model_year) >= minY);
+    if (maxY !== null) list = list.filter((v: any) => Number(v.model_year) <= maxY);
+    if (minM !== null) list = list.filter((v: any) => Number(v.mileage_km) >= minM);
+    if (maxM !== null) list = list.filter((v: any) => Number(v.mileage_km) <= maxM);
+    if (opts.stock === 'available') list = list.filter((v: any) => String(v.status || '') === 'available');
+    else if (opts.stock === 'preorder') list = list.filter((v: any) => String(v.status || '') === 'pending_verification');
+    if (opts.onlyAvailable) list = list.filter((v: any) => String(v.status || '') === 'available');
     if (opts.category === 'motorcycle') list = list.filter((v: any) => String(v.brand || '').trim() && String(v.model || '').trim());
-    return list.slice(0, limit).map(withRepresentative);
+    const byNumber=(key:string,asc=true)=>(a:any,b:any)=>{const av=Number(a[key]),bv=Number(b[key]);if(!Number.isFinite(av))return 1;if(!Number.isFinite(bv))return -1;return asc?av-bv:bv-av};
+    if(opts.sort==='price_asc') list.sort(byNumber('price_usd',true));
+    else if(opts.sort==='price_desc') list.sort(byNumber('price_usd',false));
+    else if(opts.sort==='year_desc') list.sort(byNumber('model_year',false));
+    else if(opts.sort==='mileage_asc') list.sort(byNumber('mileage_km',true));
+    else list.sort((a:any,b:any)=>String(a.status||'available')===String(b.status||'available')?0:String(a.status||'')==='available'?-1:1);
+    const offset=Math.max(0,Number(opts.offset)||0);
+    return list.slice(offset, offset+limit).map(withRepresentative);
   }
   try {
     await ensureCatalogueReady();
@@ -225,15 +262,49 @@ export async function getNewArrivals(limit = ARRIVAL_LIMIT, days = ARRIVAL_DAYS)
 }
 
 export async function getVehicleFilterOptions(category = 'car') {
-  if (!dbConfigured()) return { brands: [], fuels: [], bodyTypes: [], minPrice: 0, maxPrice: 0, minYear: 2011, maxYear: new Date().getFullYear(), minMileage: 0, maxMileage: 0 };
+  if (!dbConfigured()) {
+    const list = combinedFallbackInventory().filter((v: any) =>
+      v.category === category &&
+      ['available', 'reserved', 'pending_verification'].includes(String(v.status || 'available')) &&
+      !(String(v.source || '') === 'whatsapp_group' && String(v.status || '') === 'pending_verification') &&
+      !(category === 'motorcycle' && (!String(v.brand || '').trim() || !String(v.model || '').trim()))
+    );
+    const tally = (values: string[]) => {
+      const counts = new Map<string, number>();
+      for (const value of values) if (value) counts.set(value, (counts.get(value) || 0) + 1);
+      return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
+    };
+    const bodyOf = (v: any) => {
+      const specs = typeof v.specs === 'object' && v.specs ? v.specs : {};
+      return String(specs.body_type || v.body_type || '').toLowerCase();
+    };
+    const prices = list.map((v: any) => Number(v.price_usd)).filter(Number.isFinite);
+    const years = list.map((v: any) => Number(v.model_year)).filter(Number.isFinite);
+    const miles = list.map((v: any) => Number(v.mileage_km)).filter(Number.isFinite);
+    return {
+      brands: tally(list.map((v: any) => String(v.brand || ''))).map(([brand, count]) => ({ brand, count })),
+      fuels: tally(list.map((v: any) => String(v.fuel_type || '').toLowerCase())).map(([fuel, count]) => ({ fuel, count })),
+      bodyTypes: tally(list.map(bodyOf)).map(([body, count]) => ({ body, count })),
+      transmissions: tally(list.map((v: any) => String(v.transmission || '').toLowerCase())).map(([transmission, count]) => ({ transmission, count })),
+      engines: tally(list.map((v: any) => String(v.engine || '').trim().toLowerCase())).map(([engine, count]) => ({ engine, count })),
+      minPrice: prices.length ? Math.min(...prices) : 0,
+      maxPrice: prices.length ? Math.max(...prices) : 0,
+      minYear: years.length ? Math.min(...years) : 2011,
+      maxYear: years.length ? Math.max(...years) : new Date().getFullYear(),
+      minMileage: miles.length ? Math.min(...miles) : 0,
+      maxMileage: miles.length ? Math.max(...miles) : 0,
+    };
+  }
   try {
     await ensureCatalogueReady();
     const base = `status IN ('available','reserved','pending_verification') AND NOT (COALESCE(source,'')='whatsapp_group' AND status='pending_verification') AND category=?`;
     const brands = await rows<any>(`SELECT brand,COUNT(*) count FROM vehicles WHERE ${base} AND TRIM(COALESCE(brand,''))<>'' GROUP BY brand ORDER BY brand`, [category]);
     const fuels = await rows<any>(`SELECT LOWER(fuel_type) fuel,COUNT(*) count FROM vehicles WHERE ${base} AND TRIM(COALESCE(fuel_type,''))<>'' GROUP BY LOWER(fuel_type) ORDER BY fuel`, [category]);
     const bodies = await rows<any>(`SELECT LOWER(JSON_UNQUOTE(JSON_EXTRACT(specs,'$.body_type'))) body,COUNT(*) count FROM vehicles WHERE ${base} AND JSON_EXTRACT(specs,'$.body_type') IS NOT NULL GROUP BY body ORDER BY body`, [category]);
+    const transmissions = await rows<any>(`SELECT LOWER(TRIM(transmission)) transmission,COUNT(*) count FROM vehicles WHERE ${base} AND TRIM(COALESCE(transmission,''))<>'' GROUP BY LOWER(TRIM(transmission)) ORDER BY transmission`, [category]);
+    const engines = await rows<any>(`SELECT LOWER(TRIM(engine)) engine,COUNT(*) count FROM vehicles WHERE ${base} AND TRIM(COALESCE(engine,''))<>'' GROUP BY LOWER(TRIM(engine)) ORDER BY engine`, [category]);
     const range: any = await one(`SELECT MIN(price_usd) minPrice,MAX(price_usd) maxPrice,MIN(model_year) minYear,MAX(model_year) maxYear,MIN(mileage_km) minMileage,MAX(mileage_km) maxMileage FROM vehicles WHERE ${base}`, [category]);
-    return { brands, fuels, bodyTypes: bodies, ...range };
+    return { brands, fuels, bodyTypes: bodies, transmissions, engines, ...range };
   } catch (e) { console.error('FILTER_OPTIONS', e); return { brands: [], fuels: [], bodyTypes: [] }; }
 }
 

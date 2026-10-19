@@ -34,13 +34,16 @@ export default function RootLayout({children}:{children:React.ReactNode}){
       <div className="siteHeaderInner">
         <a className="siteLogo" href="/" aria-label="Sky Cars and Motorcycles home"><span className="siteLogoMark" aria-hidden="true">SC</span><span>SKY CARS<em>MOTORCYCLES</em></span></a>
         <form className="siteSearch" action="/vehicles" role="search">
-          <input name="q" placeholder="Search Toyota, BYD, SUV, stock number..." aria-label="Search vehicles"/>
+          <input name="q" placeholder="Search brand, model or stock" aria-label="Search vehicles"/>
           <button type="submit" aria-label="Search vehicles">Search</button>
         </form>
         <div className="siteTools"><MiniMarketBar/><AuthStatus/><a href={waLink()} target="_blank" rel="noreferrer" className="siteWa">WhatsApp</a></div>
         <details className="mobileMenu">
           <summary aria-label="Open menu">Menu</summary>
-          <div className="mobileMenuPanel"><SiteNav mobile/><a href="/account#favorites">Saved vehicles</a><a href="/compare">Compare</a><a href="/tracking">Track shipment</a><a href={waLink('Hello Sky Cars, I would like help choosing a vehicle.')} target="_blank" rel="noreferrer">WhatsApp support</a></div>
+          <div className="mobileMenuPanel">
+            <form className="mobileSearch" action="/vehicles" role="search"><input name="q" placeholder="Search brand, model or stock" aria-label="Search vehicles"/><button type="submit">Search</button></form>
+            <SiteNav mobile/><a href="/account#favorites">Saved vehicles</a><a href="/compare">Compare</a><a href="/tracking">Track shipment</a><a href={waLink('Hello Sky Cars, I would like help choosing a vehicle.')} target="_blank" rel="noreferrer">WhatsApp support</a>
+          </div>
         </details>
       </div>
       <nav className="siteNav" aria-label="Main navigation"><div className="siteNavInner"><SiteNav/></div></nav>

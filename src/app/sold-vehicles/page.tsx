@@ -33,8 +33,8 @@ export default async function SoldVehicles({searchParams}:{searchParams:Promise<
   const params:any={...sp}; delete params.page;
   const qs=(patch:any)=>{const x=new URLSearchParams();for(const [k,v] of Object.entries({...sp,...patch})) if(v) x.set(k,String(v)); return '/sold-vehicles'+(x.toString()?'?'+x.toString():'');};
   const heroImage=heroList[0]?.cover_url||'';
-  return <main className="wrap soldPage">
-    <section className="soldHero" style={heroImage?{backgroundImage:`linear-gradient(90deg,rgba(5,18,31,.96),rgba(5,18,31,.66)),url(${heroImage})`}:undefined}>
+  return <main className="wrap soldPage theme-sold">
+    <section className="soldHero" style={heroImage?{backgroundImage:`linear-gradient(100deg,rgba(9,13,17,.97),rgba(17,23,29,.86) 58%,rgba(29,26,20,.72)),url(${heroImage})`}:undefined}>
       <div className="soldHeroInner">
         <span className="eyebrow">SOLD INVENTORY</span>
         <h1>Sold Vehicles</h1>
@@ -62,7 +62,7 @@ export default async function SoldVehicles({searchParams}:{searchParams:Promise<
     </form>
     <section className="catalogResults">
       <div className="catalogCount"><h2>{p.items.length ? `${p.items.length} sold vehicle${p.items.length===1?'':'s'} on this page` : 'No sold vehicles match these filters'}</h2><a href="/vehicles?stock=available">See available inventory</a></div>
-      <VehicleGrid list={p.items} emptyTitle="No sold vehicles match these filters"/>
+      <VehicleGrid list={p.items} emptyTitle="No vehicles in this archive view"/>
       <Pager base="/sold-vehicles" params={params} {...p}/>
     </section>
   </main>;

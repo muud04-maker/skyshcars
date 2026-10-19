@@ -42,6 +42,10 @@ export default async function Detail({params}:{params:Promise<{id:string}>}){
     ['Transmission',v.transmission],
     ['Fuel',v.fuel_type],
     ['Engine',v.engine],
+    ['Battery capacity',sx.battery_capacity||sx.battery||sx.battery_kwh],
+    ['Electric range',sx.range_km||sx.range||sx.driving_range],
+    ['Charging',sx.charging||sx.charging_info],
+    ['Powertrain',sx.powertrain||sx.drive_type],
     ['Steering',v.steering],
     ['Body type',sx.body_type],
     ['Stock status',sx.stock_status||statusText],
@@ -61,8 +65,8 @@ export default async function Detail({params}:{params:Promise<{id:string}>}){
     image:media.length?media.slice(0,6).map((m:any)=>String(m.url).startsWith('/')?SITE_URL+m.url:m.url):undefined,
     offers:v.price_usd?{'@type':'Offer',price:Number(v.price_usd),priceCurrency:'USD',availability:status==='sold'?'https://schema.org/SoldOut':status==='reserved'?'https://schema.org/LimitedAvailability':'https://schema.org/InStock',url:`${SITE_URL}/vehicles/${v.id}`}:undefined,
   };
-  const lite={id:v.id,stock_no:v.stock_no,brand:v.brand,model:v.model,model_year:v.model_year,price_usd:v.price_usd,cover_url:v.cover_url};
-  return <main className="wrap vehicleDetailPage"><RecentlyViewedTracker vehicle={lite}/>
+  const lite={id:v.id,stock_no:v.stock_no,brand:v.brand,model:v.model,model_year:v.model_year,price_usd:v.price_usd,cover_url:v.cover_url,category:v.category,fuel_type:v.fuel_type,transmission:v.transmission,steering:v.steering,mileage_km:v.mileage_km,engine:v.engine,location:v.location,status:v.status};
+  return <main className="wrap vehicleDetailPage theme-detail"><RecentlyViewedTracker vehicle={lite}/>
     <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(jsonLd).replace(/</g,'\\u003c')}}/>
     <nav className="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> / <a href={v.category==='motorcycle'?'/motorcycles':'/cars'}>{v.category==='motorcycle'?'Motorcycles':'Cars'}</a> / <span>{title}</span></nav>
     <div className="vehicleDetailGrid">

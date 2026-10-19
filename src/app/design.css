@@ -44,7 +44,7 @@ a:hover{text-decoration:none}
 .siteTopbar > div > div{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
 .siteTopbar a{color:#dbe6f0;opacity:.9}
 .siteTopbar a:hover{color:var(--sc-gold)}
-.siteHeader{position:sticky;top:0;z-index:70;background:rgba(9,24,39,.97);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.08);box-shadow:0 10px 30px -22px #000}
+.siteHeader{display:block;position:sticky;top:0;z-index:70;background:rgba(9,24,39,.97);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.08);box-shadow:0 10px 30px -22px #000}
 .siteHeaderInner{max-width:1440px;margin:0 auto;padding:12px 22px;display:grid;grid-template-columns:auto minmax(240px,1fr) auto;gap:20px;align-items:center}
 .siteLogo{display:flex;align-items:center;gap:11px;color:#fff;font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:.04em;white-space:nowrap}
 .siteLogoMark{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--sc-gold),#ffe08a);display:grid;place-items:center;color:#151000;font-weight:800;font-size:15px;box-shadow:0 6px 18px -8px rgba(249,188,37,.8)}
@@ -149,7 +149,6 @@ a:hover{text-decoration:none}
 .vehicleCard:hover .vehiclePhoto{transform:scale(1.045)}
 .vehicleNoPhoto{height:100%;display:grid;place-items:center;text-align:center;gap:4px;color:#7c8fa3;padding:18px}
 .vehicleNoPhoto strong{color:var(--sc-ink-soft);font-family:var(--font-display)}
-.repPhotoTag{position:absolute;right:10px;top:10px;font-size:10.5px;font-weight:800;letter-spacing:.04em;background:rgba(9,24,39,.78);color:#fff;padding:5px 8px;border-radius:999px;backdrop-filter:blur(6px)}
 .steeringTag{position:absolute;right:10px;bottom:10px;font-size:11px;font-weight:800;background:#fff;color:var(--sc-ink);border-radius:999px;padding:4px 8px}
 .soldBadge{position:absolute;top:10px;left:10px;background:var(--sc-red);color:#fff;font-weight:900;letter-spacing:.14em;font-size:12px;padding:7px 11px;border-radius:8px;z-index:3;box-shadow:0 6px 18px -8px #0009}
 .cardMediaActions{position:absolute;z-index:4;right:10px;top:10px;display:flex;gap:6px}
@@ -193,7 +192,8 @@ a:hover{text-decoration:none}
 .catalogInlineSearch input{flex:1;min-width:0;padding:10px 12px;border:1px solid #cddae7;border-radius:10px;background:#fbfdff;font:inherit}
 .catalogInlineSearch button,.sortApply{border:0;background:var(--sc-gold);color:#1c1400;font-weight:800;border-radius:10px;padding:10px 14px;cursor:pointer;font-family:var(--font-display)}
 .sortForm{display:flex;gap:8px;align-items:center}
-.sortForm select{padding:10px 12px;border:1px solid #cddae7;border-radius:10px;background:#fbfdff;font:inherit}
+.sortForm select{padding:10px 12px;border:1px solid #cddae7;border-radius:10px;background:#fbfdff;font:inherit;min-width:0;flex:1}
+.sortApply{flex:0 0 auto;white-space:nowrap}
 .catalogCount{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:4px 0 14px}
 .catalogCount h1,.catalogCount h2{margin:0}
 .catalogCount b{font-family:var(--font-display);color:var(--sc-ink-soft)}
@@ -267,8 +267,6 @@ a:hover{text-decoration:none}
 
 /* The old stylesheet anchored these badges on the opposite corners, which stretched them across
    the photo. Each badge now has exactly one corner and shrink-to-fit content. */
-.vehicleCard .vehicleImageWrap .repPhotoTag,
-.vehicleCard .repPhotoTag{position:absolute;left:10px;right:auto;bottom:10px;top:auto;width:auto;max-width:calc(100% - 20px);display:inline-flex;align-items:center;font-size:10.5px;line-height:1.2;padding:5px 8px;border-radius:999px;z-index:3;background:rgba(9,24,39,.82);color:#fff;backdrop-filter:blur(6px);white-space:nowrap}
 .vehicleCard .steeringTag{position:absolute;left:auto;right:10px;bottom:10px;top:auto;width:auto;padding:4px 8px;border-radius:999px;background:#fff;color:var(--sc-ink);font-size:10.5px;line-height:1.2;z-index:3;box-shadow:0 3px 12px #0002}
 .vehicleCard .soldBadge{left:10px;right:auto;top:10px;bottom:auto;width:auto;font-size:11px;line-height:1.2;padding:6px 9px;letter-spacing:.12em}
 .vehicleCard .cardMediaActions{right:10px;left:auto;top:10px;bottom:auto;z-index:4}
@@ -457,6 +455,7 @@ a:hover{text-decoration:none}
   .siteFooterBottom{padding:14px 16px 28px;flex-direction:column}
   .catalogToolbar{flex-direction:column;align-items:stretch}
   .sortForm{justify-content:space-between}
+  .sortForm select{width:100%}
   .detailActions .btn{flex:1 1 100%}
 }
 @media (prefers-reduced-motion:reduce){
@@ -531,4 +530,532 @@ a:hover{text-decoration:none}
   .galleryMain{height:300px;border-radius:12px}
   .galleryThumbs button{flex-basis:74px}
   .galleryThumbs img{width:70px;height:54px}
+}
+
+/* ============================================================================
+   V32 PUBLIC-SITE PAGE IDENTITIES
+   Scoped to public page classes. Admin and Lab keep their own shells and colors.
+   ========================================================================== */
+
+/* ---------- photo ownership + failed-image fallback ---------- */
+.vehiclePhotoFallback{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;aspect-ratio:16/10;padding:18px;text-align:center;background:linear-gradient(145deg,#0c2236,#173b57);color:#dbe8f3}
+.vehicleCard .vehiclePhotoFallback{height:100%}
+.vehiclePhotoFallback span{font-family:var(--font-display);font-size:10px;font-weight:800;letter-spacing:.2em;color:var(--sc-gold)}
+.vehiclePhotoFallback strong{font-family:var(--font-display);font-size:15px;color:#fff}
+.vehiclePhotoFallback small{max-width:24ch;font-size:11px;line-height:1.45;color:#b7cadb}
+.vehicleCard .vehicleImageWrap{background:linear-gradient(110deg,#e4ebf2 8%,#f8fbfd 20%,#e4ebf2 34%);background-size:220% 100%;animation:sc-photo-wait 1.8s linear infinite}
+@keyframes sc-photo-wait{0%{background-position:100% 0}100%{background-position:-120% 0}}
+.cardMetaLine{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:1px}
+.photoKind{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;letter-spacing:.03em;color:#65778a;white-space:nowrap}
+.photoKind:before{content:"";width:6px;height:6px;border-radius:50%;background:#0e8a5f}
+.photoKind.rep:before{background:#a57c19}
+.galleryMain img.failed{object-fit:contain;background:#07111b}
+.price,.catalogHeroMeta b,.heroMediaTag small,.soldStats b,.soldStatsRow b,.estimateResult strong,.compareTable td{font-variant-numeric:tabular-nums}
+
+/* ---------- header fit + mobile search ---------- */
+.siteNavInner{justify-content:space-between}
+.siteNav a{padding-left:11px;padding-right:11px}
+.mobileSearch{display:flex;gap:6px;padding:4px 4px 10px}
+.mobileSearch input{flex:1;min-width:0;margin:0;padding:11px 12px;border:1px solid #29435a;border-radius:9px;background:#10263a;color:#fff;font:inherit}
+.mobileSearch input::placeholder{color:#8fa8bf}
+.mobileSearch button{border:0;border-radius:9px;padding:0 14px;background:var(--sc-gold);color:#201700;font-family:var(--font-display);font-weight:800;cursor:pointer}
+@media (max-width:1500px){
+  .siteNav a{padding-left:9px;padding-right:9px;font-size:13px}
+}
+
+/* ---------- shared catalogue theme surface ---------- */
+.catalogPage{
+  --catalog-bg:linear-gradient(180deg,#f0f5f9,#fbfdff 380px);
+  --catalog-surface:#fff;--catalog-card:#fff;--catalog-ink:#0d1b2a;--catalog-muted:#5b6b7c;--catalog-line:#dbe4ee;
+  --catalog-accent:#132d46;--catalog-accent-deep:#091827;--catalog-accent-soft:#e8f0f7;--catalog-price:#0d1b2a;
+  --catalog-hero:radial-gradient(900px 420px at 82% -20%,rgba(249,188,37,.16),transparent 60%),linear-gradient(150deg,#081725,#0d2b43);
+  --catalog-hero-ink:#fff;--catalog-hero-muted:#b9cddd;
+  --catalog-meta-bg:rgba(255,255,255,.07);--catalog-meta-ink:#fff;--catalog-meta-accent:var(--sc-gold);
+  --catalog-chip-bg:rgba(255,255,255,.07);--catalog-chip-border:rgba(255,255,255,.18);--catalog-chip-ink:#dbe9f5;
+  --catalog-motif:none;
+  background:var(--catalog-bg);color:var(--catalog-ink);
+}
+.catalogPage .catalogHero{position:relative;overflow:hidden;background:var(--catalog-hero);color:var(--catalog-hero-ink);border-bottom:1px solid var(--catalog-line);padding:48px 0 42px}
+.catalogPage .catalogHero:after{content:"";position:absolute;inset:0;background-image:var(--catalog-motif);pointer-events:none;opacity:.85}
+.catalogPage .catalogHeroInner{position:relative;z-index:1;align-items:center}
+.catalogPage .catalogHero h1{color:var(--catalog-hero-ink);font-size:clamp(2.35rem,4.1vw,3.65rem);margin:.12em 0 .16em}
+.catalogPage .catalogHero p{color:var(--catalog-hero-muted);max-width:68ch}
+.catalogPage .catalogHero .eyebrow{color:var(--catalog-meta-accent)}
+.catalogHeroChips{display:flex;gap:7px;flex-wrap:wrap;margin-top:17px}
+.catalogHeroChips a{font-size:12px;font-weight:600;padding:7px 11px;border-radius:999px;border:1px solid var(--catalog-chip-border);background:var(--catalog-chip-bg);color:var(--catalog-chip-ink)}
+.catalogHeroChips a:hover{border-color:var(--catalog-meta-accent);color:var(--catalog-meta-accent)}
+.catalogPage .catalogHeroMeta{padding:16px 18px;border:1px solid var(--catalog-chip-border);border-radius:16px;background:var(--catalog-meta-bg);align-items:flex-end;gap:1px;backdrop-filter:blur(8px)}
+.catalogPage .catalogHeroMeta b{color:var(--catalog-meta-accent);font-size:2.2rem}
+.catalogPage .catalogHeroMeta span{color:var(--catalog-meta-ink);font-size:12px}
+.catalogPage .catalogHeroMeta small{color:var(--catalog-meta-ink);opacity:.68;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase}
+.catalogPage .catalogShell{padding-top:24px}
+.catalogPage .catalogFilters,.catalogPage .catalogToolbar,.catalogPage .mobileFilterDrawer{background:var(--catalog-surface);border-color:var(--catalog-line);box-shadow:var(--sc-shadow-sm)}
+.catalogPage .catalogFilters label,.catalogPage .catalogFilters legend,.catalogPage .soldFilterGrid label{color:var(--catalog-muted)}
+.catalogPage .catalogFilters input,.catalogPage .catalogFilters select,.catalogPage .catalogInlineSearch input,.catalogPage .sortForm select{background:var(--catalog-surface);border-color:var(--catalog-line);color:var(--catalog-ink)}
+.catalogPage .catalogFilters input:focus,.catalogPage .catalogFilters select:focus{border-color:var(--catalog-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--catalog-accent) 18%,transparent)}
+.catalogPage .filterHead a,.catalogPage .catalogCount a{color:var(--catalog-accent)}
+.catalogPage .filterApply,.catalogPage .stockFilterBar .btn:not(.alt){background:var(--catalog-accent);border-color:var(--catalog-accent);color:#fff}
+.catalogPage .stockFilterBar .btn{background:var(--catalog-surface);border-color:var(--catalog-line);color:var(--catalog-muted)}
+.catalogPage .catalogInlineSearch button,.catalogPage .sortApply{background:var(--catalog-accent);color:#fff}
+.catalogPage .catalogCount h2,.catalogPage .catalogCount b{color:var(--catalog-ink)}
+.catalogPage .vehicleCard{background:var(--catalog-card);border-color:var(--catalog-line)}
+.catalogPage .vehicleBody h3 a{color:var(--catalog-ink)}
+.catalogPage .vehicleBody h3 a:hover{color:var(--catalog-accent)}
+.catalogPage .vehicleBody .price{color:var(--catalog-price)}
+.catalogPage .vehicleFacts,.catalogPage .photoKind{color:var(--catalog-muted)}
+.catalogPage .stockMeta{color:var(--catalog-muted)}
+.catalogPage .stockMeta span{background:var(--catalog-accent-soft);color:var(--catalog-muted)}
+.catalogPage .stockNo{color:var(--catalog-muted)}
+.catalogPage .cardActions .cardPrimary{background:var(--catalog-accent);border-color:var(--catalog-accent);color:#fff}
+.catalogPage .cardActions .cardSecondary{background:var(--catalog-surface);color:var(--catalog-accent);border-color:var(--catalog-line)}
+.catalogPage .cardActions .cardWa{background:var(--sc-green);border-color:var(--sc-green)}
+.catalogPage .pager a,.catalogPage .pager span{background:var(--catalog-surface);border-color:var(--catalog-line);color:var(--catalog-ink)}
+.catalogPage .emptyCollection{background:var(--catalog-surface);border-color:var(--catalog-line);color:var(--catalog-muted)}
+.catalogPage .emptyCollection h3,.catalogPage .emptyCollection h2{color:var(--catalog-ink)}
+.activeFilters{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 0 14px}
+.activeFiltersLabel{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--catalog-muted)}
+.filterChip{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;border:1px solid var(--catalog-line);background:var(--catalog-surface);color:var(--catalog-muted);font-size:11.5px;font-weight:600}
+.filterChip b{font-size:13px;line-height:1;color:var(--catalog-accent)}
+.filterChip:hover{border-color:var(--catalog-accent);color:var(--catalog-ink)}
+.filterChip.clear{background:transparent;border-style:dashed}
+
+/* Cars: graphite and silver */
+.catalogPage.theme-cars{
+  --catalog-bg:linear-gradient(180deg,#e6ebf0,#f8fafc 460px);
+  --catalog-surface:#fff;--catalog-card:#fff;--catalog-ink:#141b22;--catalog-muted:#596977;--catalog-line:#c9d3dd;
+  --catalog-accent:#1b2b38;--catalog-accent-deep:#111b24;--catalog-accent-soft:#e4eaf0;--catalog-price:#17212b;
+  --catalog-hero:linear-gradient(116deg,#dfe6ec 0%,#f7f9fb 52%,#cbd6df 100%);
+  --catalog-hero-ink:#111820;--catalog-hero-muted:#4c5c6a;
+  --catalog-meta-bg:#1a252f;--catalog-meta-ink:#eaf0f5;--catalog-meta-accent:#e5bd58;
+  --catalog-chip-bg:rgba(255,255,255,.62);--catalog-chip-border:#b8c6d2;--catalog-chip-ink:#283b49;
+  --catalog-motif:repeating-linear-gradient(90deg,rgba(20,35,48,.055) 0 1px,transparent 1px 82px),repeating-linear-gradient(0deg,rgba(20,35,48,.04) 0 1px,transparent 1px 82px);
+}
+.catalogPage.theme-cars .catalogHeroMeta{border-color:#1a252f;box-shadow:0 22px 50px -32px #131b22}
+.catalogPage.theme-cars .vehicleCard{box-shadow:0 14px 34px -26px rgba(20,28,35,.55)}
+
+/* Motorcycles: ice blue */
+.catalogPage.theme-motorcycles{
+  --catalog-bg:linear-gradient(180deg,#dceffc,#eef9ff 440px,#e2f3fd);
+  --catalog-surface:#f9fdff;--catalog-card:#f9fdff;--catalog-ink:#0b2b43;--catalog-muted:#4b6c84;--catalog-line:#bddbEF;
+  --catalog-accent:#086b9e;--catalog-accent-deep:#07506f;--catalog-accent-soft:#dceffc;--catalog-price:#0a5d8c;
+  --catalog-hero:linear-gradient(118deg,#d3ecfd 0%,#effaff 50%,#c8e5fa 100%);
+  --catalog-hero-ink:#083452;--catalog-hero-muted:#42677f;
+  --catalog-meta-bg:#0a5a86;--catalog-meta-ink:#fff;--catalog-meta-accent:#bfe9ff;
+  --catalog-chip-bg:rgba(255,255,255,.68);--catalog-chip-border:#a8cfe8;--catalog-chip-ink:#15506f;
+  --catalog-motif:repeating-linear-gradient(115deg,rgba(8,100,150,.06) 0 1px,transparent 1px 44px);
+}
+.catalogPage.theme-motorcycles .catalogHeroMeta{border-color:#0a5a86;box-shadow:0 22px 50px -32px #0a5279}
+.catalogPage.theme-motorcycles .catalogFilters{border-color:#b4d8ef}
+.catalogPage.theme-motorcycles .vehicleCard{box-shadow:0 16px 38px -28px rgba(8,77,117,.55)}
+.catalogPage.theme-motorcycles .vehicleCard:hover{box-shadow:0 24px 48px -26px rgba(8,77,117,.48)}
+
+/* Electric and hybrid: future technology */
+.catalogPage.theme-electric{
+  --catalog-bg:linear-gradient(180deg,#ddf8f7,#f6fffe 450px,#e5faf9);
+  --catalog-surface:#fff;--catalog-card:#fff;--catalog-ink:#0c343a;--catalog-muted:#527276;--catalog-line:#bfe3e1;
+  --catalog-accent:#0f766e;--catalog-accent-deep:#0b5a55;--catalog-accent-soft:#d8f4f1;--catalog-price:#0d6b63;
+  --catalog-hero:linear-gradient(118deg,#cff5f4,#f7fffe 55%,#c5efee);
+  --catalog-hero-ink:#0b3d42;--catalog-hero-muted:#4e6f72;
+  --catalog-meta-bg:#0d4a4c;--catalog-meta-ink:#fff;--catalog-meta-accent:#8ff0e5;
+  --catalog-chip-bg:rgba(255,255,255,.68);--catalog-chip-border:#a9dcd8;--catalog-chip-ink:#155e59;
+  --catalog-motif:radial-gradient(circle at 1px 1px,rgba(13,118,110,.12) 1px,transparent 0);
+}
+.catalogPage.theme-electric .catalogHero:after{background-size:24px 24px}
+.catalogPage.theme-electric .catalogHeroMeta{border-color:#0d4a4c;box-shadow:0 22px 50px -32px #0b4446}
+.catalogPage.theme-electric .vehicleCard{box-shadow:0 16px 38px -28px rgba(13,107,99,.5)}
+
+/* ---------- Sold archive: charcoal and muted gold ---------- */
+.soldPage.theme-sold{
+  max-width:none!important;
+  width:100%;
+  padding:26px max(22px,calc((100vw - 1440px)/2)) 46px;
+  background:radial-gradient(1100px 520px at 82% -10%,rgba(201,162,74,.13),transparent 60%),#0c1117;
+  color:#e9e2d6;
+}
+.theme-sold .soldHero{border:1px solid #3a3224;box-shadow:0 34px 90px -52px #000;background:radial-gradient(700px 340px at 92% -20%,rgba(201,162,74,.14),transparent 60%),linear-gradient(145deg,#0e1318,#1a2026);background-color:#10151b}
+.theme-sold .soldHero .eyebrow{color:#d8b46a}
+.theme-sold .soldHero p{color:#c3c8ca}
+.theme-sold .soldStats div{background:rgba(0,0,0,.28);border-color:#453c2b}
+.theme-sold .soldStats b{color:#d8b46a}
+.theme-sold .soldStats span{color:#b6b5ab}
+.theme-sold .soldFilter{background:#141a20;border-color:#2c353e;box-shadow:none}
+.theme-sold .soldFilterGrid label{color:#b8aa8b}
+.theme-sold .soldFilterGrid input,.theme-sold .soldFilterGrid select{background:#0e1419;border-color:#34404a;color:#f4efe4}
+.theme-sold .soldFilterGrid input:focus,.theme-sold .soldFilterGrid select:focus{border-color:#d8b46a;box-shadow:0 0 0 3px rgba(216,180,106,.16)}
+.theme-sold .soldFilterActions .btn{background:#c9a24a;border-color:#c9a24a;color:#171107}
+.theme-sold .soldFilterActions .btn.alt{background:transparent;border-color:#5d5545;color:#e8dfcd}
+.theme-sold .soldFilterActions .btn.dark{background:transparent;border-color:#6d6250;color:#f0e8d8}
+.theme-sold .catalogCount h2,.theme-sold .catalogCount b{color:#eee6d8}
+.theme-sold .catalogCount a{color:#d8b46a}
+.theme-sold .vehicleCard{background:#141a20;border-color:#2c353e;box-shadow:0 18px 44px -30px #000}
+.theme-sold .vehicleCard:hover{box-shadow:0 28px 60px -30px #000}
+.theme-sold .vehicleBody h3 a{color:#f2ebdf}
+.theme-sold .vehicleFacts,.theme-sold .stockMeta,.theme-sold .photoKind{color:#aab3ba}
+.theme-sold .vehicleBody .price{color:#d8b46a}
+.theme-sold .stockMeta span{background:#1d252d;color:#c9d1d7}
+.theme-sold .stockNo{color:#8d9aa4}
+.theme-sold .cardActions .cardPrimary{background:#c9a24a;border-color:#c9a24a;color:#171107}
+.theme-sold .cardActions .cardSecondary{background:transparent;border-color:#4d5863;color:#ece2cf}
+.theme-sold .cardActions .cardWa{background:#0f7a5c;border-color:#0f7a5c}
+.theme-sold .pager a,.theme-sold .pager span{background:#141a20;border-color:#333e49;color:#ded6c8}
+.theme-sold .emptyCollection,.theme-sold .emptyState{background:#141a20;border-color:#3a3a31;color:#b8b1a4}
+.theme-sold .emptyCollection h2,.theme-sold .emptyCollection h3,.theme-sold .emptyState b{color:#fff}
+.theme-sold .vehicleCard.isSold .vehiclePhoto{filter:none}
+
+/* ---------- Shipping: ocean blue logistics ---------- */
+.pageShipping{
+  max-width:none;
+  width:100%;
+  padding:34px max(22px,calc((100vw - 1240px)/2)) 10px;
+  background:linear-gradient(180deg,#dcecf7,#f5fbfe 560px);
+  min-height:70vh;
+}
+.pageShipping > *{width:100%;max-width:1240px;margin-left:auto;margin-right:auto}
+.shippingHero{position:relative;overflow:hidden;border-radius:24px;padding:clamp(28px,4vw,48px);background:radial-gradient(900px 400px at 88% -20%,rgba(80,200,205,.18),transparent 60%),linear-gradient(135deg,#082f4a,#0d4a6e);color:#fff;box-shadow:0 34px 80px -50px #06283f}
+.shippingHero:after{content:"";position:absolute;inset:auto -10% -70% 38%;height:150%;border-radius:50%;border:1px solid rgba(255,255,255,.12);box-shadow:0 0 0 70px rgba(255,255,255,.025),0 0 0 140px rgba(255,255,255,.02);pointer-events:none}
+.shippingHeroCopy,.shippingHeroFacts{position:relative;z-index:1}
+.shippingHero .eyebrow{color:#7fd6e0}
+.shippingHero h1{font-size:clamp(2.1rem,3.7vw,3.3rem);margin:.18em 0 .22em;color:#fff;max-width:18ch}
+.shippingHero p{max-width:72ch;color:#cfe2ee;font-size:1.04rem;line-height:1.7}
+.shippingHeroFacts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:24px}
+.shippingHeroFacts span{display:flex;flex-direction:column;gap:3px;padding:13px 15px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.075);color:#d7e8f3;font-size:12.5px;line-height:1.45}
+.shippingHeroFacts b{font-family:var(--font-display);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#7fd6e0}
+.shippingEstimatorSection{margin:24px auto!important}
+.pageShipping .shippingEstimator{max-width:1000px;padding:26px;border-radius:22px;border-color:#c9dfed;box-shadow:0 28px 70px -54px #14405d}
+.shippingBlock{margin:42px auto}
+.shippingBlock .sectionHead{margin-top:0;margin-bottom:18px}
+.shippingMethods{gap:12px}
+.shippingMethods .card{background:#fff;border-color:#cfe2ef;box-shadow:var(--sc-shadow-sm)}
+.shippingMethods h3{color:#123b56;margin-top:0}
+.shippingMethods p{color:#5c7486;font-size:13.5px}
+.pageShipping .marketCountryCloud a{background:#fff;border-color:#cee2ef;color:#2b526c}
+.pageShipping .marketCountryCloud a:hover{border-color:#0f6b8f;color:#0b5d7e}
+.pageShipping .processRail div{background:#fff;border-color:#cfe2ef;color:#173f5a}
+.shippingQuoteBand{display:grid;grid-template-columns:1.4fr auto;gap:24px;align-items:center;padding:28px;margin:44px auto;background:linear-gradient(135deg,#fff,#eaf6fc);border-color:#cbe1f0}
+.shippingQuoteBand h2{color:#123b56;margin:.14em 0 .3em}
+.shippingQuoteBand p{color:#597184;max-width:66ch}
+.shippingQuoteActions{display:flex;gap:10px;flex-wrap:wrap}
+.shippingSupportGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px auto}
+.shippingTrackCard{padding:26px;background:linear-gradient(145deg,#fff,#f4fafe);border-color:#cce1ef}
+.shippingTrackCard h2{color:#123b56;margin:.18em 0 .3em}
+.shippingTrackCard p{color:#5a7285}
+.shippingFaq{margin:42px auto 20px}
+.shippingFaq details{margin:8px 0;padding:14px 16px;border:1px solid #cde2ef;border-radius:13px;background:#fff}
+.shippingFaq summary{cursor:pointer;color:#123b56;font-weight:700}
+.shippingFaq details p{color:#536d80;margin:9px 0 0}
+
+/* ---------- Destinations: warm ivory and sand directory ---------- */
+.pageDestinations{
+  max-width:none;
+  width:100%;
+  padding:34px max(22px,calc((100vw - 1240px)/2)) 10px;
+  background:linear-gradient(180deg,#f5ecdd,#fcf8f0 600px);
+  color:#173e3d;
+  min-height:70vh;
+}
+.pageDestinations > *{width:100%;max-width:1240px;margin-left:auto;margin-right:auto}
+.destinationsHero{display:grid;grid-template-columns:1.45fr .75fr;gap:28px;align-items:center;padding:clamp(28px,4vw,44px);border:1px solid #e0cfb4;border-radius:24px;background:radial-gradient(700px 340px at 95% 0,rgba(15,107,99,.08),transparent 60%),linear-gradient(135deg,#f2e4cd,#fbf7ef);box-shadow:0 28px 70px -48px #705b3a}
+.destinationsHero .eyebrow{color:#0f6b63}
+.destinationsHero h1{color:#123f40;font-size:clamp(2.15rem,3.8vw,3.35rem);margin:.15em 0 .2em;max-width:16ch}
+.destinationsHero p{color:#526560;max-width:74ch;font-size:1.03rem;line-height:1.7}
+.destinationsStats{display:grid;gap:8px}
+.destinationsStats div{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:12px 15px;border:1px solid #ddcdb4;border-radius:12px;background:rgba(255,255,255,.58)}
+.destinationsStats b{font-family:var(--font-display);font-size:1.7rem;color:#0f5b55;line-height:1}
+.destinationsStats span{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#746a59;text-align:right}
+.destinationFilter{display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:end;margin:20px auto;padding:17px 18px;background:#fffdf8;border-color:#ddcdb4;box-shadow:0 18px 45px -38px #6c5633}
+.destinationFilter label{display:grid;gap:5px;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7b6b52}
+.destinationFilter input,.destinationFilter select{margin:0;padding:11px 12px;border:1px solid #d8c8ae;border-radius:10px;background:#fff;color:#173e3d;font:inherit;font-size:14px;text-transform:none;letter-spacing:0}
+.destinationFilter input:focus,.destinationFilter select:focus{border-color:#0f6b63;box-shadow:0 0 0 3px rgba(15,107,99,.13);outline:none}
+.destinationFilterActions{display:flex;gap:8px;flex-wrap:wrap}
+.destinationFilterActions .btn{margin:0;background:#0f5b55;border-color:#0f5b55;color:#fff}
+.destinationFilterActions .btn.alt{background:transparent;border-color:#b9a582;color:#4b5c56}
+.destinationDirectory{margin:26px auto}
+.directoryHead{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:14px}
+.directoryHead h2{color:#123f40;margin:.14em 0 0}
+.directoryHead p{color:#756a57;font-size:13px;margin:0}
+.directoryHead p b{color:#0f5b55}
+.countryDirectory{display:grid;gap:9px}
+.countryRecord{background:#fffdf8;border:1px solid #ddcdb4;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px -28px #6c5633}
+.countryRecord summary{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:15px 18px;list-style:none;cursor:pointer}
+.countryRecord summary::-webkit-details-marker{display:none}
+.countryRecord summary:after{content:'+';flex:0 0 auto;font-size:20px;line-height:1;color:#0f6b63}
+.countryRecord[open] summary:after{content:'−'}
+.countryRecordTitle{display:grid;gap:2px;min-width:0}
+.countryRecordTitle b{font-family:var(--font-display);font-size:17px;color:#123f40}
+.countryRecordTitle small{font-size:11.5px;color:#7c715e}
+.countryRecordMeta{display:flex;align-items:center;gap:14px;margin-left:auto;text-align:right;font-size:11.5px;color:#7a6f5b;white-space:nowrap}
+.countryRecordMeta strong{font-family:var(--font-display);color:#0f6b63;font-size:13.5px}
+.countryRecordBody{padding:16px 18px 18px;border-top:1px solid #eadfce;background:#fbf7ef}
+.countryMarketFacts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.countryMarketFacts>span{padding:10px 12px;border:1px solid #e5d9c7;border-radius:10px;background:#fff}
+.countryMarketFacts small{display:block;font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#8a7a5f}
+.countryMarketFacts b{display:block;margin-top:2px;font-size:12.5px;color:#234a47;line-height:1.4}
+.countryRoutes{border:1px solid #e2d5c1;border-radius:10px;overflow:hidden;background:#fff}
+.routeRow{display:grid;grid-template-columns:1.25fr 1fr auto;gap:12px;padding:10px 13px;border-bottom:1px solid #eee4d5;font-size:13px;color:#405551}
+.routeRow:last-child{border-bottom:0}
+.routeHead{background:#f5ecdd;color:#7c6c51;font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.routeRow b{display:block;color:#173e3d}
+.routeRow small{display:block;color:#7b6e59;font-size:11px;margin-top:2px}
+.routeRow strong{color:#0f6b63;font-family:var(--font-display);white-space:nowrap}
+.countryNote{margin:10px 0 0;font-size:11.5px;color:#756a58;line-height:1.5}
+.countryRecordActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.countryRecordActions .btn{margin:0;background:#0f5b55;border-color:#0f5b55;color:#fff}
+.countryRecordActions .btn.alt{background:transparent;border-color:#bda986;color:#405a55}
+.pageDestinations .estimateDisclaimer{max-width:1000px;color:#756a58}
+.destinationsCta{display:grid;grid-template-columns:1.4fr auto;gap:22px;align-items:center;margin:28px auto 0;padding:28px;background:linear-gradient(135deg,#fffdf8,#f3e8d4);border-color:#ddcdb4}
+.destinationsCta h2{color:#123f40;margin:.14em 0 .3em}
+.destinationsCta p{color:#656352;max-width:66ch}
+.destinationsCta .pager{margin:0;justify-content:flex-end}
+
+/* ---------- Quote: pale-blue transaction workspace ---------- */
+.pageQuote{
+  max-width:none;
+  width:100%;
+  padding:36px max(22px,calc((100vw - 1100px)/2)) 18px;
+  background:linear-gradient(180deg,#e6f2fc,#f8fcff 460px);
+}
+.pageQuote > *{width:100%;max-width:1040px;margin-left:auto;margin-right:auto}
+.quotePageHeader{display:flex;justify-content:space-between;align-items:flex-end;gap:26px;flex-wrap:wrap;margin-bottom:22px}
+.quotePageHeader h1{margin:.12em 0 .15em;color:#0c2f4d}
+.quotePageHeader .lead{color:#536d81;margin:0;max-width:66ch}
+.quoteSteps{display:flex;gap:6px;flex-wrap:wrap}
+.quoteSteps span{display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #c9dff0;border-radius:999px;background:#fff;color:#49667a;font-size:11.5px;font-weight:700}
+.quoteSteps b{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#0c4a72;color:#fff;font-size:10px}
+.quoteFormPanel{padding:28px;border-radius:24px;border-color:#c7deef;box-shadow:0 30px 70px -56px #123f5f}
+.quoteGroup{border:0;border-top:1px solid #dbe9f4;margin:0;padding:20px 0 4px}
+.quoteGroup:first-child{border-top:0;padding-top:0}
+.quoteGroup legend{display:flex;align-items:center;gap:9px;padding:0 8px 0 0;font-family:var(--font-display);font-size:13.5px;font-weight:700;color:#0d3552}
+.quoteGroup legend span{display:grid;place-items:center;width:24px;height:24px;border-radius:8px;background:#dceefb;color:#0c4a72;font-size:10px;letter-spacing:.04em}
+.quoteFields{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.quoteFields .wide{grid-column:1/-1}
+.quoteGroup>label{display:grid;gap:6px}
+.quoteFormPanel input,.quoteFormPanel select,.quoteFormPanel textarea{background:#fbfdff;border-color:#c9deee}
+.quoteFormPanel input:focus,.quoteFormPanel select:focus,.quoteFormPanel textarea:focus{border-color:#0c6f9f;box-shadow:0 0 0 3px rgba(12,111,159,.13);outline:none}
+.quoteSubmitRow{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:1px solid #dbe9f4}
+.quoteSubmitRow p{max-width:58ch;margin:0;font-size:12px;color:#60798c;line-height:1.55}
+.quoteSubmitRow .btn{background:#0c4a72;border-color:#0c4a72;color:#fff}
+.pageQuote .status{margin-top:14px}
+
+/* ---------- Account: pearl and blue workspace ---------- */
+.accountPage{
+  max-width:none;
+  width:100%;
+  padding:36px max(22px,calc((100vw - 1160px)/2)) 12px;
+  background:radial-gradient(900px 460px at 88% -12%,rgba(18,113,166,.09),transparent 60%),linear-gradient(180deg,#edf5fb,#fbfdff 500px);
+}
+.accountPage > *{width:100%;max-width:1160px;margin-left:auto;margin-right:auto}
+.workspaceHero{display:grid;grid-template-columns:1.5fr auto;gap:28px;align-items:center;padding:clamp(24px,3.5vw,38px);border:1px solid #cee2f1;border-radius:24px;background:linear-gradient(135deg,#fff,#eef7fd);box-shadow:0 28px 70px -56px #123f5f}
+.workspaceHero h1{margin:.12em 0 .18em;color:#0c2f4d}
+.workspaceHero .lead{color:#536d81;margin:0}
+.workspaceHero .accountLoginCta{margin:18px 0 0}
+.accountPage .accountIdentity{margin:0;background:rgba(255,255,255,.65);border-color:#d0e3f1;box-shadow:none}
+.accountSection{margin:38px 0}
+.accountPage .sectionHead{margin-top:0;margin-bottom:16px}
+.accountPage .sectionHead h2{color:#123451;margin:.12em 0 0}
+.accountPage .sectionHead a{color:#0d5f8e}
+.accountActions .card{position:relative;padding:22px;background:linear-gradient(145deg,#fff,#f4faff);border-color:#d1e3f0;transition:transform .18s ease,box-shadow .18s ease}
+.accountActions .card:hover{transform:translateY(-2px);box-shadow:var(--sc-shadow-sm)}
+.accountActionMark{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:#e2f1fb;color:#0c4a72;font-family:var(--font-display);font-weight:800;margin-bottom:10px}
+.accountActions h3{margin:0 0 4px;color:#123451}
+.accountActions p{margin:0;color:#5b7487}
+.emptyCollection{padding:28px;background:linear-gradient(135deg,#fff,#f7fbff);border:1px dashed #c9dbea;box-shadow:none;color:#5b7487}
+.emptyCollection h2,.emptyCollection h3{color:#123451;margin-top:0}
+.emptyActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.emptyGrid{grid-column:1/-1}
+
+/* ---------- Compare: cool silver ---------- */
+.comparePage{
+  max-width:none;
+  width:100%;
+  padding:36px max(22px,calc((100vw - 1200px)/2)) 24px;
+  background:linear-gradient(180deg,#e8edf2,#f9fbfd 460px);
+}
+.comparePage.theme-compare{background:linear-gradient(180deg,#e8edf2,#f9fbfd 460px)}
+.comparePage > *{width:100%;max-width:1200px;margin-left:auto;margin-right:auto}
+.compareHero{max-width:760px;margin-bottom:22px}
+.compareHero h1{color:#152430;margin:.14em 0 .2em}
+.compareHero .lead{color:#586b7a;margin:0}
+.comparePage .compareTableWrap{background:#fff;border-color:#ccd9e3;box-shadow:0 24px 60px -52px #152430}
+.comparePage .compareTable th{background:#f3f7fa;color:#3e5566;border-color:#dce6ed}
+.comparePage .compareTable tbody th{background:#f8fafc;color:#566b7a;font-size:12px;letter-spacing:.04em;text-transform:uppercase;width:170px}
+.comparePage .compareTable td{color:#182b39;background:#fff}
+.comparePage .compareTable thead th{background:#eef4f8}
+.comparePage .compareTable thead a{color:#132b3b}
+.comparePage .compareTable thead small{display:block;margin-top:4px;color:#7a8d9c;font-weight:600}
+
+/* ---------- Auth: dark blue with an ice-blue card ---------- */
+.authPage.theme-auth{
+  max-width:none;
+  width:100%;
+  min-height:calc(100vh - 190px);
+  padding:54px max(20px,calc((100vw - 1160px)/2)) 72px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:radial-gradient(900px 520px at 14% 0,rgba(56,189,248,.17),transparent 60%),radial-gradient(700px 420px at 92% 100%,rgba(249,188,37,.1),transparent 60%),linear-gradient(155deg,#071724,#0c2941 60%,#08131d);
+}
+.theme-auth .authPanel{width:min(640px,100%);background:linear-gradient(180deg,#f9fdff,#edf8ff);border:1px solid #bcd8ea;box-shadow:0 40px 110px -42px #000;color:#0d2848}
+.theme-auth .authPanel h1{color:#0b2b44;font-size:clamp(1.9rem,3.2vw,2.5rem)}
+.theme-auth .authPanel p{color:#536d81}
+.theme-auth .authBtn{background:#fff;border-color:#c6dced;color:#0d2848}
+.theme-auth .authBtn.github{background:#0d1117;color:#fff;border-color:#0d1117}
+.theme-auth .authBtn.facebook{background:#1877f2;color:#fff;border-color:#1877f2}
+.theme-auth .authSwitch a{color:#0a5e8f}
+.theme-auth .authMeta{color:#3f6178}
+
+/* ---------- Detail: editorial gallery + white specification panel ---------- */
+.vehicleDetailPage{
+  max-width:none;
+  width:100%;
+  padding:20px max(22px,calc((100vw - 1240px)/2)) 34px;
+  background:linear-gradient(180deg,#eef2f6,#f8fafc 520px);
+}
+.vehicleDetailPage > *{width:100%;max-width:1240px;margin-left:auto;margin-right:auto}
+.theme-detail .crumbs{color:#64788b}
+.theme-detail .crumbs a{color:#1d5678}
+.theme-detail .vehicleInfoPanel{background:#fff;border-color:#d8e2ea;box-shadow:0 30px 70px -58px #10293a}
+.theme-detail .vehicleGallery{box-shadow:0 34px 80px -54px #000}
+
+/* ---------- editorial public pages: about, FAQ, contact, legal ---------- */
+.pageAbout,.pageContact,.pageFaq,.pagePrivacy,.pageTerms{
+  max-width:none;
+  width:100%;
+  padding:34px max(22px,calc((100vw - 1100px)/2)) 12px;
+  background:linear-gradient(180deg,#eef5fa,#fbfdff 500px);
+}
+.pageAbout > *,.pageContact > *,.pageFaq > *,.pagePrivacy > *,.pageTerms > *{width:100%;max-width:1100px;margin-left:auto;margin-right:auto}
+.editorialHero{padding:clamp(28px,4vw,44px);border:1px solid #d2e3ef;border-radius:24px;background:radial-gradient(650px 300px at 92% -10%,rgba(249,188,37,.12),transparent 60%),linear-gradient(135deg,#f7fbfe,#e8f3fa);box-shadow:0 26px 66px -56px #163f58}
+.editorialHero h1{color:#0b2e48;margin:.16em 0 .2em;max-width:20ch;font-size:clamp(2.1rem,3.6vw,3.2rem)}
+.editorialHero p{color:#536c7e;max-width:72ch;font-size:1.02rem;line-height:1.7}
+.editorialGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px auto}
+.editorialGrid .card{padding:24px;background:linear-gradient(145deg,#fff,#f7fbfe);border-color:#d3e4ef;box-shadow:var(--sc-shadow-sm)}
+.editorialGrid .card h2{color:#123451;margin-top:8px}
+.editorialGrid .card p,.editorialGrid .card li{color:#586f80}
+.editorialMark{font-family:var(--font-display);font-size:11px;font-weight:800;letter-spacing:.12em;color:#8d6a18}
+.editorialList{margin:8px 0 0;padding-left:18px;display:grid;gap:5px;font-size:13.5px;line-height:1.55}
+.editorialFaq{margin:20px auto}
+.editorialFaq details{margin:8px 0;padding:16px 18px;background:#fff;border:1px solid #d2e3ef;border-radius:14px;box-shadow:0 10px 28px -26px #163f58}
+.editorialFaq summary{cursor:pointer;color:#123451;font-weight:700;font-size:15px}
+.editorialFaq details p{color:#566f81;margin:10px 0 0;line-height:1.65}
+.editorialFaq details a{color:#0c5e8c;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.legalNote{max-width:760px!important;margin-top:20px!important;padding:24px;background:#fff;border-color:#d3e4ef}
+.legalNote p{color:#5b7182;margin:0}
+.contactGrid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin:20px auto}
+.contactPanel{padding:26px;border-color:#d2e3ef}
+.contactPanel h2,.contactAside h2{color:#123451;margin:.15em 0 .4em}
+.contactFields{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:16px}
+.contactFields .wide{grid-column:1/-1}
+.contactFields label{display:grid;gap:6px;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#5f7286}
+.contactFields input,.contactFields textarea{margin:0;padding:11px 12px;border:1px solid #c9dcea;border-radius:10px;background:#fbfdff;color:#173247;font:inherit;font-size:14.5px;text-transform:none;letter-spacing:0}
+.contactFields textarea{min-height:120px}
+.contactFields input:focus,.contactFields textarea:focus{border-color:#0c6f9f;box-shadow:0 0 0 3px rgba(12,111,159,.13);outline:none}
+.contactAside{padding:26px;background:linear-gradient(145deg,#0c2f49,#124f71);border-color:#1b587a;color:#e7f1f8}
+.contactAside .eyebrow{color:#8bd8e6}
+.contactAside h2{color:#fff}
+.contactAside p{color:#c2d7e5}
+
+/* ---------- shipment tracking ---------- */
+.pageTracking{
+  max-width:none;
+  width:100%;
+  padding:34px max(22px,calc((100vw - 920px)/2)) 18px;
+  background:linear-gradient(180deg,#e8f2fa,#fbfdff 500px);
+}
+.pageTracking > *{width:100%;max-width:920px;margin-left:auto;margin-right:auto}
+.trackingHero{padding:clamp(26px,4vw,40px);border:1px solid #cde2ef;border-radius:24px;background:radial-gradient(650px 300px at 92% -20%,rgba(67,190,200,.18),transparent 60%),linear-gradient(135deg,#eff8fe,#dceef9);box-shadow:0 26px 66px -56px #163f58}
+.trackingHero h1{color:#0b2e48;margin:.15em 0 .18em;font-size:clamp(2rem,3.5vw,3rem)}
+.trackingHero p{color:#536c7e;max-width:68ch;margin:0}
+.trackingForm{display:flex;gap:10px;align-items:flex-end;margin:18px auto;padding:18px;border-color:#cde2ef}
+.trackingForm label{display:grid;gap:6px;flex:1;margin:0;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#5f7286}
+.trackingForm input{margin:0;padding:12px 13px;border:1px solid #c9dcea;border-radius:10px;background:#fbfdff;color:#173247;font:inherit;font-size:15px}
+.trackingForm .btn{margin:0;flex:0 0 auto}
+.trackingResult{margin:18px auto;padding:24px;border-color:#cde2ef}
+.trackingResult h2{color:#123451;margin:.35em 0}
+.trackingResult p{color:#566f81}
+.trackingEvents{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:8px}
+.trackingEvents li{display:grid;gap:2px;padding:10px 12px;border-left:3px solid #0c6f9f;background:#f5fafe;border-radius:0 8px 8px 0}
+.trackingEvents b{color:#173f5a}
+.trackingEvents span{font-size:12px;color:#6a8190}
+.trackingEvents small{color:#597080;font-size:12.5px}
+.trackingHelp{margin:16px auto;color:#60798c;font-size:13px}
+.trackingHelp a{color:#0c5e8c;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+
+/* ---------- homepage sourcing band: technical surface, not a covered photo ---------- */
+.sourcingBand{background:radial-gradient(800px 420px at 86% 0,rgba(249,188,37,.2),transparent 60%),linear-gradient(135deg,#071827,#0a283e 60%,#081923)}
+.sourcingBand:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:58px 58px;mask-image:linear-gradient(90deg,transparent,#000 55%);pointer-events:none}
+.sourcingBand:after{background:linear-gradient(90deg,rgba(4,15,26,.9),rgba(4,15,26,.35) 62%,transparent)}
+
+/* ---------- responsive page identities ---------- */
+@media (max-width:980px){
+  .destinationsHero{grid-template-columns:1fr}
+  .destinationsStats{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .destinationsStats div{display:grid;gap:2px}
+  .countryMarketFacts{grid-template-columns:1fr 1fr}
+  .shippingQuoteBand,.destinationsCta,.workspaceHero{grid-template-columns:1fr}
+  .shippingQuoteActions,.destinationsCta .pager{justify-content:flex-start}
+}
+@media (max-width:820px){
+  .pageShipping,.pageDestinations,.pageQuote,.accountPage,.comparePage,.vehicleDetailPage{padding-top:22px}
+  .catalogPage .catalogHero{padding:36px 0 32px}
+  .catalogHeroChips{gap:6px}
+  .catalogHeroChips a{font-size:11.5px;padding:6px 9px}
+  .quoteFormPanel{padding:20px}
+  .quoteFields{grid-template-columns:1fr}
+  .quoteFields .wide{grid-column:auto}
+  .shippingHeroFacts{grid-template-columns:1fr}
+  .shippingSupportGrid{grid-template-columns:1fr}
+  .pageAbout,.pageContact,.pageFaq,.pagePrivacy,.pageTerms,.pageTracking{padding-top:22px}
+  .editorialGrid,.contactGrid{grid-template-columns:1fr}
+  .trackingForm{flex-direction:column;align-items:stretch}
+  .trackingForm .btn{width:100%}
+  .destinationFilter{grid-template-columns:1fr}
+  .destinationFilterActions .btn{flex:1 1 auto;text-align:center}
+  .countryRecord summary{align-items:flex-start}
+  .countryRecordMeta{flex-direction:column;align-items:flex-end;gap:2px}
+  .routeRow{grid-template-columns:1.1fr .9fr auto;font-size:12px}
+}
+@media (max-width:560px){
+  .catalogPage .catalogHeroMeta{display:none}
+  .catalogPage .catalogHero h1{font-size:2.25rem}
+  .catalogPage .catalogHero p{font-size:13.5px;line-height:1.55}
+  .activeFilters{align-items:flex-start}
+  .soldPage.theme-sold{padding:16px 14px 32px}
+  .destinationsHero{padding:24px 18px;border-radius:18px}
+  .destinationsHero h1{font-size:2.1rem}
+  .destinationsStats{grid-template-columns:1fr}
+  .countryRecord summary{padding:13px 14px;gap:8px}
+  .countryRecordMeta{font-size:10.5px}
+  .countryRecordMeta strong{font-size:12px}
+  .countryRecordBody{padding:13px 14px 15px}
+  .countryMarketFacts{grid-template-columns:1fr}
+  .routeHead{display:none}
+  .routeRow{grid-template-columns:1fr;gap:4px;padding:11px 12px}
+  .routeRow>span:last-child{justify-self:start}
+  .phoneHide{display:none!important}
+  .routeRow [role="columnheader"]{display:none}
+  .shippingHero{padding:25px 18px;border-radius:18px}
+  .shippingHero h1{font-size:2.05rem}
+  .shippingQuoteBand,.destinationsCta{padding:20px}
+  .shippingTrackCard{padding:20px}
+  .pageQuote{padding-left:14px;padding-right:14px}
+  .quoteFormPanel{padding:17px;border-radius:18px}
+  .quoteSteps span{font-size:10.5px;padding:6px 8px}
+  .quoteSubmitRow .btn{width:100%}
+  .accountPage{padding-left:14px;padding-right:14px}
+  .workspaceHero{padding:22px 17px;border-radius:18px}
+  .accountPage .sectionHead{flex-direction:column;align-items:flex-start;gap:3px}
+  .comparePage{padding-left:14px;padding-right:14px}
+  .comparePage .compareTable tbody th{width:132px}
+  .theme-auth .authPanel{padding:22px 16px}
+  .vehicleDetailPage{padding-left:14px;padding-right:14px}
+  .pageAbout,.pageContact,.pageFaq,.pagePrivacy,.pageTerms,.pageTracking{padding-left:14px;padding-right:14px}
+  .editorialHero,.trackingHero{padding:22px 18px;border-radius:18px}
+  .contactFields{grid-template-columns:1fr}
+  .contactFields .wide{grid-column:auto}
+  .contactPanel,.contactAside{padding:20px}
+  .contactAside{grid-row:auto}
+}
+@media (prefers-reduced-motion:reduce){
+  .accountActions .card:hover{transform:none}
+  .vehicleCard .vehicleImageWrap{animation:none;background:#e8eef4}
 }

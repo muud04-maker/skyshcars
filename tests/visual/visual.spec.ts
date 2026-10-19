@@ -28,7 +28,7 @@ async function overlayReport(page:any){
         hits.push({tag:el.tagName,cls:String((el as any).className||''),bg:cs.backgroundColor,radius:cs.borderRadius,w:Math.round(rr.width),h:Math.round(rr.height),opacity:cs.opacity});
       }
       if(!hits.length) continue;
-      const badges=[...card.querySelectorAll('.repPhotoTag,.steeringTag,.soldBadge,.badge')].map((el:any)=>{const rr=el.getBoundingClientRect();return {cls:String(el.className||''),w:Math.round(rr.width),h:Math.round(rr.height),text:String(el.textContent||'').slice(0,40)};});
+      const badges=[...card.querySelectorAll('.steeringTag,.soldBadge,.badge')].map((el:any)=>{const rr=el.getBoundingClientRect();return {cls:String(el.className||''),w:Math.round(rr.width),h:Math.round(rr.height),text:String(el.textContent||'').slice(0,40)};});
       out.push({card:String((card as any).className),img:{w:Math.round(r.width),h:Math.round(r.height),src:(img.getAttribute('src')||'').slice(0,100),loaded:img.complete&&img.naturalWidth>0},hits,badges});
     }
     return out;
@@ -89,6 +89,30 @@ test('hero uses a real inventory image, not an empty marketing panel',async({pag
   expect(box?.height||0).toBeGreaterThan(200);
 });
 
+test('each public page has a distinct scoped identity and motorcycles are ice-blue',async({page})=>{
+  const expected:[string,string][]=[
+    ['/vehicles','theme-vehicles'],
+    ['/cars','theme-cars'],
+    ['/motorcycles','theme-motorcycles'],
+    ['/vehicles?fuel=electric','theme-electric'],
+    ['/sold-vehicles','theme-sold'],
+    ['/shipping','pageShipping'],
+    ['/destinations','pageDestinations'],
+    ['/quote','pageQuote'],
+    ['/account','theme-account'],
+    ['/compare','theme-compare'],
+    ['/login','theme-auth'],
+  ];
+  for(const [path,cls] of expected){
+    await page.goto(path,{waitUntil:'domcontentloaded'});
+    await expect(page.locator('main.'+cls)).toBeVisible();
+  }
+  await page.goto('/motorcycles',{waitUntil:'domcontentloaded'});
+  const colors=await page.locator('.catalogHero').evaluate(el=>getComputedStyle(el).backgroundImage);
+  const rgb=[...colors.matchAll(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/g)].map(m=>[Number(m[1]),Number(m[2]),Number(m[3])]);
+  expect(rgb.some(([r,g,b])=>b>r+20&&b>200&&g>200),`motorcycle hero was not light blue: ${colors}`).toBeTruthy();
+});
+
 test('no horizontal overflow on public pages',async({page})=>{
   const detail=await firstVehicleHref(page);
   for(const v of widths){
@@ -108,12 +132,27 @@ test('mobile navigation opens and keeps every account/support route reachable',a
   await page.waitForTimeout(500);
   await page.locator('.mobileMenu summary').click();
   await expect(page.locator('.mobileMenuPanel')).toBeVisible();
+  await expect(page.locator('.mobileSearch input')).toBeVisible();
   const panelBox=await page.locator('.mobileMenuPanel').boundingBox();
   expect(panelBox?.width||0).toBeGreaterThan(300);
   for(const text of ['All Vehicles','Cars','Motorcycles','Sold Vehicles','Saved vehicles','Compare','Track shipment','WhatsApp support']){
     await expect(page.locator('.mobileMenuPanel').getByText(text,{exact:true}).first()).toBeVisible();
   }
   await page.screenshot({path:`${SHOTS}/mobile-menu-390.png`});
+});
+
+test('desktop navigation fits at 1440 and 1920 without clipping',async({page})=>{
+  for(const width of [1440,1920]){
+    await page.setViewportSize({width,height:1000});
+    await page.goto('/',{waitUntil:'domcontentloaded'});
+    const nav=await page.evaluate(()=>{
+      const inner=document.querySelector('.siteNavInner') as HTMLElement;
+      const links=[...document.querySelectorAll('.siteNav a')] as HTMLElement[];
+      return {scroll:inner.scrollWidth,client:inner.clientWidth,lastRight:links[links.length-1].getBoundingClientRect().right,width:inner.getBoundingClientRect().width};
+    });
+    expect(nav.scroll,`nav overflows at ${width}px`).toBeLessThanOrEqual(nav.client+1);
+    expect(nav.lastRight,`last nav item is clipped at ${width}px`).toBeLessThanOrEqual(width-8);
+  }
 });
 
 test('key screenshots at phone, tablet, desktop and wide desktop',async({page})=>{

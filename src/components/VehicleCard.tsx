@@ -1,5 +1,6 @@
 import {vehicleTitle,vehicleWhatsAppLink} from '../lib/site';
 import {FavoriteButton,CompareButton} from './MarketplaceTools';
+import VehiclePhoto from './VehiclePhoto';
 
 function specsOf(v:any){if(!v?.specs)return{};if(typeof v.specs==='object')return v.specs;try{return JSON.parse(v.specs)}catch{return{}}}
 
@@ -19,28 +20,25 @@ export default function VehicleCard({v}:{v:any}){
  const mileage=s.mileage_range||(v.mileage_km?Number(String(v.mileage_km).replace(/[^\d.]/g,'')||0).toLocaleString()+' km':null);
  const fuel=v.fuel_type?String(v.fuel_type).toLowerCase():null;
  const trans=v.transmission?String(v.transmission).toLowerCase():null;
- const lite={id:v.id,stock_no:v.stock_no,brand:v.brand,model:v.model,model_year:v.model_year,price_usd:v.price_usd,cover_url:image};
+ const engine=String(v.category||'').toLowerCase()==='motorcycle'?(s.engine||v.engine||null):null;
+ const electric=/(electric|hybrid|phev)/i.test(fuel||'');
+ const evRange=electric?(s.range_km||s.range||s.driving_range||null):null;
+ const lite={id:v.id,stock_no:v.stock_no,brand:v.brand,model:v.model,model_year:v.model_year,price_usd:v.price_usd,cover_url:image,category:v.category,fuel_type:v.fuel_type,transmission:v.transmission,steering:v.steering,mileage_km:v.mileage_km,engine:v.engine,location:v.location,status:v.status};
  const wa=vehicleWhatsAppLink(v);
  return <article className={'vehicleCard stockCard'+(sold?' isSold':'')}>
    <div className="cardMediaActions"><FavoriteButton vehicle={lite} compact/><CompareButton vehicle={lite} compact/></div>
    <a className="vehicleImageWrap" href={'/vehicles/'+v.id} aria-label={`View ${title}`}>
-     {image
-      ? <>
-          <img className="vehiclePhoto" src={image} alt={title} loading="lazy"/>
-          {representative && <span className="repPhotoTag">Representative image</span>}
-          {!representative && <span className="repPhotoTag" style={{background:'#0b7a3b'}}>Exact stock photo</span>}
-        </>
-      : <div className="vehicleNoPhoto"><span>SKY CARS</span><strong>Photo coming soon</strong><small>Ask us for current vehicle photos</small></div>}
+     <VehiclePhoto src={image} alt={title}/>
      {v.steering&&v.steering!=='unknown'&&<span className="steeringTag">{v.steering}</span>}
      {sold&&<span className="soldBadge" aria-label="Sold">SOLD</span>}
    </a>
    <div className="vehicleBody">
      <h3><a href={'/vehicles/'+v.id}>{title}</a></h3>
-     <p className="vehicleFacts">{[mileage,fuel,trans].filter(Boolean).join(' / ')||'Specification on request'}</p>
+     <p className="vehicleFacts">{[mileage,engine,evRange,fuel,trans].filter(Boolean).join(' / ')||'Specification on request'}</p>
      <div className="price">{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</div>
      {sold&&<small className="muted">Last listed price</small>}
      <div className="stockMeta"><span>Vehicle in China</span><i className={status==='available'?'dotOn':'dotWait'}/>{statusText}</div>
-     <p className="stockNo">Stock {v.stock_no}</p>
+     <div className="cardMetaLine"><p className="stockNo">Stock {v.stock_no}</p><span className={'photoKind '+(representative?'rep':'exact')}>{representative?'Representative model photo':'Exact stock photo'}</span></div>
      <div className="cardActions">
        <a className="btn small cardPrimary" href={'/vehicles/'+v.id}>View details</a>
        {sold

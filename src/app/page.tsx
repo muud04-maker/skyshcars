@@ -38,6 +38,7 @@ export default async function Home(){
   const exactImage=(v:any)=>!!v?.cover_url&&v.photo_kind!=='representative'&&!String(v.cover_url).includes('/api/model-photo/');
   const hero=[...arrivals,...latest].find(exactImage)||arrivals[0]||latest[0]||null;
   const heroImage=hero?.cover_url||null;
+  const heroRepresentative=!!hero&&(hero.photo_kind==='representative'||String(heroImage||'').includes('/api/model-photo/')||String(heroImage||'').includes('/api/representative-photo/'));
   const carRange=shippingEstimateFor(policy,'car');
   const motoRange=shippingEstimateFor(policy,'motorcycle');
   return <>
@@ -66,7 +67,7 @@ export default async function Home(){
         </div>
         <div className="heroMedia">
           {heroImage
-            ? <><img src={heroImage} alt={vehicleTitle(hero)} loading="eager"/><div className="heroMediaBadge">Available now</div><div className="heroMediaTag"><b>{vehicleTitle(hero)}</b><small>{hero.price_usd?`$${Number(hero.price_usd).toLocaleString()} · `:''}Stock {hero.stock_no}</small></div></>
+            ? <><img src={heroImage} alt={vehicleTitle(hero)} loading="eager"/><div className="heroMediaBadge">Available now</div><div className="heroMediaTag"><b>{vehicleTitle(hero)}</b><small>{hero.price_usd?`$${Number(hero.price_usd).toLocaleString()} · `:''}Stock {hero.stock_no}{heroRepresentative?' · Representative model image':''}</small></div></>
             : <div className="heroMediaEmpty"><b>Cars and motorcycles from China</b><span>Browse verified inventory and request exact photos from our team.</span><a className="btn" href="/vehicles">Browse inventory</a></div>}
         </div>
       </div>
@@ -103,7 +104,7 @@ export default async function Home(){
       <ShippingEstimator ranges={policy.shipping}/>
     </div></section>
 
-    <section className="sourcingBand" style={heroImage?{backgroundImage:`linear-gradient(90deg,rgba(5,18,31,.96),rgba(5,18,31,.62)),url(${heroImage})`}:undefined}>
+    <section className="sourcingBand">
       <div className="sourcingInner">
         <span className="eyebrow">SOURCING THAT STARTS WITH THE UNIT</span>
         <h2>Tell us the vehicle. We check what is actually available.</h2>
