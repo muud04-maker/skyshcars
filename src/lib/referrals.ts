@@ -14,15 +14,25 @@ import { db, one, rows } from './db';
 import { aiCarById, loadReferralInventory, type AiCar } from './ai-catalog';
 import { sellableVehicleSql } from './exact-photos';
 import { type VehicleLite } from './ai-rules/match';
-import { rankReferralCandidates, referralLooksMismatched, referralPrice, referralStock } from './ai-rules/referral-match';
+import { rankReferralCandidates, referralHintFromCandidates, referralLooksMismatched, referralPrice, referralStock, type ReferralHint } from './ai-rules/referral-match';
 import { categoryHint, normalize } from './ai-rules/match';
 import { lastHumanVehicleSelection } from './vehicle-events';
 import { patternHintForTokens } from './sales-patterns';
 
-export type ReferralMethod = 'correction' | 'social_log' | 'conversation' | 'human' | 'headline' | 'pattern' | 'none';
+export type ReferralMethod = 'correction' | 'social_log' | 'url' | 'conversation' | 'human' | 'headline' | 'pattern' | 'none';
 /** A unit we recognised but may not be allowed to quote: name/stock/year (+ status) only, never price. */
 export type ReferralSummary = VehicleLite & { status?: string | null };
-export type ResolvedReferral = { vehicle: AiCar | ReferralSummary | null; aiEnabled: boolean; method: ReferralMethod };
+export type ResolvedReferral = {
+  vehicle: AiCar | ReferralSummary | null;
+  aiEnabled: boolean;
+  method: ReferralMethod;
+  headline?: string | null;
+  body?: string | null;
+  sourceUrl?: string | null;
+  advertisedPrice?: number | null;
+  candidates?: ReferralSummary[];
+  hint?: ReferralHint | null;
+};
 
 let ready: Promise<void> | null = null;
 export function ensureReferralSchema() {
@@ -80,8 +90,8 @@ export async function storeReferral(conv: { id: number; channel: string }, exter
   const ads = ref.ads_context_data || {};
   const sourceId = str(ref.source_id, 191) || str(ads.post_id, 191) || str(ref.post_id, 191) || str(ads.ad_ref, 191) || str(ref.ref, 191);
   const sourceUrl = str(ref.source_url, 512) || str(ref.referer_uri, 512) || str(ads.post_url, 512) || str(ads.ad_url, 512);
-  const headline = str(ref.headline, 500) || str(ads.ad_title, 500) || str(ref.title, 500) || str(ads.title, 500);
-  const body = str(ref.body, 2000) || (headline ? null : str(ads.ad_title, 2000));
+  const headline = str(ref.headline, 500) || str(ads.ad_title, 500) || str(ref.title, 500) || str(ads.title, 500) || str(ads.headline, 500);
+  const body = str(ref.body, 2000) || str(ads.ad_body, 2000) || str(ads.body, 2000) || str(ads.ad_creative_body, 2000) || str(ads.description, 2000);
   const [r]: any = await db().execute(
     `INSERT IGNORE INTO chat_referrals(message_id,conversation_id,channel,source_type,source_id,source_url,headline,body,media_url,ctwa_clid)
      VALUES(?,?,?,?,?,?,?,?,?,?)`,
@@ -121,7 +131,13 @@ export async function resolveReferral(
   r: { source_id?: string | null; source_url?: string | null; headline?: string | null; body?: string | null },
   opts: { conversationId?: number | null } = {},
 ): Promise<ResolvedReferral> {
-  const none: ResolvedReferral = { vehicle: null, aiEnabled: false, method: 'none' };
+  const context = {
+    headline: str(r.headline, 500),
+    body: str(r.body, 2000),
+    sourceUrl: str(r.source_url, 512),
+    advertisedPrice: referralPrice([r.headline, r.body].filter(Boolean).join(' ')),
+  };
+  const none: ResolvedReferral = { vehicle: null, aiEnabled: false, method: 'none', ...context };
   try {
     await ensureReferralSchema();
     const key = referralSourceKey(channel, r.source_id, r.source_url);
@@ -131,10 +147,26 @@ export async function resolveReferral(
       const c = await one<any>('SELECT vehicle_id FROM referral_corrections WHERE source_key=? LIMIT 1', [key]).catch(() => null);
       if (c?.vehicle_id) {
         const ai = await aiCarById(Number(c.vehicle_id));
-        if (ai) return { vehicle: ai, aiEnabled: true, method: 'correction' };
+        if (ai) return { vehicle: ai, aiEnabled: true, method: 'correction', ...context };
         const other = await vehicleSummary(Number(c.vehicle_id));
-        if (other) return { vehicle: other, aiEnabled: false, method: 'correction' };
+        if (other) return { vehicle: other, aiEnabled: false, method: 'correction', ...context };
       }
+    }
+
+    // A canonical Sky Cars vehicle URL is a trusted exact identifier.
+    if (r.source_url) {
+      try {
+        const u = new URL(String(r.source_url));
+        if (/^(www\.)?skyshcars\.com$/i.test(u.hostname)) {
+          const id = /^\/vehicles\/(\d{1,10})(?:\/|$)/.exec(u.pathname)?.[1];
+          if (id) {
+            const ai = await aiCarById(Number(id));
+            if (ai) return { vehicle: ai, aiEnabled: true, method: 'url', ...context };
+            const other = await vehicleSummary(Number(id));
+            if (other) return { vehicle: other, aiEnabled: false, method: 'url', ...context };
+          }
+        }
+      } catch { /* non-URL referral sources are normal */ }
     }
 
     // B. The Facebook publisher recorded the real vehicle behind this post id.
@@ -142,9 +174,9 @@ export async function resolveReferral(
       const p = await one<any>(`SELECT vehicle_id FROM social_publish_log WHERE status='sent' AND external_id=? ORDER BY id DESC LIMIT 1`, [String(r.source_id)]).catch(() => null);
       if (p?.vehicle_id) {
         const ai = await aiCarById(Number(p.vehicle_id));
-        if (ai) return { vehicle: ai, aiEnabled: true, method: 'social_log' };
+        if (ai) return { vehicle: ai, aiEnabled: true, method: 'social_log', ...context };
         const other = await vehicleSummary(Number(p.vehicle_id));
-        if (other) return { vehicle: other, aiEnabled: false, method: 'social_log' };
+        if (other) return { vehicle: other, aiEnabled: false, method: 'social_log', ...context };
       }
     }
 
@@ -168,8 +200,8 @@ export async function resolveReferral(
         if (wantCategory && v.category && String(v.category) !== wantCategory) continue;
         if (referralLooksMismatched(text, v)) continue;   // the ad must really name this model/stock
         const ai = await aiCarById(cand.id);
-        if (ai) return { vehicle: ai, aiEnabled: true, method: cand.method };
-        return { vehicle: v, aiEnabled: false, method: cand.method };
+        if (ai) return { vehicle: ai, aiEnabled: true, method: cand.method, ...context };
+        return { vehicle: v, aiEnabled: false, method: cand.method, ...context };
       }
     }
 
@@ -186,10 +218,25 @@ export async function resolveReferral(
         const id = Number(decision.vehicle.id);
         if (decision.vehicle.ai_enabled) {
           const v = await aiCarById(id);
-          if (v) return { vehicle: v, aiEnabled: true, method: 'headline' };
+          if (v) return { vehicle: v, aiEnabled: true, method: 'headline', ...context };
         }
         const other = await vehicleSummary(id);
-        if (other) return { vehicle: other, aiEnabled: false, method: 'headline' };
+        if (other) return { vehicle: other, aiEnabled: false, method: 'headline', ...context };
+      }
+      if (decision.kind === 'candidates') {
+        /*
+          The ad names a real model/year but more than one stock unit remains plausible. Keep that
+          known model as a hint so the reply acknowledges it and asks for the exact link/stock,
+          instead of falling back to the incorrect generic "Which vehicle do you mean?".
+        */
+        const candidates = decision.list.map((v: any) => ({
+          id: Number(v.id), stock_no: v.stock_no, category: v.category || null, brand: v.brand,
+          model: v.model, trim_name: v.trim_name, model_year: v.model_year == null ? null : Number(v.model_year),
+        })) as ReferralSummary[];
+        return {
+          vehicle: null, aiEnabled: false, method: 'headline', ...context,
+          candidates, hint: referralHintFromCandidates(decision.list),
+        };
       }
     }
 
@@ -207,7 +254,7 @@ export async function resolveReferral(
         if (named) {
           const v = await vehicleSummary(Number(named.id));
           if (v && (!wantCategory || !v.category || String(v.category) === wantCategory)) {
-            return { vehicle: v, aiEnabled: false, method: 'pattern' };
+            return { vehicle: v, aiEnabled: false, method: 'pattern', ...context };
           }
         }
       }
@@ -228,7 +275,12 @@ export async function resolveForBurst(conv: { id: number; channel: string }, mes
   const res = await resolveReferral(channelOf(conv.channel), { source_id: ref.source_id, source_url: ref.source_url, headline: ref.headline, body: ref.body }, { conversationId: Number(conv.id) });
   await db().execute(`UPDATE chat_referrals SET matched_vehicle_id=?, match_method=? WHERE message_id IN (${ids.map(() => '?').join(',')}) AND matched_vehicle_id IS NULL`,
     [res.vehicle?.id || null, res.method, ...ids]).catch(() => {});
-  return res;
+  return {
+    ...res,
+    headline: res.headline || ref.headline || null,
+    body: res.body || ref.body || null,
+    sourceUrl: res.sourceUrl || ref.source_url || null,
+  };
 }
 
 /** Admin: remember which car a Facebook post id really is. */

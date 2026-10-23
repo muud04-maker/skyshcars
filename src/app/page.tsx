@@ -1,15 +1,16 @@
-import {getNewArrivals,getVehicles,getSoldVehicles,soldStats} from '../lib/vehicles';
+import {getVehicles,getSoldVehicles,soldStats} from '../lib/vehicles';
 import {getBusinessPolicy,shippingEstimateFor,DEFAULT_POLICY} from '../lib/business-policy';
 import VehicleGrid from '../components/VehicleGrid';
+import VehiclePhoto from '../components/VehiclePhoto';
 import ShippingEstimator from '../components/ShippingEstimator';
 import {waLink,vehicleTitle} from '../lib/site';
 
 export const dynamic='force-dynamic';
 
 /*
-  Homepage. New Arrivals stays strictly Available + created in the last 10 days. The hero may use the
-  latest Available unit when that recent-arrivals list is empty, so the first screen still shows real
-  inventory without weakening the New Arrivals rule. Sold values are inventory status, not sales proof.
+  Homepage. The featured section uses approved Available inventory without exposing when a vehicle
+  entered the database. Created-at values remain available only to authorized internal systems.
+  Sold values are inventory status, not sales proof.
 */
 const CATEGORIES:[string,string,string,string][]=[
   ['Cars','/cars','Sedans, SUVs, pickups and vans','CAR'],
@@ -28,15 +29,14 @@ const STEPS:[string,string,string][]=[
 ];
 
 export default async function Home(){
-  const [arrivals,latest,soldList,sold,policy]=await Promise.all([
-    getNewArrivals(12).catch(()=>[] as any[]),
-    getVehicles({limit:8,onlyAvailable:true,sort:'created_desc'}).catch(()=>[] as any[]),
+  const [featured,soldList,sold,policy]=await Promise.all([
+    getVehicles({limit:12,onlyAvailable:true,sort:'created_desc'}).catch(()=>[] as any[]),
     getSoldVehicles({limit:4,sort:'created_desc'}).catch(()=>[] as any[]),
     soldStats().catch(()=>({total:0,cars:0,motorcycles:0,recent_30d:0})),
     getBusinessPolicy().catch(()=>DEFAULT_POLICY),
   ]);
   const exactImage=(v:any)=>!!v?.cover_url&&v.photo_kind!=='representative'&&!String(v.cover_url).includes('/api/model-photo/');
-  const hero=[...arrivals,...latest].find(exactImage)||arrivals[0]||latest[0]||null;
+  const hero=featured.find(exactImage)||featured[0]||null;
   const heroImage=hero?.cover_url||null;
   const heroRepresentative=!!hero&&(hero.photo_kind==='representative'||String(heroImage||'').includes('/api/model-photo/')||String(heroImage||'').includes('/api/representative-photo/'));
   const carRange=shippingEstimateFor(policy,'car');
@@ -67,7 +67,7 @@ export default async function Home(){
         </div>
         <div className="heroMedia">
           {heroImage
-            ? <><img src={heroImage} alt={vehicleTitle(hero)} loading="eager"/><div className="heroMediaBadge">Available now</div><div className="heroMediaTag"><b>{vehicleTitle(hero)}</b><small>{hero.price_usd?`$${Number(hero.price_usd).toLocaleString()} · `:''}Stock {hero.stock_no}{heroRepresentative?' · Representative model image':''}</small></div></>
+            ? <><VehiclePhoto src={heroImage} alt={vehicleTitle(hero)} className="heroPhoto" eager fallbackClassName="heroPhotoFallback"/><div className="heroMediaBadge">Available now</div><div className="heroMediaTag"><b>{vehicleTitle(hero)}</b><small>{hero.price_usd?`$${Number(hero.price_usd).toLocaleString()} · `:''}Stock {hero.stock_no}{heroRepresentative?' · Representative model image':''}</small></div></>
             : <div className="heroMediaEmpty"><b>Cars and motorcycles from China</b><span>Browse verified inventory and request exact photos from our team.</span><a className="btn" href="/vehicles">Browse inventory</a></div>}
         </div>
       </div>
@@ -79,11 +79,11 @@ export default async function Home(){
       <div className="brandRow brandRowDark">{BRANDS.map(b=><a key={b} href={'/vehicles?brand='+encodeURIComponent(b)}>{b}</a>)}</div>
     </div></section>
 
-    <section className="section section--arrivals"><div className="sectionInner">
-      <div className="sectionHead"><div><span className="eyebrow">NEW ARRIVALS</span><h2>Recently added, available now</h2><p className="muted">Available vehicles added in the last 10 days.</p></div><a href="/vehicles">Explore the marketplace</a></div>
-      {arrivals.length
-        ? <VehicleGrid list={arrivals}/>
-        : <div className="emptyState arrivalsEmpty"><b>No new vehicles added in the last 10 days.</b><span>New listings appear here as soon as they are added.</span><a className="btn" href="/vehicles">Browse all vehicles</a></div>}
+    <section className="section section--collection"><div className="sectionInner">
+      <div className="sectionHead"><div><span className="eyebrow">CURRENT COLLECTION</span><h2>Explore Our Vehicles</h2><p className="muted">Browse available cars and motorcycles from our current collection.</p></div><a href="/vehicles">View all available vehicles</a></div>
+      {featured.length
+        ? <VehicleGrid list={featured}/>
+        : <div className="emptyState collectionEmpty"><b>No vehicles are currently available.</b><span>Browse the marketplace or ask our team to source a vehicle.</span><a className="btn" href="/vehicles">Browse vehicles</a></div>}
     </div></section>
 
     <section className="section section--dark"><div className="sectionInner">

@@ -87,10 +87,32 @@ test('public pages use the shared display formatter', () => {
   assert.ok(read('src/components/MarketplaceTools.tsx').includes('vehicleDisplayTitle(v)'));
 });
 
-test('homepage hero has a real latest-available fallback without changing New Arrivals', () => {
+test('homepage uses evergreen approved inventory without public arrival timestamps', () => {
   const page = read('src/app/page.tsx');
-  assert.ok(page.includes("getNewArrivals(12)"));
-  assert.ok(page.includes("getVehicles({limit:8,onlyAvailable:true,sort:'created_desc'})"));
-  assert.ok(page.includes('const hero=[...arrivals,...latest].find(exactImage)||arrivals[0]||latest[0]||null'));
-  assert.ok(page.includes('No new vehicles added in the last 10 days.'));
+  assert.ok(page.includes("getVehicles({limit:12,onlyAvailable:true,sort:'created_desc'})"));
+  assert.ok(page.includes('const hero=featured.find(exactImage)||featured[0]||null'));
+  assert.ok(page.includes('Explore Our Vehicles'));
+  assert.ok(page.includes('Browse available cars and motorcycles from our current collection.'));
+  assert.ok(!page.includes('getNewArrivals'));
+  assert.ok(!/last 10 days|Recently added|NEW ARRIVALS|created_at/i.test(page));
+});
+
+test('vehicle photos never use elapsed time to declare failure', () => {
+  const photo = read('src/components/VehiclePhoto.tsx');
+  assert.ok(!photo.includes('setTimeout'), 'no time-based fallback');
+  assert.ok(photo.includes('source!==currentSrc'), 'stale callbacks are rejected by source');
+  assert.ok(photo.includes('img.complete') && photo.includes('naturalWidth'), 'cached completed images are inspected');
+  assert.ok(photo.includes('onError') && photo.includes('Photo temporarily unavailable'), 'real failures have a neutral fallback');
+  assert.ok(photo.includes("missing?'Photo on request':'Photo temporarily unavailable'"), 'missing and temporary failures are distinct');
+});
+
+test('photo labels follow the current image state and cards do not receive private timestamps', () => {
+  const card = read('src/components/VehicleCard.tsx');
+  const grid = read('src/components/VehicleGrid.tsx');
+  assert.ok(card.includes('Photo temporarily unavailable'));
+  assert.ok(card.includes('Representative photo'));
+  assert.ok(card.includes('Photo loading'));
+  assert.ok(card.includes('Photo on request'));
+  assert.ok(!grid.includes('created_at'));
+  assert.ok(grid.includes('Only public card fields'));
 });

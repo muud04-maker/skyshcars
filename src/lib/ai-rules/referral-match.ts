@@ -22,6 +22,12 @@ export type ReferralVehicle = {
   id: any; stock_no?: any; brand?: any; model?: any; trim_name?: any; model_year?: any;
   category?: any; price_usd?: any; ai_enabled?: any;
 };
+export type ReferralHint = {
+  brand?: string | null;
+  model?: string | null;
+  year?: number | null;
+  category?: string | null;
+};
 export type ReferralDecision =
   | { kind: 'one'; vehicle: ReferralVehicle; reason: string }
   | { kind: 'candidates'; list: ReferralVehicle[]; reason: string }
@@ -36,8 +42,10 @@ const MOTO_MODEL_WORDS = /\b(cbr|cbr\d+|ninja|gsxr|gsx-r|r6|r1|mt-?09|z1000|cb40
 /** A price written in the ad ("$4,364", "4,364 USD", "USD 4,364"). */
 export function referralPrice(text: unknown): number | null {
   const t = String(text == null ? '' : text);
-  const m = /(?:\$|usd\s*)\s*([0-9][0-9,]{2,})|([0-9][0-9,]{2,})\s*(?:usd|\$)/i.exec(t);
-  const raw = m ? (m[1] || m[2] || '') : '';
+  const m = /\$\s*([0-9][0-9,]{2,})/i.exec(t)
+    || /\busd\s*\$?\s*([0-9][0-9,]{2,})/i.exec(t)
+    || /([0-9][0-9,]{2,})\s*(?:usd|\$)/i.exec(t);
+  const raw = m ? (m[1] || '') : '';
   const n = Number(String(raw).replace(/,/g, ''));
   return Number.isFinite(n) && n > 0 ? n : null;
 }
@@ -63,15 +71,46 @@ function modelEvidence(query: string, v: ReferralVehicle) {
   const model = normalize(v.model);
   const trim = normalize(v.trim_name);
   const brand = normalize(v.brand);
+  const brandTokens = new Set(tokens(brand));
   if (!model && !trim) return false;
   for (const text of [model, trim]) {
     if (!text) continue;
     if (new RegExp(`\\b${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(q)) return true;
     const c = compact(text);
     if (c.length >= 3 && qc.includes(c)) return true;
-    if (tokens(text).some((t) => t.length >= 3 && qTokens.has(t) && t !== brand)) return true;
+    // Do not let the brand word inside a model ("Chevrolet Sail") become model evidence:
+    // otherwise a Sail ad can pull in every Chevrolet in stock.
+    if (tokens(text).some((t) => t.length >= 3 && qTokens.has(t) && !brandTokens.has(t))) return true;
   }
   return false;
+}
+
+/** Preserve the model/year the ad really names when several exact units remain possible. */
+export function referralHintFromCandidates(list: ReferralVehicle[] = []): ReferralHint | null {
+  if (!list.length) return null;
+  const same = (field: keyof ReferralVehicle) => {
+    const values = new Set(list.map((v) => normalize(v[field])).filter(Boolean));
+    return values.size === 1 ? [...values][0] : null;
+  };
+  const brandKey = same('brand');
+  const brandTokens = new Set(list.flatMap((v) => tokens(v.brand)));
+  const modelTokenSets = list.map((v) => new Set(tokens(v.model).filter((t) => !brandTokens.has(t))));
+  const commonModelTokens = [...modelTokenSets[0] || []].filter((t) => modelTokenSets.every((set) => set.has(t)));
+  let modelKey = same('model');
+  let exemplar = list[0];
+  if (!modelKey && commonModelTokens.length) {
+    const ranked = [...list].sort((a, b) => tokens(b.model).length - tokens(a.model).length);
+    exemplar = ranked[0];
+    modelKey = normalize(exemplar.model);
+  }
+  const yearKey = same('model_year');
+  const categoryKey = same('category');
+  return {
+    brand: brandKey ? String(exemplar.brand || '') || null : null,
+    model: modelKey ? String(exemplar.model || '') || null : null,
+    year: yearKey ? Number(exemplar.model_year) || null : null,
+    category: categoryKey ? String(exemplar.category || '') || null : null,
+  };
 }
 
 function brandEvidence(query: string, v: ReferralVehicle) {
@@ -146,10 +185,15 @@ export function rankReferralCandidates(
   // 5. Price is a tiebreaker only, and only between units that already carry the model.
   const priceOf = (v: ReferralVehicle) => Number(v.price_usd) > 0 ? Number(v.price_usd) : null;
   if (price) {
-    const tolerance = Math.max(500, price * 0.08);
-    const close = pool.filter((v) => { const p = priceOf(v); return p != null && Math.abs(p - price) <= tolerance; });
-    if (close.length === 1) return { kind: 'one', vehicle: close[0], reason: 'model_price' };
-    if (close.length > 1) pool = close;
+    const exactPrice = pool.filter((v) => priceOf(v) === price);
+    if (exactPrice.length === 1) return { kind: 'one', vehicle: exactPrice[0], reason: 'model_price' };
+    if (exactPrice.length > 1) pool = exactPrice;
+    else {
+      const tolerance = Math.max(500, price * 0.08);
+      const close = pool.filter((v) => { const p = priceOf(v); return p != null && Math.abs(p - price) <= tolerance; });
+      if (close.length === 1) return { kind: 'one', vehicle: close[0], reason: 'model_price' };
+      if (close.length > 1) pool = close;
+    }
   }
   const newest = [...pool].sort((a, b) => Number(b.model_year || 0) - Number(a.model_year || 0));
   return { kind: 'candidates', list: newest.slice(0, 6), reason: 'ambiguous' };

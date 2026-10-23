@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import VehiclePhoto from './VehiclePhoto';
 
 export default function VehicleGallery({ images, alt }: { images: string[]; alt: string }) {
   const [i, setI] = useState(0);
@@ -24,7 +25,7 @@ export default function VehicleGallery({ images, alt }: { images: string[]; alt:
     <>
       <div className="galleryMain">
         <button type="button" className="galleryZoom" onClick={() => setOpen(true)} aria-label="View larger photo">
-          <img src={images[i]} alt={`${alt} - photo ${i + 1} of ${n}`} onError={e => { e.currentTarget.src = '/vehicle-placeholder.svg'; e.currentTarget.classList.add('failed'); }} />
+          <VehiclePhoto src={images[i]} alt={`${alt} - photo ${i + 1} of ${n}`} className="galleryPhoto" fallbackTag="span" fallbackClassName="galleryPhotoFallback" />
         </button>
         {n > 1 && <>
           <button type="button" className="galleryNav prev" onClick={() => go(-1)} aria-label="Previous photo">‹</button>
@@ -35,7 +36,7 @@ export default function VehicleGallery({ images, alt }: { images: string[]; alt:
       {n > 1 && <div className="galleryThumbs">
         {images.slice(0, 12).map((src, k) => (
           <button type="button" key={src + k} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={`Show photo ${k + 1}`}>
-            <img src={src} alt="" loading="lazy" onError={e => { e.currentTarget.src = '/vehicle-placeholder.svg'; }} />
+            <VehiclePhoto src={src} alt="" className="galleryThumbPhoto" fallbackTag="span" fallbackClassName="galleryThumbFallback" compact />
           </button>
         ))}
       </div>}
@@ -43,7 +44,7 @@ export default function VehicleGallery({ images, alt }: { images: string[]; alt:
         <div className="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer" onClick={() => setOpen(false)}>
           <button type="button" className="lbClose" onClick={() => setOpen(false)} aria-label="Close">×</button>
           {n > 1 && <button type="button" className="lbNav prev" onClick={e => { e.stopPropagation(); go(-1); }} aria-label="Previous">‹</button>}
-          <img src={images[i]} alt={alt} onClick={e => e.stopPropagation()} onError={e => { e.currentTarget.src = '/vehicle-placeholder.svg'; }} />
+          <div onClick={e => e.stopPropagation()}><VehiclePhoto src={images[i]} alt={alt} className="galleryLightboxPhoto" fallbackClassName="galleryLightboxFallback" /></div>
           {n > 1 && <button type="button" className="lbNav next" onClick={e => { e.stopPropagation(); go(1); }} aria-label="Next">›</button>}
         </div>
       )}

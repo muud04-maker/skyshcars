@@ -10,7 +10,7 @@ export default function GroupBannerClient({ link, name }: { link: string; name: 
   if (!show) return null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', flexWrap: 'wrap', background: '#e8f6ee', borderBottom: '1px solid #bfe3cd', padding: '8px 14px', fontSize: 14 }}>
-      <span>New arrivals are posted in our WhatsApp group &ldquo;{name}&rdquo;.</span>
+      <span>Vehicle updates are posted in our WhatsApp group &ldquo;{name}&rdquo;.</span>
       <a className="btn small" href={link} target="_blank" rel="noreferrer">Join the group</a>
       <button
         type="button"

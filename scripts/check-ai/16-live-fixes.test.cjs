@@ -247,12 +247,15 @@ test('H10. the homepage limit is enforced (default 12)', () => {
   assert.equal(selectNewArrivals(many, { nowMs: NOW, limit: 5 }).length, 5);
 });
 
-test('H11. /vehicles and other pages are untouched by the homepage rule', () => {
+test('H11. homepage uses evergreen Available inventory and exposes no arrival dates', () => {
   const v = read('src/lib/vehicles.ts');
-  assert.ok(v.includes('export async function getNewArrivals'), 'dedicated arrivals query exists');
-  assert.ok(/createdWithinDays\?: number/.test(v), 'the day window is opt-in');
+  assert.ok(v.includes('v.created_at DESC'), 'internal created_at ordering remains available privately');
+  assert.ok(v.includes('publicStatusCondition'), 'public status rules remain in place');
   const home = read('src/app/page.tsx');
-  assert.ok(home.includes('getNewArrivals(12)'), 'homepage uses the arrivals query');
-  assert.ok(home.includes('No new vehicles added in the last 10 days.'), 'empty state present');
-  assert.ok(home.includes('Browse all vehicles'));
+  assert.ok(home.includes("getVehicles({limit:12,onlyAvailable:true,sort:'created_desc'})"), 'homepage uses approved available stock');
+  assert.ok(home.includes('Explore Our Vehicles'), 'evergreen heading present');
+  assert.ok(home.includes('Browse available cars and motorcycles from our current collection.'), 'evergreen subtitle present');
+  assert.ok(!home.includes('getNewArrivals'), 'homepage does not use the old arrival window');
+  assert.ok(!/last 10 days|Recently added|NEW ARRIVALS|created_at/i.test(home), 'no public arrival-date disclosure');
+  assert.ok(home.includes('<VehicleGrid list={featured}/>'), 'available inventory is still rendered');
 });

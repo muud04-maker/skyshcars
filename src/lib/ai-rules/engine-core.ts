@@ -14,11 +14,17 @@ import { applyStaffOverride } from './staff-override';
 export type Trigger = 'webhook' | 'catch_up' | 'manual' | 'sweep';
 export type Conv = { id: number; channel: string; external_user_id: string; mode: string; customer_id: number | null };
 export type BurstRow = { id: number; message_type: string; body: string; external_message_id?: string | null };
-export type ResolvedReferral = { vehicle: any; aiEnabled: boolean; method: string };
+export type ResolvedReferral = {
+  vehicle: any; aiEnabled: boolean; method: string;
+  headline?: string | null; body?: string | null; sourceUrl?: string | null; advertisedPrice?: number | null;
+  hint?: { brand?: string | null; model?: string | null; year?: number | null; category?: string | null } | null;
+};
 export type ComposeIn = {
   conversationId: number; burst: BurstRow[]; words: string; firstContact: boolean;
   welcomeDue: boolean; welcomeSent: boolean; referral: boolean;
   referralVehicle?: any; referralAiEnabled?: boolean;
+  referralHint?: ResolvedReferral['hint'];
+  referralAdvertisedPrice?: number | null;
 };
 export type ComposeOut = { text: string; lang?: string; model?: string | null; vehicleId?: number | null; photoPlan?: any; needsStaff?: string | null; facts?: any; notes?: string[]; allowedNames?: string[] };
 
@@ -38,6 +44,8 @@ export type EngineDeps = {
   channelReady(conv: Conv): boolean;
   resolveReferral(conv: Conv, burst: BurstRow[]): Promise<ResolvedReferral | null>;
   setCurrentCar(conversationId: number, vehicleId: number, source: string): Promise<void>;
+  /** Preserve an identified ad model/year when several units remain possible. */
+  saveReferralHint?(conversationId: number, hint: NonNullable<ResolvedReferral['hint']>): Promise<void>;
   /** Pause the AI after a holding reply so it waits for the owner instead of guessing. */
   holdForStaff(conversationId: number): Promise<void>;
   /** The last thing a colleague said in this chat (used to stop the AI contradicting staff). */
@@ -130,15 +138,26 @@ export async function runEngine(deps: EngineDeps, conversationId: number, opts: 
       if (hasReferral) {
         referral = await deps.resolveReferral(conv, burst).catch(() => null);
         if (referral?.vehicle?.id) await deps.setCurrentCar(conversationId, Number(referral.vehicle.id), referral.method).catch(() => {});
+        if (referral?.hint && deps.saveReferralHint) await deps.saveReferralHint(conversationId, referral.hint).catch(() => {});
+        if (referral && !referral.vehicle && !referral.hint && deps.saveReferralHint) {
+          // Remember that the customer came from an ad even when Meta supplied no vehicle text.
+          await deps.saveReferralHint(conversationId, {}).catch(() => {});
+        }
         await deps.event(conversationId, burst[0].external_message_id || null,
           referral?.vehicle ? 'referral_matched' : 'referral_unmatched', 'ok',
-          { method: referral?.method || 'none', vehicle_id: referral?.vehicle?.id || null }).catch(() => {});
+          {
+            method: referral?.method || 'none', vehicle_id: referral?.vehicle?.id || null,
+            headline_present: !!referral?.headline, body_present: !!referral?.body,
+            source_url_present: !!referral?.sourceUrl, hint_model: referral?.hint?.model || null,
+            hint_year: referral?.hint?.year || null,
+          }).catch(() => {});
       }
       const key = customerKey(conv.channel, conv.external_user_id);
       const wcfg = await deps.welcomeConfig();
       const welcomeDue = wcfg.enabled && !(await deps.welcomeAlreadySent(key));
       const composed = await deps.compose({ conversationId, burst, words, firstContact, welcomeDue, welcomeSent: !welcomeDue,
-        referral: hasReferral, referralVehicle: referral?.vehicle || null, referralAiEnabled: referral ? referral.aiEnabled : false });
+        referral: hasReferral, referralVehicle: referral?.vehicle || null, referralAiEnabled: referral ? referral.aiEnabled : false,
+        referralHint: referral?.hint || null, referralAdvertisedPrice: referral?.advertisedPrice ?? null });
 
       // More messages arrived while composing: answer them together in the next round.
       if (round < 2 && await deps.hasNewerCustomerMessage(conversationId, lastId)) continue;

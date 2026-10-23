@@ -81,14 +81,18 @@ async function prepareMedia(m:any,d:Described,c:any){
       await agentEvent(c.id,m.id,'voice_transcription','ok',{chars:transcript.length});
       return {...d,storedText:body,aiText:`Customer sent a voice note. Transcript: ${transcript}`,needsHuman:false};
     }
-    if(m.type==='image' && !d.aiText){
-      if(!mediaAiConfigured()) throw new Error('Media understanding needs setup (see Readiness)');
+    if(m.type==='image'){
+      if(!mediaAiConfigured()){
+        if(!d.aiText) throw new Error('Media understanding needs setup (see Readiness)');
+        return d;
+      }
       const visual=await describeImage(media.data,media.mimeType);
       if(!visual) throw new Error('Image analysis returned empty text');
-      const body=`PHOTO\nVisual description: ${visual}`;
+      const caption=String(m.image?.caption||'').trim();
+      const body=caption?`PHOTO\nCaption: ${caption}\nVisual description: ${visual}`:`PHOTO\nVisual description: ${visual}`;
       await updateInboundBody(m.id,body);
       await agentEvent(c.id,m.id,'image_analysis','ok',{chars:visual.length});
-      return {...d,storedText:body,aiText:`Customer sent a photo. Visual description from the media analyzer: ${visual}. Use it only as visual context; vehicle inventory/price/availability claims must still come from verified database facts.`,needsHuman:false};
+      return {...d,storedText:body,aiText:`Customer sent a photo${caption?` with caption "${caption}"`:''}. Visual description from the media analyzer: ${visual}. Use it only as visual context; vehicle inventory/price/availability claims must still come from verified database facts.`,needsHuman:false};
     }
   }catch(e:any){
     await agentEvent(c.id,m.id,m.type==='audio'?'voice_transcription':'image_analysis','failed',e?.message||String(e));

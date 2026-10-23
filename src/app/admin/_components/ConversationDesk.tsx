@@ -438,15 +438,15 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
           <button type="button" className="miniBtn" onClick={clearCurrentCar}>Clear</button>
         </div>
       </div>
-      {state?.slots && Object.keys(state.slots).length ? <div className="contextBlock"><b>Known answers</b><p className="muted">{Object.entries(state.slots).map(([k, v]) => `${k}: ${v}`).join(' | ')}</p></div> : null}
-      {referrals.length ? <div className="contextBlock"><b>Facebook referral</b>{referrals.slice(0, 3).map((r) => {
+      {state?.slots && Object.keys(state.slots).length ? <div className="contextBlock"><b>Known answers</b><p className="muted">{Object.entries(state.slots).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' | ')}</p></div> : null}
+      {referrals.length ? <div className="contextBlock"><b>Vehicle context diagnostic</b>{referrals.slice(0, 3).map((r) => {
         const mismatch = r.matched_vehicle_id ? referralLooksMismatched(`${r.headline || ''} ${r.body || ''}`, { brand: r.resolved_brand, model: r.resolved_model, trim_name: r.resolved_trim }) : false;
         return <div key={r.id} className={'refCard' + (r.matched_vehicle_id && mismatch ? ' refWarn' : '')}>
-          <small>{r.source_type || 'post'} | {r.match_method || 'unmatched'}</small>
+          <small>{r.source_type || 'post'} | {r.match_method || 'unmatched'} | ID {r.source_id || 'not received'} | URL {r.source_url ? 'received' : 'not received'}</small>
           <p><b>Facebook referral:</b> {r.headline || r.body || r.source_id || '(no headline)'}</p>
           <p>{r.matched_vehicle_id
             ? <><b>Resolved vehicle:</b> {r.resolved_vehicle || `#${r.matched_vehicle_id}`}{r.resolved_stock_no ? ` (stock ${r.resolved_stock_no})` : ''}{mismatch ? <em className="refMismatch"> - check this match</em> : null}</>
-            : <em className="refMismatch">Not resolved - the AI will ask which vehicle.</em>}</p>
+            : <em className="refMismatch">No verified stock match. The AI must keep the model/year the ad actually names and request the advertisement link or stock number.</em>}</p>
           <select defaultValue="" onChange={(e) => { const v = Number(e.target.value); if (v) correctReferral(r, v); }}>
             <option value="">Correct this referral to...</option>
             {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}

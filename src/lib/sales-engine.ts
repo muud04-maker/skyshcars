@@ -7,7 +7,7 @@ import { one, rows } from './db';
 import { outbound } from './conversations';
 import { agentEvent } from './agent-events';
 import { sendWhatsApp, whatsappConfigured } from './meta';
-import { flagForStaff, getState, markAnswered, pauseAi, setCurrentCar, tryLock, unlock } from './conversation-state';
+import { flagForStaff, getState, markAnswered, pauseAi, saveSlots, setCurrentCar, tryLock, unlock } from './conversation-state';
 import { staffPauseMinutes } from './staff';
 import { holdTextFor, welcomeLinesFor } from './language-detect';
 import { resolveForBurst } from './referrals';
@@ -50,6 +50,10 @@ const deps: EngineDeps = {
   channelReady: conv => conv.channel === 'whatsapp' ? whatsappConfigured() : conv.channel === 'facebook',
   resolveReferral: (conv, burst) => resolveForBurst({ id: conv.id, channel: conv.channel }, burst.map(b => Number(b.id))),
   setCurrentCar: (id, vehicleId, source) => setCurrentCar(id, vehicleId, source),
+  saveReferralHint: async (id, hint) => {
+    const state = await getState(id);
+    await saveSlots(id, { ...(state.slots || {}), referral_hint: { ...hint, saved_at: Date.now() } });
+  },
   holdForStaff: async (id) => { const minutes = await staffPauseMinutes().catch(() => 15); await pauseAi(id, minutes, 'ai_hold'); },
   lastStaffBody: async (id) => (await one<any>(`SELECT body FROM messages WHERE conversation_id=? AND sender='human' AND direction='outbound' ORDER BY id DESC LIMIT 1`, [id]))?.body || null,
   // Languages we do not hardcode are generated once through DeepSeek and cached (see language-detect.ts).

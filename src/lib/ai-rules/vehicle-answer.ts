@@ -10,7 +10,7 @@
 export type AnyCar = {
   id?: any; stock_no?: any; brand?: any; model?: any; trim_name?: any; model_year?: any;
   price_usd?: any; mileage_km?: any; engine?: any; transmission?: any; fuel_type?: any;
-  steering?: any; color?: any; location?: any; category?: any; exact_photo_count?: any; created_at?: any;
+  steering?: any; color?: any; location?: any; category?: any; exact_photo_count?: any; created_at?: any; status?: any;
 };
 
 export type VehicleIntent = 'details' | 'price' | 'photos' | 'alternatives' | 'shipping' | 'moreinfo' | null;
@@ -88,9 +88,11 @@ export function vehicleDetails(car: AnyCar, lang = 'en', opts: { maxLines?: numb
   const l = L(lang);
   const head = lang === 'so' ? `Haa - kani waa ${carTitle(car)}` : lang === 'ar' ? `\u0646\u0639\u0645 - \u0647\u0630\u0647 ${carTitle(car)}` : lang === 'zh' ? `\u662f\u7684\uff0c\u8fd9\u662f ${carTitle(car)}` : `Yes - this is the ${carTitle(car)}`;
   const rows: string[] = [];
+  const rawStatus=String(car.status||'available').toLowerCase();
   const push = (label: string, v: any) => { const s = v == null ? '' : String(v).trim(); if (s && s !== '0' && s !== '-') rows.push(`${label}: ${s}`); };
   push(l.stock, car.stock_no);
-  push(l.price, money(car.price_usd));
+  // A sold unit's old price is not a current offer.
+  if(rawStatus!=='sold') push(l.price, money(car.price_usd));
   push(l.mileage, km(car.mileage_km));
   push(l.engine, car.engine);
   push(l.fuel, car.fuel_type);
@@ -98,7 +100,8 @@ export function vehicleDetails(car: AnyCar, lang = 'en', opts: { maxLines?: numb
   push(l.steering, car.steering && car.steering !== 'unknown' ? car.steering : '');
   push(l.color, car.color);
   push(l.location, car.location);
-  push(l.status, 'Available');
+  const statusText=rawStatus==='sold'?'Sold':rawStatus==='reserved'?'Reserved':rawStatus==='pending_verification'?'Check availability':'Available';
+  push(l.status, statusText);
   const max = Math.max(3, Number(opts.maxLines || 9));
   const canHelp = [l.photos, l.shipping, l.similar, l.cheaper].map((x) => `- ${x}`).join('\n');
   return `${head}\n${rows.slice(0, max).join('\n')}\n\n${l.canHelp}:\n${canHelp}`;

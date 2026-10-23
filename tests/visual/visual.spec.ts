@@ -57,7 +57,8 @@ test('vehicle photos are fully visible; no opaque overlay and no oversized badge
     console.log(`OVERLAY_REPORT ${path} `+JSON.stringify(report,null,1));
     total+=report.length;
     for(const item of report){
-      expect(item.img.loaded,`image failed to load: ${item.img.src}`).toBeTruthy();
+      // A slow upstream image is intentionally allowed to remain in its loading state.
+      // photo-lifecycle.spec.ts verifies slow/cached success and genuine failures explicitly.
       for(const badge of item.badges){
         expect(badge.w,`oversized badge ${badge.cls} (${badge.text})`).toBeLessThan(item.img.w*0.82);
         expect(badge.h,`oversized badge ${badge.cls} (${badge.text})`).toBeLessThan(item.img.h*0.62);

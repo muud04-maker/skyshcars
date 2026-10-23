@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 import {vehicleDisplayTitle} from '../lib/display-title';
+import VehiclePhoto from './VehiclePhoto';
 
 type VehicleLite={
   id:string|number;stock_no?:string;brand?:string;model?:string;model_year?:number;price_usd?:number;cover_url?:string|null;
@@ -33,7 +34,7 @@ export function MiniMarketBar(){
 export function LocalCollection({mode}:{mode:'favorites'|'recent'}){
  const key=mode==='favorites'?FAV:RECENT;const [items,setItems]=useState<any[]>([]);useEffect(()=>setItems(read(key)),[key]);
  if(!items.length)return <div className="card emptyCollection"><h3>{mode==='favorites'?'No saved vehicles yet':'No recently viewed vehicles yet'}</h3><p>Browse the marketplace and vehicles will appear here.</p><a className="btn" href="/vehicles">Browse vehicles</a></div>;
- return <div className="miniVehicleGrid">{items.map(v=><a className="miniVehicle" key={v.id} href={'/vehicles/'+v.id}>{v.cover_url?<img src={v.cover_url} alt="" loading="lazy" onError={e=>{e.currentTarget.src='/vehicle-placeholder.svg'}}/>:<div className="miniNoPhoto">SKY</div>}<div><b>{vehicleDisplayTitle(v)}</b><span>{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</span><small>{v.stock_no||''}</small></div></a>)}</div>;
+ return <div className="miniVehicleGrid">{items.map(v=><a className="miniVehicle" key={v.id} href={'/vehicles/'+v.id}><VehiclePhoto src={v.cover_url} alt={vehicleDisplayTitle(v)} className="miniPhoto" fallbackTag="span" fallbackClassName="miniPhotoFallback" compact/><div><b>{vehicleDisplayTitle(v)}</b><span>{v.price_usd?'$'+Number(v.price_usd).toLocaleString():'Price on request'}</span><small>{v.stock_no||''}</small></div></a>)}</div>;
 }
 
 export function CompareTable(){
@@ -52,5 +53,5 @@ export function CompareTable(){
    ['Status',(v:any)=>v.status?v.status.replaceAll('_',' '):'—'],
  ],[]);
  if(!items.length)return <div className="card emptyCollection"><h2>No vehicles selected</h2><p>Add up to four vehicles to compare them here.</p><div className="emptyActions"><a className="btn" href="/vehicles">Find vehicles</a><a className="btn alt" href="/quote">Request a quote</a></div></div>;
- return <div className="compareTableWrap"><table className="compareTable"><thead><tr><th>Compare</th>{items.map(v=><th key={v.id}>{v.cover_url?<img src={v.cover_url} alt="" onError={e=>{e.currentTarget.src='/vehicle-placeholder.svg'}}/>:null}<a href={'/vehicles/'+v.id}>{vehicleDisplayTitle(v)}</a><small>{v.stock_no||''}</small></th>)}</tr></thead><tbody>{fields.map(([label,fn]:any)=><tr key={label}><th>{label}</th>{items.map(v=><td key={v.id}>{fn(v)}</td>)}</tr>)}</tbody></table></div>;
+ return <div className="compareTableWrap"><table className="compareTable"><thead><tr><th>Compare</th>{items.map(v=><th key={v.id}><VehiclePhoto src={v.cover_url} alt={vehicleDisplayTitle(v)} className="comparePhoto" fallbackTag="span" fallbackClassName="comparePhotoFallback" compact/><a href={'/vehicles/'+v.id}>{vehicleDisplayTitle(v)}</a><small>{v.stock_no||''}</small></th>)}</tr></thead><tbody>{fields.map(([label,fn]:any)=><tr key={label}><th>{label}</th>{items.map(v=><td key={v.id}>{fn(v)}</td>)}</tr>)}</tbody></table></div>;
 }

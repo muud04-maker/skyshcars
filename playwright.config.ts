@@ -9,5 +9,5 @@ export default defineConfig({
   expect:{timeout:15000},
   reporter:[['list']],
   use:{baseURL:'http://127.0.0.1:3111',headless:true,trace:'off'},
-  webServer:{command:'npm run start -- -p 3111',url:'http://127.0.0.1:3111',timeout:180000,reuseExistingServer:false,stdout:'ignore',stderr:'pipe'},
+  webServer:{command:'npm run start -- -p 3111',url:'http://127.0.0.1:3111',timeout:180000,reuseExistingServer:false,env:{...process.env,PHOTO_TEST_ROUTE:'1'},stdout:'ignore',stderr:'pipe'},
 });

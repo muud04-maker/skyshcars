@@ -308,10 +308,10 @@ a:hover{text-decoration:none}
 .brandRowDark a{background:rgba(255,255,255,.045);border-color:rgba(255,255,255,.14);color:#c8d8e6}
 .brandRowDark a:hover{border-color:var(--sc-gold);color:var(--sc-gold);background:rgba(249,188,37,.08)}
 
-.section--arrivals{background:linear-gradient(180deg,#fbf8f2,#f4efe6);border-top:1px solid #e5dccd;border-bottom:1px solid #e2d8c9}
-.section--arrivals .eyebrow{color:#9a6a00}
-.arrivalsEmpty{background:rgba(255,255,255,.68);border-color:#d8cdbd;box-shadow:0 18px 50px -34px #6f5b3a}
-.arrivalsEmpty .btn{background:var(--sc-gold);color:#201700;border-color:var(--sc-gold)}
+.section--collection{background:linear-gradient(180deg,#fbf8f2,#f4efe6);border-top:1px solid #e5dccd;border-bottom:1px solid #e2d8c9}
+.section--collection .eyebrow{color:#9a6a00}
+.collectionEmpty{background:rgba(255,255,255,.68);border-color:#d8cdbd;box-shadow:0 18px 50px -34px #6f5b3a}
+.collectionEmpty .btn{background:var(--sc-gold);color:#201700;border-color:var(--sc-gold)}
 
 .section--blue{background:linear-gradient(155deg,#122f49,#0c2033)}
 .section--blue .sectionHead h2,.section--blue h2{color:#fff}
@@ -420,6 +420,7 @@ a:hover{text-decoration:none}
   .heroGrid{grid-template-columns:1fr;padding-top:40px}
   .heroMedia{min-height:240px;order:2}
   .heroMedia img{min-height:240px;max-height:340px}
+  .heroMedia .heroPhotoFallback{min-height:240px;max-height:340px}
   .vehicleDetailGrid{grid-template-columns:1fr}
   .vehicleInfoPanel{position:static}
   .catalogShell{grid-template-columns:1fr;padding-top:16px}
@@ -484,6 +485,7 @@ a:hover{text-decoration:none}
   .soldStats,.soldStatsRow{grid-template-columns:repeat(2,minmax(0,1fr))}
   .heroMedia{min-height:300px}
   .heroMedia img{min-height:300px}
+  .heroMedia .heroPhotoFallback{min-height:300px}
   .heroMediaEmpty{min-height:300px}
 }
 @media (max-width:820px){
@@ -505,12 +507,13 @@ a:hover{text-decoration:none}
   .heroGrid{padding-top:38px;padding-bottom:34px}
   .heroTitle{font-size:clamp(2.2rem,10vw,3rem)}
   .heroMedia,.heroMedia img,.heroMediaEmpty{min-height:250px}
+  .heroMedia .heroPhotoFallback{min-height:250px}
   .categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
   .categoryTile{min-height:146px;padding:15px;border-radius:14px}
   .categoryMark{width:40px;height:40px;font-size:10.5px}
   .categoryTile b{font-size:15px}
   .categoryTile small{font-size:11.5px}
-  .section--arrivals .sectionHead{margin-bottom:18px}
+  .section--collection .sectionHead{margin-bottom:18px}
   .soldStats,.soldStatsRow{grid-template-columns:1fr 1fr}
   .soldFilterGrid{grid-template-columns:1fr}
   .soldFilterGrid .wide{grid-column:auto}
@@ -530,6 +533,7 @@ a:hover{text-decoration:none}
   .galleryMain{height:300px;border-radius:12px}
   .galleryThumbs button{flex-basis:74px}
   .galleryThumbs img{width:70px;height:54px}
+  .galleryThumbs .galleryThumbFallback{width:70px;height:54px}
 }
 
 /* ============================================================================
@@ -539,16 +543,31 @@ a:hover{text-decoration:none}
 
 /* ---------- photo ownership + failed-image fallback ---------- */
 .vehiclePhotoFallback{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;aspect-ratio:16/10;padding:18px;text-align:center;background:linear-gradient(145deg,#0c2236,#173b57);color:#dbe8f3}
+.vehiclePhotoFallback.isError{background:linear-gradient(145deg,#172532,#263845)}
+.vehiclePhotoFallback.isCompact{padding:5px}
+.vehiclePhotoFallback.isCompact>span,.vehiclePhotoFallback.isCompact>small{display:none}
+.vehiclePhotoFallback.isCompact>strong{font-size:10px;line-height:1.15}
 .vehicleCard .vehiclePhotoFallback{height:100%}
 .vehiclePhotoFallback span{font-family:var(--font-display);font-size:10px;font-weight:800;letter-spacing:.2em;color:var(--sc-gold)}
 .vehiclePhotoFallback strong{font-family:var(--font-display);font-size:15px;color:#fff}
 .vehiclePhotoFallback small{max-width:24ch;font-size:11px;line-height:1.45;color:#b7cadb}
 .vehicleCard .vehicleImageWrap{background:linear-gradient(110deg,#e4ebf2 8%,#f8fbfd 20%,#e4ebf2 34%);background-size:220% 100%;animation:sc-photo-wait 1.8s linear infinite}
 @keyframes sc-photo-wait{0%{background-position:100% 0}100%{background-position:-120% 0}}
-.cardMetaLine{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:1px}
-.photoKind{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;letter-spacing:.03em;color:#65778a;white-space:nowrap}
+.cardMetaLine{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:1px}
+.photoKind{display:inline-flex;align-items:flex-start;justify-content:flex-end;gap:5px;max-width:64%;font-size:10.5px;line-height:1.35;letter-spacing:.03em;color:#65778a;text-align:right;white-space:normal;overflow-wrap:anywhere}
+.photoKind:before{flex:0 0 auto;margin-top:.38em}
 .photoKind:before{content:"";width:6px;height:6px;border-radius:50%;background:#0e8a5f}
 .photoKind.rep:before{background:#a57c19}
+.photoKind.loading:before{background:#b08a2e}
+.photoKind.error:before{background:#b3261e}
+.photoKind.missing:before{background:#8a99a8}
+.heroMedia .heroPhotoFallback{height:100%;min-height:390px;border-radius:0}
+.galleryPhotoFallback{height:100%;min-height:100%;aspect-ratio:auto;border-radius:14px;background:#07111b}
+.galleryThumbFallback{width:84px;height:62px;aspect-ratio:auto;border-radius:0;background:#0b1b2c}
+.galleryLightboxFallback{width:min(88vw,1000px);height:min(82vh,700px);aspect-ratio:auto;border-radius:10px}
+.lightbox>div{display:flex;align-items:center;justify-content:center;max-width:100%;max-height:92vh}
+.miniPhotoFallback{width:84px;height:70px;aspect-ratio:auto;flex:0 0 84px;border-radius:7px;background:#0c2943}
+.comparePhotoFallback{width:150px;height:100px;aspect-ratio:auto;margin-bottom:8px;border-radius:8px;background:#e8eef4}
 .galleryMain img.failed{object-fit:contain;background:#07111b}
 .price,.catalogHeroMeta b,.heroMediaTag small,.soldStats b,.soldStatsRow b,.estimateResult strong,.compareTable td{font-variant-numeric:tabular-nums}
 
