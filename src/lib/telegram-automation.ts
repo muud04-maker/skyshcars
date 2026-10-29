@@ -668,12 +668,21 @@ export async function bootstrapTelegramWebhook() {
     const registration = await registerTelegramWebhook();
     const probe: any = registration.probe;
     const processed = await processTelegramQueue(4).catch(() => []);
-    const [sourceCount, importCount, lastSource, stateRows, lastJobError] = await Promise.all([
+    const [sourceCount, importCount, lastSource, stateRows, lastJobError, photoStats, mediaCount, matchStats, publicationStats] = await Promise.all([
       one<any>('SELECT COUNT(*) n FROM telegram_source_messages').catch(() => null),
       one<any>(`SELECT COUNT(*) n, SUM(review_status='approved') approved FROM inventory_import_items WHERE source='telegram'`).catch(() => null),
       one<any>('SELECT MAX(received_at) at FROM telegram_source_messages').catch(() => null),
       rows<any>(`SELECT processing_state state,COUNT(*) n FROM telegram_source_messages GROUP BY processing_state`).catch(() => []),
       one<any>(`SELECT error FROM telegram_source_messages WHERE error IS NOT NULL ORDER BY id DESC LIMIT 1`).catch(() => null),
+      one<any>(`SELECT COUNT(*) total,SUM(processing_state IN ('completed','review')) processed,
+        SUM(processing_state='failed') failed FROM telegram_source_messages WHERE message_kind='photo'`).catch(() => null),
+      one<any>(`SELECT COUNT(*) n FROM inventory_import_media m JOIN inventory_import_items i ON i.id=m.import_item_id
+        WHERE i.source='telegram'`).catch(() => null),
+      one<any>(`SELECT SUM(match_status='new') new_count,SUM(match_status='confirmed') confirmed_count,
+        SUM(match_status='possible') possible_count FROM inventory_import_items WHERE source='telegram'`).catch(() => null),
+      one<any>(`SELECT SUM(l.channel='facebook' AND l.status='sent') facebook_sent,
+        SUM(l.channel='facebook' AND l.status='failed') facebook_failed
+        FROM social_publish_log l JOIN vehicles v ON v.id=l.vehicle_id WHERE v.source='telegram'`).catch(() => null),
     ]);
     return {
       ok: probe?.ok === true,
@@ -696,6 +705,21 @@ export async function bootstrapTelegramWebhook() {
         last_received: lastSource?.at || null,
         states: Object.fromEntries(stateRows.map((row: any) => [String(row.state), Number(row.n || 0)])),
         last_job_error: lastJobError?.error ? String(lastJobError.error).slice(0, 500) : null,
+        photos: {
+          total: Number(photoStats?.total || 0),
+          processed: Number(photoStats?.processed || 0),
+          failed: Number(photoStats?.failed || 0),
+          media_records: Number(mediaCount?.n || 0),
+        },
+        matches: {
+          new: Number(matchStats?.new_count || 0),
+          confirmed: Number(matchStats?.confirmed_count || 0),
+          possible: Number(matchStats?.possible_count || 0),
+        },
+        facebook: {
+          sent: Number(publicationStats?.facebook_sent || 0),
+          failed: Number(publicationStats?.facebook_failed || 0),
+        },
       },
       processed_jobs: processed.map((job: any) => ({ state: job.state, itemId: job.itemId || null, vehicleId: job.vehicleId || null })),
     };
