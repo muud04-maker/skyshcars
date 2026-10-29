@@ -7,7 +7,7 @@ const CATS=['car','motorcycle','truck','van','bus','machinery','other'];
 
 function ReviewForm({it,onDone}:{it:Item;onDone:()=>void}){
  const v=parse(it.proposed_vehicle);
- const [f,setF]=useState<any>({category:v.category||'car',brand:v.brand||'',model:v.model||'',trim_name:v.trim_name||'',model_year:v.model_year||'',mileage_km:v.mileage_km||'',fuel_type:v.fuel_type||'',transmission:v.transmission||'',color:v.color||'',price_usd:'',description:'',ai_enabled:true});
+ const [f,setF]=useState<any>({category:v.category||'car',brand:v.brand||'',model:v.model||'',trim_name:v.trim_name||'',model_year:v.model_year||'',mileage_km:v.mileage_km||'',engine:v.engine||'',fuel_type:v.fuel_type||'',transmission:v.transmission||'',steering:v.steering&&v.steering!=='unknown'?v.steering:'',color:v.color||'',price_usd:'',description:'',ai_enabled:true});
  const [busy,setBusy]=useState(false),[err,setErr]=useState('');
  const set=(k:string)=>(e:any)=>setF({...f,[k]:e.target.value});
  async function review(action:'approve'|'reject'){
@@ -22,13 +22,15 @@ function ReviewForm({it,onDone}:{it:Item;onDone:()=>void}){
  return <div style={{display:'grid',gap:10,marginTop:10}}>
   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}}>
    <label style={{display:'grid',gap:4,fontSize:13}}>Category<select value={f.category} onChange={set('category')}>{CATS.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
-   {field('brand','Make *')}{field('model','Model *')}{field('trim_name','Trim')}{field('model_year','Year','number')}{field('mileage_km','Mileage (km)','number')}{field('fuel_type','Fuel')}{field('transmission','Transmission')}{field('color','Color')}
+   {field('brand','Make *')}{field('model','Model *')}{field('trim_name','Trim')}{field('model_year','Year','number')}{field('mileage_km','Mileage (km)','number')}{field('engine','Engine')}{field('fuel_type','Fuel')}{field('transmission','Transmission')}
+   <label style={{display:'grid',gap:4,fontSize:13}}>Steering<select value={f.steering} onChange={set('steering')}><option value="">Not confirmed</option><option value="LHD">LHD</option><option value="RHD">RHD</option></select></label>
+   {field('color','Color')}
    <label style={{display:'grid',gap:4,fontSize:13}}>Selling price (USD)<input type="number" min="0" placeholder="Empty = Price on request" value={f.price_usd} onChange={set('price_usd')}/></label>
   </div>
   {(v.price_usd||v.specs)&&<p className="muted" style={{margin:0}}>Supplier reference (internal, never published): {v.price_usd?`$${v.price_usd}`:''} {typeof v.specs==='object'?Object.entries(v.specs).filter(([k])=>/price|cost/i.test(k)).map(([k,x])=>`${k}: ${x}`).join(' · '):''}</p>}
   <label style={{display:'grid',gap:4,fontSize:13}}>Public description (optional — phone numbers, links and supplier contacts are removed automatically)<textarea rows={3} value={f.description} onChange={set('description')}/></label>
   {err&&<p style={{color:'#b3261e',margin:0}}>{err}</p>}
-  <label style={{display:'flex',gap:6,alignItems:'center',fontSize:14}}><input type="checkbox" checked={f.ai_enabled!==false} onChange={e=>setF((x:any)=>({...x,ai_enabled:e.target.checked}))}/>Let the AI sell this car</label>
+  <label style={{display:'flex',gap:6,alignItems:'center',fontSize:14}}><input type="checkbox" checked={f.ai_enabled!==false} onChange={e=>setF((x:any)=>({...x,ai_enabled:e.target.checked}))}/>Make this approved vehicle available to the customer AI</label>
   <div style={{display:'flex',gap:8}}><button className="btn" disabled={busy} onClick={()=>review('approve')}>{busy?'Working…':'Approve → Available'}</button><button className="btn" disabled={busy} onClick={()=>review('reject')}>Reject</button></div>
  </div>
 }

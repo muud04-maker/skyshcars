@@ -30,3 +30,9 @@ V32 update (Phase 3)
 V33 (VPS)
 - To run on a Linux VPS without your PC, follow SETUP_VPS.md (Docker with auto-restart, or pm2).
 - Logs now have timestamps. On a fatal error the bridge exits so Docker/pm2 restarts it.
+
+V34 (persistent Ubuntu reader)
+- The recommended production path is the systemd service documented in VPS_SYSTEMD.md.
+- The WhatsApp session, recovered batches and durable retry outbox live in STATE_DIR outside Git.
+- The QR page binds to localhost, requires QR_ADMIN_TOKEN, and must be accessed through an SSH tunnel.
+- After login the website pins the exact WhatsApp group ID; matching a display name alone is no longer sufficient.

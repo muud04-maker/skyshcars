@@ -26,7 +26,7 @@ const has=(k:string)=>!!String(process.env[k]||'').trim();
 function missing(...names:string[]){return names.filter(n=>!n.split('|').some(has)).map(n=>n.split('|')[0])}
 const needsText=(m:string[])=>`needs setup: ${m.join(', ')}`;
 
-async function checkDeepSeek():Promise<{ok:boolean;detail:string}>{
+export async function checkDeepSeek():Promise<{ok:boolean;detail:string}>{
   const key=String(process.env.DEEPSEEK_API_KEY||'').trim();
   if(!key)return {ok:false,detail:`${needsText(['DEEPSEEK_API_KEY'])} — until then WhatsApp replies use the simple built-in text.`};
   try{const r=await axios.get('https://api.deepseek.com/models',{headers:{Authorization:`Bearer ${key}`},timeout:10000});const ids=(r.data?.data||[]).map((m:any)=>m.id);const model=process.env.DEEPSEEK_MODEL||'deepseek-chat';return {ok:true,detail:`Key accepted. Model: ${model}${ids.length&&!ids.includes(model)?' (not in the account model list — check DEEPSEEK_MODEL)':''}`}}

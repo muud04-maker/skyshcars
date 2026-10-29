@@ -1,0 +1,29 @@
+[Unit]
+Description=Sky Cars read-only WhatsApp Group Reader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=skycars-reader
+Group=skycars-reader
+WorkingDirectory=/opt/skycars-group-reader/current
+EnvironmentFile=/etc/skycars-group-reader.env
+Environment=NODE_ENV=production
+Environment=STATE_DIR=/var/lib/skycars-group-reader
+ExecStart=/usr/bin/node /opt/skycars-group-reader/current/server.js
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/skycars-group-reader
+StateDirectory=skycars-group-reader
+StateDirectoryMode=0700
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

@@ -16,7 +16,7 @@ if(!sup.includes('publishItem')||!sup.includes('supplierPrice+markup')) fail('Su
 if(!fs.existsSync('src/lib/media-store.ts')||!fs.existsSync('src/app/media/[name]/route.ts')) fail('Database photo storage missing');
 if(/Mozilla/.test(sup)) fail('Supplier sync must not impersonate a browser');
 const api=fs.readFileSync('src/app/api/vehicles/route.ts','utf8');
-if(!api.includes('PRIVATE_FIELDS')) fail('Public vehicle API does not strip private fields');
+if(!api.includes('PUBLIC_FIELDS')) fail('Public vehicle API does not whitelist customer-safe fields');
 for(const f of ['src/app/robots.ts','src/app/sitemap.ts','src/app/not-found.tsx','src/app/error.tsx','src/lib/ratelimit.ts','src/components/VehicleGallery.tsx']) if(!fs.existsSync(f)) fail('Missing '+f);
 if(!/X-Frame-Options/.test(fs.readFileSync('next.config.mjs','utf8'))) fail('Security headers missing');
 if(!/rateLimit\(/.test(fs.readFileSync('src/app/api/admin/login/route.ts','utf8'))) fail('Login rate limit missing');
@@ -57,6 +57,6 @@ console.log('V27 CHECK OK: Automation Center, Group Reader, Campaigns, owner-onl
 
 for(const f of ['src/components/MarketplaceTools.tsx','src/components/ShippingEstimator.tsx','src/app/compare/page.tsx','data/shipping_reference.json','V29_READ_THIS_FIRST.txt']) if(!fs.existsSync(f)) fail('V29 missing '+f);
 const rates=JSON.parse(fs.readFileSync('data/shipping_reference.json','utf8'));if(rates.length<90) fail('V29 shipping reference routes incomplete');
-if(!fs.readFileSync('src/app/layout.tsx','utf8').includes('My Sky Cars')) fail('V29 marketplace header/account missing');
+if(!fs.readFileSync('src/components/SiteNav.tsx','utf8').includes('My Sky Cars')) fail('V29 marketplace header/account missing');
 if(!fs.readFileSync('src/app/vehicles/[id]/page.tsx','utf8').includes('ShippingEstimator')) fail('V29 detail shipping estimator missing');
 console.log('V29 CHECK OK: marketplace tools, compare/saved/recent, shipping reference and detail estimate integration present.');

@@ -3,6 +3,8 @@ import {createHash} from 'crypto';
 import { db, one, rows } from './db';
 import { saveBlob } from './media-store';
 import { handleVehiclePublished } from './automation';
+import { facebookConfigured } from './facebook';
+import { publishVehicleToFacebook } from './social';
 import { loggedMediaFor, markMessages } from './group-log';
 import { isAckOnly, isQuestion, looksLikeListing } from './intent';
 
@@ -175,7 +177,7 @@ export async function listGroupImports(){
     FROM inventory_import_items i LEFT JOIN vehicles v ON v.id=i.vehicle_id WHERE i.source='whatsapp_group' ORDER BY i.id DESC LIMIT 200`);
 }
 
-export type ReviewEdits={ai_enabled?:boolean;category?:string;brand?:string;model?:string;trim_name?:string;model_year?:any;price_usd?:any;mileage_km?:any;fuel_type?:string;transmission?:string;steering?:string;color?:string;description?:string};
+export type ReviewEdits={ai_enabled?:boolean;category?:string;brand?:string;model?:string;trim_name?:string;model_year?:any;price_usd?:any;mileage_km?:any;engine?:string;fuel_type?:string;transmission?:string;steering?:string;color?:string;description?:string};
 
 export async function reviewGroupImport(id:number,action:'approve'|'reject',edits:ReviewEdits={}){
   await ensureGroupImportSchema();
@@ -226,6 +228,16 @@ export async function reviewGroupImport(id:number,action:'approve'|'reject',edit
   }
   // "Let the AI sell this car" (default ON).
   try{const {ensureAiCatalog}=await import('./ai-catalog');await ensureAiCatalog();await db().execute('UPDATE vehicles SET ai_enabled=? WHERE id=?',[edits.ai_enabled===false?0:1,vehicleId])}catch(e){console.error('GROUP_AI_ENABLED',e)}
-  let automation:any=null;try{automation=await handleVehiclePublished(vehicleId,'group')}catch(e){console.error('GROUP_AUTOMATION',e)}
+  let automation:any=null;
+  try{
+    // Approval is the publication gate. Approved group vehicles are posted once to the configured
+    // Facebook Page (the social publish lock prevents duplicates), while campaign automation remains separate.
+    const facebook=facebookConfigured()
+      ? await publishVehicleToFacebook(vehicleId,{manual:false})
+      : {ok:false,skipped:'Facebook Page is not configured'};
+    automation={facebook};
+    const campaign=await handleVehiclePublished(vehicleId,'group');
+    automation.campaign=campaign;
+  }catch(e){console.error('GROUP_AUTOMATION',e)}
   return {ok:true,status:'approved',vehicleId,automation};
 }
