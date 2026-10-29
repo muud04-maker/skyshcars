@@ -121,6 +121,16 @@ test('private-group discovery uses Bot API updates and restores the webhook', ()
   assert.match(automation, /telegram_source_pin/);
 });
 
+test('live diagnostic is fixed-input, rate-limited and pauses publication', () => {
+  const route = read('src/app/api/integrations/telegram/diagnostic/route.ts');
+  const automation = read('src/lib/telegram-automation.ts');
+  assert.match(route, /runTelegramDiagnosticPing/);
+  assert.doesNotMatch(route, /POST\(req/);
+  assert.match(automation, /auto_publish: false/);
+  assert.match(automation, /No vehicle information/);
+  assert.match(automation, /telegram_diagnostic_lock/);
+});
+
 test('Telegram storage is idempotent and reuses V35 inventory and publication modules', () => {
   const automation = read('src/lib/telegram-automation.ts');
   const importer = read('src/lib/group-import.ts');

@@ -129,6 +129,10 @@ export function ensureTelegramSchema() {
       id TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,last_attempt_at DATETIME NULL,
       result VARCHAR(80) NULL,details JSON NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db().execute(`CREATE TABLE IF NOT EXISTS telegram_diagnostic_lock(
+      id TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,last_attempt_at DATETIME NULL,
+      result VARCHAR(80) NULL,details JSON NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   })().catch((error) => { schemaReady = null; throw error; });
   return schemaReady;
 }
@@ -836,6 +840,73 @@ export async function discoverTelegramSourceGroup() {
     webhook_restored: !restoreError,
     restore_error: restoreError,
     probe_ok: probe?.ok === true,
+  };
+}
+
+/** Fixed harmless end-to-end webhook check. It accepts no target, text or credentials from callers. */
+export async function runTelegramDiagnosticPing() {
+  await ensureTelegramSchema();
+  const pinned: any = await one<any>('SELECT * FROM telegram_source_pin WHERE id=1');
+  if (!pinned?.chat_id) throw new Error('No verified Telegram source group is pinned');
+  const lock = await db().getConnection();
+  let claimed = false;
+  try {
+    await lock.beginTransaction();
+    await lock.execute('INSERT IGNORE INTO telegram_diagnostic_lock(id,last_attempt_at) VALUES(1,NULL)');
+    const [locked]: any = await lock.execute('SELECT last_attempt_at FROM telegram_diagnostic_lock WHERE id=1 FOR UPDATE');
+    const last = locked?.[0]?.last_attempt_at ? new Date(locked[0].last_attempt_at).getTime() : 0;
+    if (!last || Date.now() - last >= 10 * 60 * 1000) {
+      await lock.execute("UPDATE telegram_diagnostic_lock SET last_attempt_at=NOW(),result='running',details=NULL WHERE id=1");
+      claimed = true;
+    }
+    await lock.commit();
+  } catch (error) {
+    await lock.rollback().catch(() => {});
+    throw error;
+  } finally {
+    lock.release();
+  }
+  if (!claimed) return { ok: false, state: 'rate_limited', retry_after_seconds: 600 };
+
+  const settings = await saveTelegramSettings({
+    auto_publish: false,
+    auto_approve_new: false,
+    auto_facebook: false,
+    auto_whatsapp_group: false,
+  });
+  const marker = Date.now().toString(36).toUpperCase();
+  const sent = await telegramApi('sendMessage', {
+    chat_id: String(pinned.chat_id),
+    text: `Sky Cars connection diagnostic ${marker}. No vehicle information. Ignore this message.`,
+    disable_notification: true,
+  });
+  let delivered: any = null;
+  for (let attempt = 0; attempt < 15 && !delivered; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    delivered = await one<any>('SELECT update_id,processing_state,message_kind,received_at FROM telegram_source_messages WHERE chat_id=? AND message_id=? LIMIT 1',
+      [String(pinned.chat_id), sent.message_id]).catch(() => null);
+  }
+  if (delivered) {
+    await processTelegramQueue(2).catch(() => []);
+    delivered = await one<any>('SELECT update_id,processing_state,message_kind,received_at FROM telegram_source_messages WHERE chat_id=? AND message_id=? LIMIT 1',
+      [String(pinned.chat_id), sent.message_id]).catch(() => delivered);
+  }
+  await db().execute(`UPDATE telegram_diagnostic_lock SET result=?,details=? WHERE id=1`, [
+    delivered ? 'delivered' : 'not_delivered',
+    JSON.stringify({ message_id: sent.message_id, update_id: delivered?.update_id || null }),
+  ]).catch(() => {});
+  await telegramEvent('diagnostic_ping', delivered ? 'ok' : 'failed', {
+    message_id: sent.message_id, delivered: !!delivered, auto_publish: settings.auto_publish,
+  });
+  return {
+    ok: !!delivered,
+    state: delivered ? 'delivered' : 'not_delivered',
+    group_id: String(pinned.chat_id),
+    message_id: sent.message_id,
+    update_id: delivered?.update_id || null,
+    processing_state: delivered?.processing_state || null,
+    auto_publish: settings.auto_publish,
+    no_vehicle_publication: true,
   };
 }
 
