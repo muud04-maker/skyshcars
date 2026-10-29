@@ -1,6 +1,8 @@
 import { createHash } from 'crypto';
 import { db, one, rows } from './db';
 import { attachImportOriginalPhotos, ensureGroupImportSchema } from './group-import';
+import { candidateVehicles, recordMatchCandidates, upsertIdentityMemory } from './inventory-memory';
+import { decideVehicleIdentity, duplicateRiskForDecision } from './inventory-identity-rules';
 import { extractSupplierVehicles, type SupplierVehicleDraft } from './vehicle-extraction';
 
 const REPAIR_VERSION = 'v38-source-association-1';
@@ -204,6 +206,53 @@ async function linkSources(chatId: string, messages: SourceMessage[], itemId: nu
   [itemId, vehicleId, chatId, ...ids]);
 }
 
+async function refreshRepairMatches(canonicalIds: number[], chatId: string) {
+  const repaired = await rows<any>(`SELECT i.id import_id,i.vehicle_id,i.evidence_json,i.proposed_vehicle,
+    v.category,v.brand,v.model,v.trim_name,v.model_year,v.mileage_km,v.engine,v.transmission,
+    v.fuel_type,v.color,v.vin,v.supplier_reference
+    FROM inventory_import_items i JOIN vehicles v ON v.id=i.vehicle_id
+    WHERE i.source='telegram' AND i.review_status='pending'
+      AND i.id IN (${canonicalIds.map(() => '?').join(',')})`, canonicalIds);
+  const results: any[] = [];
+  for (const row of repaired) {
+    const vehicleId = Number(row.vehicle_id);
+    const spec = {
+      category: row.category, brand: row.brand, model: row.model, trim_name: row.trim_name,
+      model_year: row.model_year, mileage_km: row.mileage_km, engine: row.engine,
+      transmission: row.transmission, fuel_type: row.fuel_type, color: row.color,
+      vin: row.vin, supplier_reference: row.supplier_reference,
+    };
+    const candidates = (await candidateVehicles(spec, [])).filter((candidate) => Number(candidate.id) !== vehicleId);
+    const decision = decideVehicleIdentity(spec, candidates);
+    const available = decision.candidates.find((candidate) =>
+      candidates.some((source) => Number(source.id) === Number(candidate.vehicle_id) && (source as any).status === 'available')
+    );
+    if (available) {
+      decision.kind = 'possible';
+      decision.selected_vehicle_id = Number(available.vehicle_id);
+      decision.reasons = ['existing Available inventory has matching verified specifications', ...available.reasons];
+    }
+    const risk = duplicateRiskForDecision(decision);
+    const evidence = parse(row.evidence_json);
+    await db().execute(`UPDATE inventory_import_items SET matched_vehicle_id=?,match_status=?,match_type=?,
+      match_confidence=?,duplicate_risk=?,evidence_json=?,last_observed_at=NOW() WHERE id=?`, [
+      decision.selected_vehicle_id, decision.kind, decision.reasons[0] || 'V38 source repair identity check',
+      decision.confidence, risk,
+      JSON.stringify({ ...evidence, match: { reasons: decision.reasons, candidates: decision.candidates } }),
+      Number(row.import_id),
+    ]);
+    await recordMatchCandidates(Number(row.import_id), decision);
+    await upsertIdentityMemory(vehicleId, chatId, {
+      ...parse(row.proposed_vehicle), ...spec, status: 'pending_verification',
+    });
+    results.push({
+      import_id: Number(row.import_id), vehicle_id: vehicleId, match_status: decision.kind,
+      matched_vehicle_id: decision.selected_vehicle_id, duplicate_risk: risk,
+    });
+  }
+  return results;
+}
+
 /**
  * One-time, bounded repair for the historical mixed Telegram albums. It reuses the existing
  * pending vehicle rows, moves only verified original media, and never approves or publishes.
@@ -292,7 +341,11 @@ export async function repairTelegramSourceAssociations() {
   const motoMedia = mediaFor(Number(motoItem.id));
   if (focusMedia.length !== 5 || vwMedia.length !== 13 || motoMedia.length !== 6 || mondeoMedia.length !== 0) {
     if (motoMedia.length === 6 && vwMedia.length === 7) {
-      return { ok: true, already_repaired: true, private_content_included: false };
+      return {
+        ok: true, already_repaired: true,
+        matches: await refreshRepairMatches(canonicalIds, chatId),
+        private_content_included: false,
+      };
     }
     throw new Error('Stored Telegram media layout differs from the verified repair plan');
   }
@@ -412,6 +465,7 @@ export async function repairTelegramSourceAssociations() {
       WHERE vehicle_id=? AND source IN ('import','whatsapp_group')`, [canonical.vehicleId]);
     await attachImportOriginalPhotos(Number(canonical.item.id), canonical.vehicleId);
   }
+  const matches = await refreshRepairMatches(canonicalIds, chatId);
 
   await db().execute(`INSERT INTO audit_logs(actor,action,entity_type,entity_id,details)
     VALUES('v38-repair','telegram_source_association_repair','inventory_import',?,?)`, [
@@ -439,6 +493,7 @@ export async function repairTelegramSourceAssociations() {
     })),
     superseded_import_ids: superseded,
     superseded_vehicle_ids: pendingSuperseded,
+    matches,
     published: false,
     private_content_included: false,
   };

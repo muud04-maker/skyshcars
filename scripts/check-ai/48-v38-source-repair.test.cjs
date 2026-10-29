@@ -28,6 +28,8 @@ test('source repair is in-place, additive and never publishes or deletes evidenc
   assert.match(source, /attachImportOriginalPhotos/);
   assert.match(source, /private_content_included: false/);
   assert.doesNotMatch(source, /associations:\s*\{/);
+  assert.match(source, /candidateVehicles\(spec, \[\]\)/);
+  assert.match(source, /existing Available inventory has matching verified specifications/);
 });
 
 test('source repair requires automation off and historical repairs stay in review', () => {
