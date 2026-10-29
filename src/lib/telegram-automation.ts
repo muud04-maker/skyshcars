@@ -119,6 +119,16 @@ export function ensureTelegramSchema() {
       checked_at DATETIME NULL,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db().execute(`CREATE TABLE IF NOT EXISTS telegram_source_pin(
+      id TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,
+      bot_id BIGINT NOT NULL,chat_id BIGINT NOT NULL,chat_title VARCHAR(191) NULL,chat_username VARCHAR(191) NULL,
+      bot_member_status VARCHAR(40) NULL,pinned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      evidence JSON NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db().execute(`CREATE TABLE IF NOT EXISTS telegram_discovery_lock(
+      id TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,last_attempt_at DATETIME NULL,
+      result VARCHAR(80) NULL,details JSON NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   })().catch((error) => { schemaReady = null; throw error; });
   return schemaReady;
 }
@@ -204,7 +214,11 @@ export async function receiveTelegramUpdate(body: any) {
   }
   const message = parsed.message;
   const chat = message?.chat;
-  if (!telegramChatAllowed(chat)) throw Object.assign(new Error('Telegram source chat is not authorized'), { statusCode: 403 });
+  const pinned: any = await one<any>('SELECT chat_id,chat_username FROM telegram_source_pin WHERE id=1').catch(() => null);
+  const allowed = pinned
+    ? String(chat.id) === String(pinned.chat_id) || (!!chat.username && [String(pinned.chat_username || ''), `@${pinned.chat_username || ''}`].includes(String(chat.username)))
+    : telegramChatAllowed(chat);
+  if (!allowed) throw Object.assign(new Error('Telegram source chat is not authorized'), { statusCode: 403 });
 
   const chatId = Number(chat.id);
   const messageId = Number(message.message_id);
@@ -509,6 +523,7 @@ export async function retryTelegramFailures() {
 export async function telegramConnectionProbe() {
   await ensureTelegramSchema();
   const config = telegramConfigSummary();
+  const pinned: any = await one<any>('SELECT * FROM telegram_source_pin WHERE id=1').catch(() => null);
   if (!config.configured) {
     const missing = [
       !config.bot_token_present && 'TELEGRAM_BOT_TOKEN',
@@ -526,7 +541,7 @@ export async function telegramConnectionProbe() {
     let meError: string | null = null, webhookError: string | null = null, chatError: string | null = null;
     try { me = await telegramApi('getMe'); } catch (error: any) { meError = safeTelegramError(error); }
     try { webhook = await telegramApi('getWebhookInfo'); } catch (error: any) { webhookError = safeTelegramError(error); }
-    const apiChatId = telegramChatApiId();
+    const apiChatId = pinned?.chat_id != null ? String(pinned.chat_id) : telegramChatApiId();
     try { chat = await telegramApi('getChat', { chat_id: apiChatId }); } catch (error: any) { chatError = safeTelegramError(error); }
     let member: any = null;
     let memberError: string | null = null;
@@ -545,11 +560,13 @@ export async function telegramConnectionProbe() {
       group: { id: String(chat?.id || ''), title: chat?.title || chat?.username || null, username: chat?.username || null, type: chat?.type || null },
       bot_is_admin: botIsAdmin,
       bot_member_status: member?.status || null,
-      source_chat_format: /^-\d+$/.test(configuredSource) ? 'negative_numeric_group_id'
+      source_chat_format: pinned?.chat_id != null ? 'pinned_numeric_group_id'
+        : /^-\d+$/.test(configuredSource) ? 'negative_numeric_group_id'
         : /^@\w+$/.test(configuredSource) ? 'at_username'
         : /^\w+$/.test(configuredSource) ? 'username_without_at'
         : configuredSource ? 'unrecognized_format' : 'missing',
       errors: { bot: meError, webhook: webhookError, group: chatError, group_member: memberError },
+      source_pinned: pinned?.chat_id != null,
       webhook: {
         url: webhook?.url || null,
         expected_url: expectedUrl,
@@ -639,7 +656,7 @@ export async function bootstrapTelegramWebhook() {
       state: probe?.ok ? 'registered' : 'attention_required',
       webhook_registered: probe?.webhook?.matches === true,
       bot_is_admin: probe?.bot_is_admin === true,
-      group_identified: telegramChatAllowed(probe?.group),
+      group_identified: probe?.source_pinned || telegramChatAllowed(probe?.group),
       bot_username: probe?.bot?.username || null,
       group_title: probe?.group?.title || null,
       group_type: probe?.group?.type || null,
@@ -650,6 +667,117 @@ export async function bootstrapTelegramWebhook() {
   } catch (error: any) {
     return { ok: false, state: 'registration_failed', error: safeTelegramError(error) };
   }
+}
+
+/**
+ * Discover the Telegram group from trusted Bot API updates when the configured source is a private
+ * group title rather than a numeric ID/username. The webhook is restored before returning.
+ */
+export async function discoverTelegramSourceGroup() {
+  await ensureTelegramSchema();
+  const config = telegramConfigSummary();
+  if (!config.configured) return { ok: false, state: 'configuration_required' };
+  const lock = await db().getConnection();
+  let claimed = false;
+  try {
+    await lock.beginTransaction();
+    await lock.execute(`INSERT IGNORE INTO telegram_discovery_lock(id,last_attempt_at) VALUES(1,NULL)`);
+    const [locked]: any = await lock.execute('SELECT last_attempt_at FROM telegram_discovery_lock WHERE id=1 FOR UPDATE');
+    const last = locked?.[0]?.last_attempt_at ? new Date(locked[0].last_attempt_at).getTime() : 0;
+    if (!last || Date.now() - last >= 60000) {
+      await lock.execute('UPDATE telegram_discovery_lock SET last_attempt_at=NOW(),result=NULL,details=NULL WHERE id=1');
+      claimed = true;
+    }
+    await lock.commit();
+  } catch (error) {
+    await lock.rollback().catch(() => {});
+    throw error;
+  } finally {
+    lock.release();
+  }
+  if (!claimed) return { ok: true, state: 'recently_checked' };
+
+  const url = String(process.env.TELEGRAM_WEBHOOK_URL || `${String(process.env.NEXT_PUBLIC_SITE_URL || 'https://skyshcars.com').replace(/\/$/, '')}/api/integrations/telegram/webhook`);
+  let updates: any[] = [];
+  let restoreError: string | null = null;
+  try {
+    await telegramApi('deleteWebhook', { drop_pending_updates: false });
+    const pending = await telegramApi('getUpdates', {
+      limit: 100, timeout: 0,
+      allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'my_chat_member', 'chat_member'],
+    });
+    updates = Array.isArray(pending) ? pending.slice(-100) : [];
+  } finally {
+    try {
+      await telegramApi('setWebhook', {
+        url, secret_token: telegramSecret(),
+        allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post'],
+        drop_pending_updates: false, max_connections: 20,
+      });
+    } catch (error: any) {
+      restoreError = safeTelegramError(error);
+    }
+  }
+
+  const candidates = new Map<string, any>();
+  for (const update of updates) {
+    for (const key of ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'my_chat_member', 'chat_member']) {
+      const chat = update?.[key]?.chat;
+      if (!chat || !['group', 'supergroup', 'channel'].includes(String(chat.type || ''))) continue;
+      const id = String(chat.id);
+      if (!candidates.has(id)) candidates.set(id, {
+        id, title: chat.title || null, username: chat.username || null, type: chat.type || null,
+        bot_member_status: null,
+      });
+    }
+  }
+  const me = await telegramApi('getMe');
+  for (const candidate of candidates.values()) {
+    try {
+      const member = await telegramApi('getChatMember', { chat_id: candidate.id, user_id: me.id });
+      candidate.bot_member_status = member?.status || null;
+    } catch {}
+  }
+  const adminGroups = [...candidates.values()].filter((group) => ['administrator', 'creator'].includes(String(group.bot_member_status)));
+  const configured = telegramSourceChatId().replace(/^@/, '').toLowerCase();
+  const namedMatches = adminGroups.filter((group) =>
+    String(group.title || '').toLowerCase() === configured ||
+    String(group.username || '').toLowerCase() === configured,
+  );
+  const selected = namedMatches.length === 1 ? namedMatches[0] : adminGroups.length === 1 ? adminGroups[0] : null;
+  if (selected) {
+    await db().execute(`INSERT INTO telegram_source_pin(
+      id,bot_id,chat_id,chat_title,chat_username,bot_member_status,pinned_at,evidence
+    ) VALUES(1,?,?,?,?,?,NOW(),?)
+    ON DUPLICATE KEY UPDATE bot_id=VALUES(bot_id),chat_id=VALUES(chat_id),chat_title=VALUES(chat_title),
+      chat_username=VALUES(chat_username),bot_member_status=VALUES(bot_member_status),pinned_at=NOW(),evidence=VALUES(evidence)`, [
+      me.id, selected.id, selected.title, selected.username, selected.bot_member_status,
+      JSON.stringify({ discovered_from: 'getUpdates', candidate_count: candidates.size, admin_group_count: adminGroups.length }),
+    ]);
+  }
+  const details = {
+    candidates: [...candidates.values()],
+    admin_groups: adminGroups.length,
+    named_matches: namedMatches.length,
+    pinned: !!selected,
+    restore_error: restoreError,
+  };
+  await db().execute(`UPDATE telegram_discovery_lock SET result=?,details=? WHERE id=1`,
+    [selected ? 'pinned' : candidates.size ? 'selection_required' : 'no_updates', JSON.stringify(details)]).catch(() => {});
+  if (selected) await telegramEvent('source_group_pinned', 'ok', details);
+  const probe: any = selected ? await telegramConnectionProbe() : null;
+  return {
+    ok: !!selected && probe?.ok === true,
+    state: selected ? 'pinned' : candidates.size ? 'selection_required' : 'no_group_updates',
+    candidates: [...candidates.values()].map((group) => ({
+      id: group.id, title: group.title, username: group.username, type: group.type, bot_member_status: group.bot_member_status,
+    })),
+    pinned_group: selected ? { id: selected.id, title: selected.title, username: selected.username } : null,
+    bot_username: me?.username || null,
+    webhook_restored: !restoreError,
+    restore_error: restoreError,
+    probe_ok: probe?.ok === true,
+  };
 }
 
 export async function testTelegramSampleVehicle(vehicleId: number) {
@@ -665,7 +793,7 @@ export async function testTelegramSampleVehicle(vehicleId: number) {
   const facebook: any = facebookResult;
   const checks = {
     telegram_configured: connection.configured,
-    source_group_identified: telegramChatAllowed(connection.group),
+    source_group_identified: connection.source_pinned || telegramChatAllowed(connection.group),
     bot_is_admin: connection.bot_is_admin === true,
     webhook_matches: connection.webhook?.matches === true,
     vehicle_available: vehicle.status === 'available',
