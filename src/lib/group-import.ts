@@ -746,3 +746,69 @@ export async function repairApprovedTelegramImports() {
   }
   return { ok: results.every((row) => row.repaired), repaired: results, private_content_included: false };
 }
+
+/**
+ * Explicit Admin-only override for an already-approved high-risk import. Sell Now is always
+ * required; Facebook publication is an additional opt-in and uses the existing durable lock.
+ */
+export async function overridePublishGroupImport(
+  id: number,
+  options: { publishFacebook?: boolean; reviewer?: string; confirmDuplicate?: boolean } = {},
+) {
+  await ensureGroupImportSchema();
+  if (!options.confirmDuplicate) throw new Error('Duplicate override confirmation is required.');
+  const item: any = await one<any>(`SELECT * FROM inventory_import_items
+    WHERE id=? AND source IN ('whatsapp_group','telegram') LIMIT 1`, [id]);
+  if (!item) throw new Error('Import item not found');
+  const vehicleId = Number(item.approved_vehicle_id || item.matched_vehicle_id || item.vehicle_id);
+  if (!vehicleId) throw new Error('No vehicle is linked to this import.');
+  const vehicle: any = await one<any>('SELECT * FROM vehicles WHERE id=? LIMIT 1', [vehicleId]);
+  if (!vehicle) throw new Error('The linked vehicle was not found.');
+  const proposed = parse(item.proposed_vehicle);
+  const suppliedPrice = normalizePrice(proposed.price_usd ?? proposed.price_value, proposed.price_currency);
+  const sourcePrice = suppliedPrice.currency === 'USD' ? suppliedPrice.value : null;
+  const finalPrice = Number(vehicle.price_usd) > 0 ? Number(vehicle.price_usd) : sourcePrice;
+  const fields = pendingVehicleFields(proposed);
+  const existingSpecs = typeof vehicle.specs === 'object' && vehicle.specs ? vehicle.specs : parse(vehicle.specs);
+  const incomingSpecs = proposed.specs && typeof proposed.specs === 'object' ? proposed.specs : parse(fields.specs);
+  const brand = String(vehicle.brand || '').trim() || fields.brand;
+  const model = String(vehicle.model || '').trim() || fields.model;
+  const modelYear = Number(vehicle.model_year) || Number(fields.model_year);
+  if (!brand || !model || !modelYear) throw new Error('Make, model and year must be verified before publication.');
+  if (!(Number(finalPrice) > 0)) throw new Error('A verified USD price is required before publication.');
+
+  await db().execute(`UPDATE vehicles SET brand=?,model=?,model_year=?,price_usd=?,specs=?,status='available',
+    published_at=COALESCE(published_at,NOW()) WHERE id=?`,
+  [brand, model, modelYear, finalPrice, JSON.stringify({ ...existingSpecs, ...incomingSpecs }), vehicleId]);
+  const photos = await attachImportOriginalPhotos(id, vehicleId);
+  const exact: any = await one<any>(`SELECT COUNT(*) n FROM vehicle_media m WHERE m.vehicle_id=? AND ${exactPhotoSql('m')}`, [vehicleId]);
+  if (Number(exact?.n || 0) < 1) {
+    await db().execute("UPDATE vehicles SET status=? WHERE id=?", [vehicle.status, vehicleId]);
+    throw new Error('An original vehicle photo is required before publication.');
+  }
+  try {
+    const { ensureAiCatalog } = await import('./ai-catalog');
+    await ensureAiCatalog();
+    await db().execute('UPDATE vehicles SET ai_enabled=1 WHERE id=?', [vehicleId]);
+  } catch {}
+  const reviewer = String(options.reviewer || 'admin');
+  await db().execute(`UPDATE inventory_import_items SET review_status='approved',approved_vehicle_id=?,
+    approval_method='manual_duplicate_override',approved_by=?,reviewed_at=NOW(),last_observed_at=NOW() WHERE id=?`,
+  [vehicleId, reviewer, id]);
+  const facebook = options.publishFacebook === true
+    ? (facebookConfigured()
+      ? await publishVehicleToFacebook(vehicleId, { manual: true })
+      : { ok: false, skipped: 'Facebook Page is not configured' })
+    : { ok: false, skipped: 'Facebook publication was not selected' };
+  await db().execute(`INSERT INTO audit_logs(actor,action,entity_type,entity_id,details)
+    VALUES(?,'duplicate_override_publish','inventory_import',?,?)`,
+  [reviewer, String(id), JSON.stringify({
+    vehicle_id: vehicleId, previous_status: vehicle.status, duplicate_risk: Number(item.duplicate_risk),
+    sell_now: true, facebook_requested: options.publishFacebook === true,
+    facebook_result: facebook, price_usd: finalPrice, photos: photos.found,
+  })]);
+  return {
+    ok: true, status: 'published', vehicleId,
+    sell_now: true, facebook, exact_photos: Number(exact?.n || 0),
+  };
+}

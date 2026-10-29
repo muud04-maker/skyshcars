@@ -95,6 +95,8 @@ test('duplicate overrides are explicit, audited and blocked at 80% without the o
   assert.match(source, /duplicateRisk>=0\.8&&!options\.duplicateOverride/);
   assert.match(source, /duplicate_override_publish/);
   assert.match(source, /duplicate_override_merge/);
+  assert.match(source, /overridePublishGroupImport/);
+  assert.match(source, /manual_duplicate_override/);
   assert.match(ui, /Publish duplicate/);
   assert.match(ui, /Publish → Sell Now \+ Facebook/);
 });

@@ -102,6 +102,23 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
       await review(canApproveNew ? 'approve' : 'merge', { sellNow: true, publishFacebook: facebook });
     }
   }
+  async function publishApprovedOverride(facebook: boolean) {
+    if (!confirm(facebook
+      ? 'Publish this existing duplicate to Sell Now and Facebook? This will be audited.'
+      : 'Publish this existing duplicate to Sell Now? This will be audited.')) return;
+    setBusy(true); setErr('');
+    const r = await fetch('/api/admin/imports/group', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: it.id, action: 'override_publish',
+        options: { confirmDuplicate: true, publishFacebook: facebook },
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) { setErr(j.error || 'Publication override failed'); return; }
+    onDone();
+  }
 
   const field = (k: string, label: string, type = 'text') =>
     <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>{label}<input type={type} value={f[k]} onChange={set(k)} /></label>;
@@ -153,6 +170,10 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
       <button className="btn dark" disabled={busy} onClick={() => review('merge')}>Confirm same vehicle / merge</button>
       {proposals.some((proposal: any) => proposal.status === 'pending') && <button className="btn" disabled={busy} onClick={() => review('apply_changes')}>Apply proposed updates</button>}
       <button className="btn dark" disabled={busy} onClick={() => review('reject')}>Reject</button>
+    </div>}
+    {!unresolved && it.review_status === 'approved' && it.approved_vehicle_id && highRisk && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <button className="btn" disabled={busy} onClick={() => publishApprovedOverride(false)}>Publish duplicate → Sell Now</button>
+      <button className="btn dark" disabled={busy} onClick={() => publishApprovedOverride(true)}>Publish duplicate → Sell Now + Facebook</button>
     </div>}
   </div>;
 }
