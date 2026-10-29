@@ -1,5 +1,6 @@
 import {db, one, rows} from './db';
 import {publishVehicleToFacebook, publishVehicleToActiveWhatsAppChats} from './social';
+import {deliverNewVehicleToWhatsApp} from './whatsapp-delivery';
 
 export type AutomationSettings={
   enabled:boolean;
@@ -114,13 +115,16 @@ export async function dispatchCampaign(id:number){
 }
 
 export async function handleVehiclePublished(vehicleId:number,source:'manual'|'group'|'supplier'='manual'){
-  const s=await getAutomationSettings();if(!s.enabled)return {ok:true,skipped:'Automation disabled'};
+  const whatsappDelivery=await deliverNewVehicleToWhatsApp(vehicleId).catch((error:any)=>({
+    ok:false,state:'failed',error:String(error?.message||error).slice(0,500)
+  }));
+  const s=await getAutomationSettings();if(!s.enabled)return {ok:true,skipped:'Automation disabled',whatsapp_delivery:whatsappDelivery};
   const allow=source==='group'?s.auto_on_group_approval:source==='supplier'?s.auto_on_supplier_publish:s.auto_on_manual_publish;
-  if(!allow)return {ok:true,skipped:`Automation disabled for ${source}`};
+  if(!allow)return {ok:true,skipped:`Automation disabled for ${source}`,whatsapp_delivery:whatsappDelivery};
   const q:any=await queueVehicleCampaign(vehicleId,source==='group'?'group_approved':source==='supplier'?'supplier_published':'new_vehicle');
-  if(!q?.campaignId)return q;
-  if(s.require_approval)return {...q,queued:true};
-  return dispatchCampaign(Number(q.campaignId));
+  if(!q?.campaignId)return {...q,whatsapp_delivery:whatsappDelivery};
+  if(s.require_approval)return {...q,queued:true,whatsapp_delivery:whatsappDelivery};
+  return {...await dispatchCampaign(Number(q.campaignId)),whatsapp_delivery:whatsappDelivery};
 }
 
 export async function updateCampaign(id:number,p:any){
