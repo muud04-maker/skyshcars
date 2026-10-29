@@ -1300,7 +1300,7 @@ export async function telegramV38Diagnostic() {
       v.supplier_currency,v.status vehicle_status,v.ai_enabled,v.source_description
       FROM inventory_import_items i LEFT JOIN vehicles v ON v.id=COALESCE(i.approved_vehicle_id,i.matched_vehicle_id,i.vehicle_id)
       WHERE i.source='telegram' ORDER BY i.id DESC LIMIT 100`),
-    rows<any>(`SELECT id,import_item_id,message_id,media_group_id,reply_to_message_id,last_update_id,edit_date,from_id,sender_name,
+    rows<any>(`SELECT id,import_item_id,message_id,media_group_id,reply_to_message_id,last_update_id,edit_date,from_id,sender_name,text,caption,
       message_kind,LENGTH(COALESCE(text,'')) text_length,LENGTH(COALESCE(caption,'')) caption_length,file_unique_id,
       processing_state,error,received_at FROM telegram_source_messages ORDER BY message_id`),
     rows<any>(`SELECT m.id,m.import_item_id,m.url,m.mime_type,m.blob_name,m.telegram_message_id,

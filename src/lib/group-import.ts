@@ -309,6 +309,7 @@ export async function createGroupImport(payload:any){
   }
   let recent:any=null;
   let association:any={allowed:false,status:'ambiguous',reason:'no trustworthy related source message found'};
+  const adjacencyCandidates:any[]=[];
   for(const row of candidateRows){
     const previous=parse(row.raw_payload);
     const previousText=String(previous.text||'').trim();
@@ -321,7 +322,7 @@ export async function createGroupImport(payload:any){
     const previousTime=new Date(String(previous.receivedAt||row.created_at||'').replace(' ','T')).getTime();
     const currentTime=new Date(String(payload.receivedAt||new Date().toISOString()).replace(' ','T')).getTime();
     const secondsApart=Number.isFinite(previousTime)&&Number.isFinite(currentTime)?Math.max(0,(currentTime-previousTime)/1000):null;
-    const decision=decideTelegramAssociation({
+    const associationInput={
       explicitReply:Number(row.id)===replyTargetId,
       sameMediaGroup:!!payload.telegram?.mediaGroupId&&String(payload.telegram.mediaGroupId)===String(previous.mediaGroupId||''),
       previousHasText:!!previousText,
@@ -334,9 +335,23 @@ export async function createGroupImport(payload:any){
       currentMediaKind,
       messageDistance:minimumMessageDistance(msgIds,previousMessages),
       secondsApart,
-    });
+    };
+    const decision=decideTelegramAssociation(associationInput);
     if(decision.allowed){recent=row;association=decision;break}
+    const oppositeShape=(associationInput.previousHasMedia&&associationInput.currentHasText&&!associationInput.previousHasText&&!associationInput.currentHasMedia)
+      ||(associationInput.previousHasText&&associationInput.currentHasMedia&&!associationInput.previousHasMedia&&!associationInput.currentHasText);
+    const closeEnough=associationInput.messageDistance!==null&&associationInput.messageDistance<=2
+      &&associationInput.secondsApart!==null&&associationInput.secondsApart<=45;
+    const categoriesCompatible=previousTextKind==='unknown'||currentTextKind==='unknown'||previousTextKind===currentTextKind;
+    if(oppositeShape&&closeEnough&&categoriesCompatible)adjacencyCandidates.push({row,associationInput});
     if(!association.reason||association.status==='ambiguous')association=decision;
+  }
+  if(!recent&&adjacencyCandidates.length===1){
+    const unique=adjacencyCandidates[0];
+    const decision=decideTelegramAssociation({...unique.associationInput,uniqueAdjacentCandidate:true});
+    if(decision.allowed){recent=unique.row;association=decision}
+  }else if(!recent&&adjacencyCandidates.length>1){
+    association={allowed:false,status:'ambiguous',reason:'more than one adjacent text/photo candidate'};
   }
   if(recent){
     const prev=parse(recent.raw_payload),prevText=String(prev.text||'').trim();

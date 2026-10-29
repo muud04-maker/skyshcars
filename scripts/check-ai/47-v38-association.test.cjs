@@ -55,6 +55,31 @@ test('adjacent text/photo pairs associate only when category evidence matches', 
   assert.equal(unknown.status, 'ambiguous');
 });
 
+test('an uncaptioned album pairs with its sole adjacent description when no image model is available', () => {
+  const unique = association.decideTelegramAssociation({
+    ...base, previousMediaKind: 'unknown', uniqueAdjacentCandidate: true,
+  });
+  assert.equal(unique.allowed, true);
+  assert.equal(unique.status, 'semantic_adjacent');
+  assert.match(unique.reason, /unique adjacent/i);
+  assert.equal(association.decideTelegramAssociation({ ...base, previousMediaKind: 'unknown' }).allowed, false);
+});
+
+test('photo-first and description-first use the same strict unique-neighbour rule', () => {
+  const photoFirst = association.decideTelegramAssociation({ ...base, previousMediaKind: 'unknown', uniqueAdjacentCandidate: true });
+  const textFirst = association.decideTelegramAssociation({
+    ...base, previousHasText: true, previousHasMedia: false, currentHasText: false, currentHasMedia: true,
+    previousTextKind: 'car', currentTextKind: 'unknown', currentMediaKind: 'unknown', uniqueAdjacentCandidate: true,
+  });
+  assert.equal(photoFirst.allowed, true);
+  assert.equal(textFirst.allowed, true);
+  const competingPhoto = association.decideTelegramAssociation({
+    ...base, previousMediaKind: 'unknown', uniqueAdjacentCandidate: false,
+  });
+  assert.equal(competingPhoto.allowed, false);
+  assert.equal(competingPhoto.status, 'ambiguous');
+});
+
 test('time proximity alone or a wide gap never authorizes a merge', () => {
   const unknown = association.decideTelegramAssociation({ ...base, previousMediaKind: 'unknown', currentTextKind: 'unknown' });
   assert.equal(unknown.allowed, false);
@@ -144,6 +169,8 @@ test('V38 source association replaces the broad three-minute merge path', () => 
   assert.match(source, /source_message_key/);
   assert.match(source, /setGroupImportCover/);
   assert.match(source, /reextractGroupImport/);
+  assert.match(source, /adjacencyCandidates\.length===1/);
+  assert.match(source, /more than one adjacent text\/photo candidate/);
 });
 
 test('V38 sanitized production diagnostic extracts source metadata without returning supplier text', () => {

@@ -35,6 +35,7 @@ export type AssociationInput = {
   currentMediaKind: VehicleKind;
   messageDistance: number | null;
   secondsApart: number | null;
+  uniqueAdjacentCandidate?: boolean;
 };
 
 export type AssociationDecision = {
@@ -71,11 +72,14 @@ export function decideTelegramAssociation(input: AssociationInput): AssociationD
   }
   const textKind = input.currentHasText ? input.currentTextKind : input.previousTextKind;
   const mediaKind = input.currentHasMedia ? input.currentMediaKind : input.previousMediaKind;
-  if (textKind === 'unknown' || mediaKind === 'unknown') {
-    return { allowed: false, status: 'ambiguous', reason: 'vehicle-class evidence is missing for the text/photo pair' };
-  }
-  if (textKind !== mediaKind) {
+  if (textKind !== 'unknown' && mediaKind !== 'unknown' && textKind !== mediaKind) {
     return { allowed: false, status: 'unrelated', reason: `text is ${textKind} but photos appear to be ${mediaKind}` };
+  }
+  if (textKind === 'unknown' || mediaKind === 'unknown') {
+    if (input.uniqueAdjacentCandidate) {
+      return { allowed: true, status: 'semantic_adjacent', reason: 'unique adjacent text/photo pair in message order' };
+    }
+    return { allowed: false, status: 'ambiguous', reason: 'vehicle-class evidence is missing for the text/photo pair' };
   }
   return { allowed: true, status: 'semantic_adjacent', reason: `adjacent ${textKind} text and photo evidence match` };
 }
