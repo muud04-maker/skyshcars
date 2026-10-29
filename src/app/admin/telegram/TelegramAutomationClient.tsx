@@ -80,6 +80,11 @@ export default function TelegramAutomationClient() {
     setTest(result.json);
     setMessage(result.ok ? 'V37 diagnostic completed. It did not publish a vehicle.' : result.json.error || 'V37 diagnostic failed');
   }
+  async function runV38Diagnostic() {
+    const result = await post('v38_diagnostic');
+    setTest(result.json);
+    setMessage(result.ok ? 'V38 source diagnostic completed. No supplier text or vehicle was published.' : result.json.error || 'V38 diagnostic failed');
+  }
   async function runSample() {
     if (!sample) { setMessage('Choose an available sample vehicle.'); return; }
     const result = await post('test_sample', { vehicle_id: Number(sample) });
@@ -131,6 +136,7 @@ export default function TelegramAutomationClient() {
           <button className="miniBtn" disabled={busy === 'repair_imports'} onClick={repairImports}>Repair approved imports</button>
           <button className="miniBtn" disabled={busy === 'repair_source_associations'} onClick={repairSourceAssociations}>Repair mixed Telegram sources</button>
           <button className="miniBtn" disabled={busy === 'v37_diagnostic'} onClick={runDiagnostic}>Run V37 diagnostic</button>
+          <button className="miniBtn" disabled={busy === 'v38_diagnostic'} onClick={runV38Diagnostic}>Run V38 diagnostic</button>
         </div>
       </div>
 

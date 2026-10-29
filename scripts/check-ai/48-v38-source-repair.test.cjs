@@ -27,6 +27,7 @@ test('source repair is in-place, additive and never publishes or deletes evidenc
   assert.match(source, /price_usd=NULL/);
   assert.match(source, /attachImportOriginalPhotos/);
   assert.match(source, /private_content_included: false/);
+  assert.doesNotMatch(source, /associations:\s*\{/);
 });
 
 test('source repair requires automation off and historical repairs stay in review', () => {
@@ -37,12 +38,22 @@ test('source repair requires automation off and historical repairs stay in revie
   assert.match(automation, /Historical source-association repair requires manual approval/);
 });
 
+test('private supplier photos are unavailable while their vehicle is pending or hidden', () => {
+  const route = read('src/app/media/[name]/route.ts');
+  assert.match(route, /JOIN vehicles v ON v\.id=m\.vehicle_id/);
+  assert.match(route, /v\.status IN \('available','reserved','sold'\)/);
+  assert.doesNotMatch(route, /SELECT 1 FROM vehicle_media WHERE url=\? AND review_status='approved' LIMIT 1/);
+});
+
 test('the repair is exposed through the authenticated admin API', () => {
   const route = read('src/app/api/admin/telegram/route.ts');
   const ui = read('src/app/admin/telegram/TelegramAutomationClient.tsx');
   assert.match(route, /adminDenied/);
   assert.match(route, /repair_source_associations/);
   assert.match(route, /repairTelegramSourceAssociations/);
+  assert.match(route, /v38_diagnostic/);
+  assert.match(route, /telegramV38Diagnostic/);
   assert.match(ui, /Repair mixed Telegram sources/);
+  assert.match(ui, /Run V38 diagnostic/);
   assert.match(ui, /Nothing was published/);
 });

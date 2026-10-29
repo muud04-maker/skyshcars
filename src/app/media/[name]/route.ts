@@ -11,7 +11,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ name: stri
     await ensureMediaStore();
     // Group Reader photos are private until the post is approved (admins can always preview them).
     if (name.startsWith('grp-') && !(await isAdmin())) {
-      const [ok]: any = await db().execute(`SELECT 1 FROM vehicle_media WHERE url=? AND review_status='approved' LIMIT 1`, ['/media/' + name]);
+      const [ok]: any = await db().execute(`SELECT 1 FROM vehicle_media m JOIN vehicles v ON v.id=m.vehicle_id
+        WHERE m.url=? AND m.review_status='approved' AND v.status IN ('available','reserved','sold') LIMIT 1`, ['/media/' + name]);
       if (!ok?.[0]) return new Response('Not found', { status: 404 });
     }
     const [r]: any = await db().execute('SELECT mime,data FROM media_blobs WHERE name=? LIMIT 1', [name]);

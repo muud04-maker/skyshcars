@@ -437,7 +437,6 @@ export async function repairTelegramSourceAssociations() {
       supplier_currency: row.supplier_currency, selling_price_usd: row.price_usd == null ? null : Number(row.price_usd),
       status: row.status, photos: Number(row.photo_count || 0),
     })),
-    associations: { focus, mondeo, volkswagen: vw, triumph: moto },
     superseded_import_ids: superseded,
     superseded_vehicle_ids: pendingSuperseded,
     published: false,

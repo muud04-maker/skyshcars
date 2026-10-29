@@ -9,6 +9,7 @@ import {
   telegramDashboard,
   telegramSampleVehicles,
   telegramV37Diagnostic,
+  telegramV38Diagnostic,
   testTelegramSampleVehicle,
 } from '../../../../lib/telegram-automation';
 import { needsSetupJson } from '../../../../lib/setup';
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
     if (action === 'repair_imports') return Response.json({ ok: true, ...(await repairApprovedTelegramImports()) });
     if (action === 'repair_source_associations') return Response.json(await repairTelegramSourceAssociations());
     if (action === 'v37_diagnostic') return Response.json({ ok: true, diagnostic: await telegramV37Diagnostic() });
+    if (action === 'v38_diagnostic') return Response.json(await telegramV38Diagnostic());
     if (action === 'save_settings') return Response.json({ ok: true, settings: await saveTelegramSettings(body.settings || {}) });
     if (action === 'test_sample') {
       const result = await testTelegramSampleVehicle(Number(body.vehicle_id));
