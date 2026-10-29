@@ -18,6 +18,8 @@ type SourceMessage = {
   file_unique_id: string | null;
   text: string | null;
   caption: string | null;
+  from_id: string | number | null;
+  chat_title: string | null;
   received_at: string;
 };
 
@@ -217,7 +219,7 @@ export async function repairTelegramSourceAssociations() {
   const chatId = String((await one<any>('SELECT chat_id FROM telegram_source_messages ORDER BY id DESC LIMIT 1'))?.chat_id || '');
   if (!chatId) throw new Error('No stored Telegram source chat is available');
   const sourceRows = await rows<SourceMessage>(`SELECT id,CAST(chat_id AS CHAR) chat_id,message_id,import_item_id,media_group_id,
-    file_unique_id,text,caption,received_at FROM telegram_source_messages WHERE chat_id=? ORDER BY message_id`, [chatId]);
+    file_unique_id,text,caption,from_id,chat_title,received_at FROM telegram_source_messages WHERE chat_id=? ORDER BY message_id`, [chatId]);
   const byMessage = new Map(sourceRows.map((row) => [Number(row.message_id), row]));
   const message = (id: number) => {
     const row = byMessage.get(id);
@@ -322,9 +324,9 @@ export async function repairTelegramSourceAssociations() {
     focus: safeDigest(focusItem.raw_payload), mondeo: safeDigest(mondeoItem.raw_payload),
     vw: safeDigest(vwItem.raw_payload), motorcycle: safeDigest(motoItem.raw_payload),
   };
-  const groupName = String(sourceRows[sourceRows.length - 1]?.caption || 'Skyshcars');
+  const groupName = String(sourceRows[sourceRows.length - 1]?.chat_title || 'Skyshcars');
   const groupId = `telegram:${chatId}`;
-  const sender = String(vwText.id);
+  const sender = vwText.from_id == null ? null : String(vwText.from_id);
   const focus = await updateCanonicalImport({
     item: focusItem, vehicleId: Number(focusItem.vehicle_id), chatId, groupName, groupId, sender,
     text: focusExtraction.text, draft: focusExtraction.draft,
