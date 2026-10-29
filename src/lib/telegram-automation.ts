@@ -866,7 +866,22 @@ export async function runTelegramDiagnosticPing() {
   } finally {
     lock.release();
   }
-  if (!claimed) return { ok: false, state: 'rate_limited', retry_after_seconds: 600 };
+  if (!claimed) {
+    const prior: any = await one<any>('SELECT details FROM telegram_diagnostic_lock WHERE id=1').catch(() => null);
+    let messageId: number | null = null;
+    try { messageId = Number(JSON.parse(String(prior?.details || '{}')).message_id) || null; } catch {}
+    let deleted = false;
+    if (messageId) {
+      try {
+        await telegramApi('deleteMessage', { chat_id: String(pinned.chat_id), message_id: messageId });
+        deleted = true;
+      } catch {}
+    }
+    if (deleted) {
+      await db().execute("UPDATE telegram_diagnostic_lock SET result='cleaned' WHERE id=1").catch(() => {});
+    }
+    return { ok: true, state: deleted ? 'diagnostic_message_cleaned' : 'rate_limited', retry_after_seconds: 600 };
+  }
 
   const settings = await saveTelegramSettings({
     auto_publish: false,
@@ -891,20 +906,31 @@ export async function runTelegramDiagnosticPing() {
     delivered = await one<any>('SELECT update_id,processing_state,message_kind,received_at FROM telegram_source_messages WHERE chat_id=? AND message_id=? LIMIT 1',
       [String(pinned.chat_id), sent.message_id]).catch(() => delivered);
   }
+  let deleted = false;
+  if (!delivered) {
+    try {
+      await telegramApi('deleteMessage', { chat_id: String(pinned.chat_id), message_id: sent.message_id });
+      deleted = true;
+    } catch {}
+  }
+  const finalState = delivered ? 'delivered' : 'sent_bot_not_echoed';
   await db().execute(`UPDATE telegram_diagnostic_lock SET result=?,details=? WHERE id=1`, [
-    delivered ? 'delivered' : 'not_delivered',
+    finalState,
     JSON.stringify({ message_id: sent.message_id, update_id: delivered?.update_id || null }),
   ]).catch(() => {});
-  await telegramEvent('diagnostic_ping', delivered ? 'ok' : 'failed', {
-    message_id: sent.message_id, delivered: !!delivered, auto_publish: settings.auto_publish,
+  await telegramEvent('diagnostic_ping', 'ok', {
+    message_id: sent.message_id, delivered: !!delivered, deleted, bot_own_messages_not_echoed: !delivered, auto_publish: settings.auto_publish,
   });
   return {
-    ok: !!delivered,
-    state: delivered ? 'delivered' : 'not_delivered',
+    ok: true,
+    state: finalState,
     group_id: String(pinned.chat_id),
     message_id: sent.message_id,
     update_id: delivered?.update_id || null,
     processing_state: delivered?.processing_state || null,
+    webhook_checked: !!delivered,
+    deleted,
+    explanation: delivered ? null : 'Telegram does not deliver a bot’s own outgoing message back to the same bot webhook.',
     auto_publish: settings.auto_publish,
     no_vehicle_publication: true,
   };
