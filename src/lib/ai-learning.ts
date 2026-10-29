@@ -279,14 +279,21 @@ export async function applyLearningEvent(id: number, by?: string | null) {
  * Lessons the reply engine may use right now: approved/applied, global only, newest first, capped.
  * Customer-scoped lessons are never used for other customers.
  */
-export async function approvedLessons(limit = 5) {
+export async function approvedLessons(limit = 5, query = '') {
   try {
     await ensureAiLearningSchema();
     const n = Math.max(1, Math.min(20, Number(limit) || 5));
-    return rows<any>(`SELECT id,event_type,lesson,reason,applied_ref FROM ai_learning_events
+    const items = await rows<any>(`SELECT id,event_type,lesson,reason,question,correction,status,applied_ref FROM ai_learning_events
       WHERE status IN ('approved','applied') AND applies_to='global' AND COALESCE(lesson,'')<>''
         AND (expires_at IS NULL OR expires_at > NOW()) AND undone_at IS NULL
-      ORDER BY (status='applied') DESC, id DESC LIMIT ${n}`);
+      ORDER BY (status='applied') DESC, id DESC LIMIT 80`);
+    const text = String(query || '').trim();
+    if (!text) return items.slice(0, n);
+    return items.map((item) => ({
+      ...item,
+      relevance: similarity(text, `${item.question || ''} ${item.correction || ''} ${item.lesson || ''}`),
+    })).sort((a, b) => b.relevance - a.relevance || Number((b.status || '') === 'applied') - Number((a.status || '') === 'applied') || b.id - a.id)
+      .slice(0, n);
   } catch { return []; }
 }
 
@@ -385,9 +392,27 @@ export async function undoLearningEvent(id: number, by?: string | null) {
   return { ok: true, id: Number(id), status: 'approved', reverted };
 }
 
+/** Remove an outdated lesson from runtime while retaining its row and audit history. */
+export async function disableLearningEvent(id: number, by?: string | null) {
+  const ev: any = await learningEventById(id);
+  if (!ev) throw new Error('Learning event not found');
+  const ref = String(ev.applied_ref || '');
+  if (ref.startsWith('ai_knowledge:')) {
+    const knowledgeId = Number(ref.split(':')[1]);
+    if (knowledgeId) {
+      const { ensureAiKnowledgeSchema } = await import('./knowledge');
+      await ensureAiKnowledgeSchema();
+      await db().execute(`UPDATE ai_knowledge SET active=0,status='inactive',updated_by=? WHERE id=?`, [String(by || 'admin').slice(0, 191), knowledgeId]);
+    }
+  }
+  await db().execute(`UPDATE ai_learning_events SET status='rejected',undone_at=NOW(),undone_by=?,reviewed_by=COALESCE(reviewed_by,?),reviewed_at=NOW() WHERE id=?`,
+    [String(by || 'admin').slice(0, 191), String(by || 'admin').slice(0, 191), Number(id)]);
+  return { ok: true, id: Number(id), status: 'rejected', retained_for_audit: true };
+}
+
 /** One-line prompt note built from approved lessons (Part 13 step 9). */
 export function lessonsNote(lessons: { event_type?: string; lesson?: string | null }[] = []) {
   const usable = (lessons || []).filter((l) => String(l?.lesson || '').trim());
   if (!usable.length) return '';
-  return ` APPROVED LESSONS (decided by our staff - follow them): ${usable.map((l) => String(l.lesson).replace(/\s+/g, ' ').trim().slice(0, 300)).join(' | ')}.`;
+  return ` APPROVED LESSONS (reviewed business guidance; never override verified inventory, prices, security, privacy or required human approval): ${usable.map((l) => String(l.lesson).replace(/\s+/g, ' ').trim().slice(0, 360)).join(' | ')}.`;
 }

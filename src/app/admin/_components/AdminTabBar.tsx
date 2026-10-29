@@ -1,7 +1,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
 
-/* Phone navigation for the admin PWA: the six screens the owner actually uses. */
+/* Phone shortcuts for the admin PWA; the full grouped navigation remains in the sidebar drawer. */
 const TABS: [string, string][] = [
   ['/admin', 'Dashboard'],
   ['/admin/whatsapp', 'Inbox'],

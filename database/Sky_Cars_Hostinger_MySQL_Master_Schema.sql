@@ -210,7 +210,23 @@ CREATE TABLE IF NOT EXISTS ai_knowledge (
  title VARCHAR(191) NOT NULL, content TEXT NOT NULL, active BOOLEAN DEFAULT TRUE,
  source VARCHAR(80) DEFAULT 'admin', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- INDEX(active), INDEX(updated_at)
+  scope VARCHAR(40) NOT NULL DEFAULT 'general', version INT UNSIGNED NOT NULL DEFAULT 1,
+  status ENUM('draft','approved','inactive') NOT NULL DEFAULT 'approved',
+  priority TINYINT UNSIGNED NOT NULL DEFAULT 5,
+  created_by VARCHAR(191) NULL, updated_by VARCHAR(191) NULL,
+  approved_by VARCHAR(191) NULL, approved_at DATETIME NULL,
+  INDEX(active), INDEX(updated_at), INDEX idx_knowledge_status(status,active,priority,updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ai_instruction_history (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  instruction_id BIGINT UNSIGNED NOT NULL,
+  version INT UNSIGNED NOT NULL,
+  action VARCHAR(40) NOT NULL,
+  snapshot JSON NOT NULL,
+  actor VARCHAR(191) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX(instruction_id,created_at), INDEX(action,created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS private_suppliers (

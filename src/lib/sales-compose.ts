@@ -250,12 +250,12 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
         // Any other language: let the model phrase the SAME facts in the customer's language.
         const show = (matched.length ? matched : cars).slice(0, 3).map((v: any) => `${[v.model_year, v.brand, v.model].filter(Boolean).join(' ')}${v.price_usd ? ` - $${Number(v.price_usd).toLocaleString()}` : ''}`);
         const factNote = ` The customer asked about our inventory. Use ONLY these facts: ${matched.length || cars.length} vehicles match, ${cars.length} vehicles are enabled in total. Options: ${show.join('; ') || 'none'}. Answer in ${languageName(lang)} in 1-2 short sentences and do not invent vehicles, prices or counts.${matched.length ? '' : ' If nothing matches, say so honestly and offer another brand.'}${signalNote ? ` ${signalNote}` : ''} ${policyText}`;
-        const phrased = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(referralContext) + factNote + ` Reply in ${languageName(lang)}.` });
+        const phrased = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(referralContext) + factNote + String(i.testNote || '') + ` Reply in ${languageName(lang)}.` });
         return { text: String(phrased || ''), lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: (!cars.length) ? 'No AI inventory enabled' : null };
       }
     } catch { /* any lookup problem falls through to the normal (or hold) path */ }
   }
-  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(referralContext) + mediaNote + vehicleFactNote + (signalNote ? ` ${signalNote}` : '') + ` ${policyText}` + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
+  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(referralContext) + mediaNote + vehicleFactNote + String(i.testNote || '') + (signalNote ? ` ${signalNote}` : '') + ` ${policyText}` + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
   // Part 9: the cars this reply is allowed to remember (used by the invented-history guard).
   const referralHintVehicle = referralHint && (referralHint.brand || referralHint.model)
     ? [{ model_year: referralHint.year || null, brand: referralHint.brand || null, model: referralHint.model || null }]

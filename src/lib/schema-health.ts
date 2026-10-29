@@ -22,7 +22,8 @@ const REQUIRED: { table: string; columns: string[]; ensure: () => Promise<any> }
   { table: 'daily_ai_sales_patterns', columns: ['pattern_date', 'pattern_type', 'pattern_key', 'pattern_value', 'sample_count', 'confidence'], ensure: async () => (await import('./sales-patterns')).ensureSalesPatternsSchema() },
   { table: 'chat_referrals', columns: ['conversation_id', 'channel', 'source_id', 'headline', 'matched_vehicle_id', 'match_method'], ensure: async () => (await import('./referrals')).ensureReferralSchema() },
   { table: 'conversation_state', columns: ['conversation_id', 'current_vehicle_id', 'pending_ai_reply_at', 'answered_through_id'], ensure: async () => (await import('./conversation-state')).ensureConversationState() },
-  { table: 'ai_knowledge', columns: ['title', 'content', 'active', 'source'], ensure: async () => (await import('./knowledge')).ensureAiKnowledgeSchema() },
+  { table: 'ai_knowledge', columns: ['title', 'content', 'active', 'source', 'scope', 'version', 'status', 'priority', 'created_by', 'updated_by', 'approved_by', 'approved_at'], ensure: async () => (await import('./knowledge')).ensureAiKnowledgeSchema() },
+  { table: 'ai_instruction_history', columns: ['instruction_id', 'version', 'action', 'snapshot', 'actor', 'created_at'], ensure: async () => (await import('./knowledge')).ensureAiKnowledgeSchema() },
 ];
 
 /** Run every schema promise and verify the real columns. Never throws: returns a per-table verdict. */

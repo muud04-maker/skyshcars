@@ -25,6 +25,8 @@ export type ComposeIn = {
   referralVehicle?: any; referralAiEnabled?: boolean;
   referralHint?: ResolvedReferral['hint'];
   referralAdvertisedPrice?: number | null;
+  /** Admin dry-run note used to test a proposed instruction before activation. Never sent directly. */
+  testNote?: string;
 };
 export type ComposeOut = { text: string; lang?: string; model?: string | null; vehicleId?: number | null; photoPlan?: any; needsStaff?: string | null; facts?: any; notes?: string[]; allowedNames?: string[] };
 

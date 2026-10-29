@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import AdminTabBar from './_components/AdminTabBar';
+import './admin-shell.css';
 
 // Installable admin app (PWA): /admin can be added to the phone home screen and opens standalone.
 export const metadata: Metadata = {

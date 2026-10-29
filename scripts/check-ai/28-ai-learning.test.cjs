@@ -77,7 +77,7 @@ test('23. an approved lesson is used when relevant (and only then)', () => {
   assert.equal(lessonsNote([]), '', 'no lessons, no note');
   assert.equal(lessonsNote([{ lesson: '   ' }]), '', 'blank lessons are ignored');
   const ai = read('src/lib/ai.ts');
-  assert.ok(ai.includes('approvedLessons(5)'), 'the engine loads a bounded number of lessons');
+  assert.ok(ai.includes('approvedLessons(5, text)'), 'the engine loads a bounded, query-relevant number of lessons');
   assert.ok(ai.includes('lessonsNote(lessons)'), 'and passes them into the system note');
 });
 
@@ -151,8 +151,8 @@ test('24/25. both new pages and their APIs are admin protected', () => {
   for (const f of [LEARNING_ROUTE, LEARNING_ID, 'src/app/api/admin/customer-history/route.ts', 'src/app/api/admin/customer-history/[id]/route.ts']) {
     assert.ok(read(f).includes('adminDenied()'), `${f} is admin-only`);
   }
-  assert.ok(read('src/app/admin/_components/AdminShell.tsx').includes("['/admin/ai-learning','AI Learning']"), 'reachable from the admin nav');
-  assert.ok(read('src/app/admin/_components/AdminShell.tsx').includes("['/admin/customer-history','Customer History']"));
+  assert.ok(read('src/app/admin/_components/AdminShell.tsx').includes("href: '/admin/ai-learning'"), 'reachable from the admin nav');
+  assert.ok(read('src/app/admin/_components/AdminShell.tsx').includes("href: '/admin/customer-history'"));
 });
 
 test('28/29. the previous fixes are still in place (no regression)', () => {

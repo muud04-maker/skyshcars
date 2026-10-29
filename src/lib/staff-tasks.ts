@@ -11,13 +11,13 @@
 */
 import { db, one, rows } from './db';
 
-export const TASK_TYPES = ['photo', 'freight', 'sourcing', 'follow_up', 'serious_buyer'] as const;
+export const TASK_TYPES = ['photo', 'freight', 'sourcing', 'follow_up', 'serious_buyer', 'inventory_review'] as const;
 export type TaskType = (typeof TASK_TYPES)[number];
 export const TASK_STATUSES = ['pending', 'in_progress', 'done', 'declined'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export const TASK_LABEL: Record<string, string> = {
   photo: 'Photos requested', freight: 'Freight quote', sourcing: 'Source a vehicle',
-  follow_up: 'Follow up', serious_buyer: 'Serious buyer',
+  follow_up: 'Follow up', serious_buyer: 'Serious buyer', inventory_review: 'Inventory review',
 };
 
 let ready: Promise<void> | null = null;
@@ -106,12 +106,14 @@ export async function taskStats() {
       SUM(status='done') done, SUM(status='declined') declined, COUNT(*) total,
       SUM(request_type='photo' AND status IN ('pending','in_progress')) photos_open,
       SUM(request_type='freight' AND status IN ('pending','in_progress')) freight_open,
-      SUM(request_type='sourcing' AND status IN ('pending','in_progress')) sourcing_open
+      SUM(request_type='sourcing' AND status IN ('pending','in_progress')) sourcing_open,
+      SUM(request_type='inventory_review' AND status IN ('pending','in_progress')) inventory_reviews_open
     FROM staff_tasks`).catch(() => null);
   return {
     pending: Number(r?.pending || 0), in_progress: Number(r?.in_progress || 0),
     done: Number(r?.done || 0), declined: Number(r?.declined || 0), total: Number(r?.total || 0),
     photos_open: Number(r?.photos_open || 0), freight_open: Number(r?.freight_open || 0), sourcing_open: Number(r?.sourcing_open || 0),
+    inventory_reviews_open: Number(r?.inventory_reviews_open || 0),
   };
 }
 

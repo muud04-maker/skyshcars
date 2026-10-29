@@ -1,0 +1,487 @@
+.adminSidebar {
+  width: 276px;
+  padding: 0;
+  background: linear-gradient(180deg, #061725 0%, #0a2235 72%, #071a2a 100%);
+  border-right: 1px solid #24465d;
+  gap: 0;
+}
+
+.adminSidebarHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 16px 15px;
+  border-bottom: 1px solid #193951;
+  flex: 0 0 auto;
+}
+
+.adminSidebar .adminBrand {
+  padding: 3px 8px 8px;
+  border: 0;
+  margin: 0;
+}
+
+.adminSidebarClose {
+  display: none;
+  border: 0;
+  background: transparent;
+  color: #bcd3e4;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.adminAccordion {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 9px 18px;
+  scrollbar-width: thin;
+  scrollbar-color: #34566d transparent;
+}
+
+.adminAccordionGroup {
+  margin: 3px 0;
+  border-radius: 10px;
+}
+
+.adminAccordionGroup.active {
+  background: #0d2b41;
+}
+
+.adminNavTrigger {
+  width: 100%;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #dce9f3;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 780;
+  text-align: left;
+  cursor: pointer;
+}
+
+.adminNavTrigger:hover,
+.adminNavTrigger:focus-visible {
+  background: #123650;
+  color: #fff;
+  outline: none;
+}
+
+.adminNavTrigger:focus-visible,
+.adminSubnav a:focus-visible,
+.adminSidebarFooter a:focus-visible,
+.adminSidebarFooter button:focus-visible {
+  box-shadow: inset 0 0 0 2px #ffb400;
+}
+
+.adminAccordionGroup.active > .adminNavTrigger {
+  color: #ffbf22;
+}
+
+.adminNavChevron {
+  color: #7698ae;
+  transition: transform .16s ease;
+}
+
+.adminNavTrigger[aria-expanded="true"] .adminNavChevron {
+  transform: rotate(180deg);
+}
+
+.adminSubnav {
+  list-style: none;
+  margin: 0;
+  padding: 2px 6px 8px 29px;
+}
+
+.adminSubnav a {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: #bcd0df;
+  font-size: 12.5px;
+  font-weight: 680;
+  line-height: 1.25;
+}
+
+.adminSubnav a:hover {
+  background: #153a52;
+  color: #fff;
+}
+
+.adminSubnav a.active {
+  background: #f3b21b;
+  color: #071b2d;
+  box-shadow: 0 4px 14px #0003;
+}
+
+.adminSubnav a.active svg {
+  color: #071b2d;
+}
+
+.adminSidebarFooter {
+  flex: 0 0 auto;
+  padding: 10px 14px 15px;
+  border-top: 1px solid #193951;
+  background: #061725;
+}
+
+.adminSidebar .adminSiteLink,
+.adminSidebar .adminLogout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+}
+
+.adminSidebar .adminSiteLink {
+  border: 0;
+}
+
+.adminSidebar .adminSiteLink span,
+.adminSidebar .adminLogout span {
+  flex: 1;
+}
+
+.adminSidebar .adminLogout {
+  border: 1px solid #25475d;
+  background: #0d2b40;
+}
+
+.adminMain {
+  margin-left: 276px;
+}
+
+.adminMobileBar button,
+.adminMobileBar a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+@media (max-width: 820px) {
+  .adminSidebar {
+    width: min(310px, 88vw);
+    box-shadow: 18px 0 45px #0016;
+  }
+
+  .adminSidebarClose {
+    display: inline-flex;
+  }
+
+  .adminMain {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adminNavChevron {
+    transition: none;
+  }
+}
+
+.aiTrainingPage {
+  max-width: 1450px;
+}
+
+.aiTabs {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 6px;
+  margin-bottom: 16px;
+  background: #fff;
+  border: 1px solid #d8e5ef;
+  border-radius: 13px;
+  box-shadow: 0 5px 20px #0b2d4610;
+}
+
+.aiTabs button {
+  flex: 1 0 max-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #3b566c;
+  padding: 10px 13px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.aiTabs button:hover,
+.aiTabs button.active {
+  background: #0b2d46;
+  color: #fff;
+}
+
+.aiTabs button:focus-visible {
+  outline: 3px solid #ffb400;
+  outline-offset: 2px;
+}
+
+.aiNotice,
+.aiMessage {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px 14px;
+  margin: 0 0 14px;
+  border-radius: 10px;
+  border: 1px solid #b9d7e9;
+  background: #eef8ff;
+  color: #173d57;
+}
+
+.aiMessage {
+  background: #f0fbf4;
+  border-color: #b9dfc5;
+  color: #14532d;
+}
+
+.aiPanel {
+  max-width: none;
+  margin-bottom: 16px;
+}
+
+.aiPanel h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aiFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.aiFormGrid .wide {
+  grid-column: 1 / -1;
+}
+
+.aiFormGrid textarea {
+  min-height: 92px;
+}
+
+.aiActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 11px;
+}
+
+.aiActions .btn,
+.aiPanel > .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aiInstructionList,
+.aiCorrectionList {
+  display: grid;
+  gap: 12px;
+}
+
+.aiInstructionCard,
+.aiCorrectionCard {
+  background: #fff;
+  border: 1px solid #d8e5ef;
+  border-radius: 13px;
+  padding: 15px 16px;
+  box-shadow: 0 5px 20px #0b2d460c;
+}
+
+.aiInstructionCard header,
+.aiCorrectionCard header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.aiInstructionCard h3 {
+  margin: 4px 0 0;
+  font-size: 16px;
+}
+
+.aiInstructionCard p {
+  white-space: pre-wrap;
+  line-height: 1.55;
+  margin: 12px 0;
+}
+
+.aiInstructionCard small {
+  display: block;
+  color: #61788b;
+}
+
+.aiStatus {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  background: #e7eef4;
+  color: #405669;
+}
+
+.aiStatus.approved,
+.aiStatus.applied {
+  background: #dcf7e5;
+  color: #08663a;
+}
+
+.aiStatus.draft,
+.aiStatus.pending {
+  background: #fff1c8;
+  color: #755600;
+}
+
+.aiStatus.inactive,
+.aiStatus.rejected {
+  background: #fde3e2;
+  color: #92251d;
+}
+
+.aiVersion {
+  white-space: nowrap;
+  border-radius: 999px;
+  background: #edf5fb;
+  padding: 5px 9px;
+  color: #365970;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.aiCorrectionCard header {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.aiCorrectionCard dl {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 8px 13px;
+  margin: 14px 0 0;
+}
+
+.aiCorrectionCard dt {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: #60788c;
+}
+
+.aiCorrectionCard dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.aiConfirm {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  margin: 14px 0;
+  background: #fff7df;
+  border: 1px solid #ecd48a;
+  border-radius: 9px;
+}
+
+.aiConfirm input {
+  width: auto;
+  margin-top: 3px;
+}
+
+.aiHistory {
+  display: grid;
+  gap: 8px;
+}
+
+.aiHistory article,
+.aiAuditTable > div {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 3px 12px;
+  border-bottom: 1px solid #e5edf4;
+  padding: 10px 0;
+}
+
+.aiHistory article p {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+}
+
+.aiAuditTable > div small {
+  grid-column: 1 / -1;
+  color: #6b8091;
+}
+
+.aiReply {
+  white-space: pre-wrap;
+  background: #071b2d;
+  color: #eaf5fc;
+  border-radius: 11px;
+  padding: 16px;
+  line-height: 1.55;
+}
+
+.aiTrace {
+  margin-top: 14px;
+}
+
+.aiTrace > div {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 3px 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e6eef4;
+}
+
+.aiTrace > div small {
+  grid-column: 2;
+  color: #667b8d;
+}
+
+@media (max-width: 720px) {
+  .aiFormGrid,
+  .aiCorrectionCard dl {
+    grid-template-columns: 1fr;
+  }
+
+  .aiFormGrid .wide {
+    grid-column: auto;
+  }
+
+  .aiHistory article,
+  .aiAuditTable > div {
+    grid-template-columns: 1fr;
+  }
+
+  .aiHistory article p,
+  .aiAuditTable > div small {
+    grid-column: auto;
+  }
+}

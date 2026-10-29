@@ -87,7 +87,7 @@ test('one deduplicated task per request type/chat/stock (items 57/58/87-89)', ()
   assert.notEqual(taskKey('photo', 12, 'SC-859'), taskKey('freight', 12, 'SC-859'));
   assert.notEqual(taskKey('photo', 12, 'SC-859'), taskKey('photo', 13, 'SC-859'));
   assert.equal(taskKey('nonsense', 1, 'x').startsWith('follow_up:'), true, 'unknown types fall back safely');
-  assert.deepEqual([...TASK_TYPES], ['photo', 'freight', 'sourcing', 'follow_up', 'serious_buyer']);
+  assert.deepEqual([...TASK_TYPES], ['photo', 'freight', 'sourcing', 'follow_up', 'serious_buyer', 'inventory_review']);
   assert.deepEqual([...TASK_STATUSES], ['pending', 'in_progress', 'done', 'declined']);
   assert.equal(normalizeTaskStatus('DONE'), 'done');
   assert.equal(normalizeTaskStatus('hacked'), 'pending', 'unknown statuses are rejected');

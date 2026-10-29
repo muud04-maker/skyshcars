@@ -79,7 +79,7 @@ test('3. nothing can publish a global lesson without an explicit admin approval 
   assert.ok(learning.includes("if (nextStatus('apply', ev.status) !== 'applied') throw new Error('Only an approved lesson can be applied')"), 'apply is gated by status');
   // Only one writer of ai_knowledge from lessons, and it is inside apply.
   const writers = walk('src').filter((f) => f.endsWith('.ts')).filter((f) => /INSERT INTO ai_knowledge/i.test(read(f)));
-  assert.deepEqual(writers.map((f) => f.replace(/\\/g, '/')).sort(), ['src/app/api/admin/knowledge/route.ts', 'src/lib/ai-learning.ts'], 'only the apply path and the admin knowledge editor write knowledge');
+  assert.deepEqual(writers.map((f) => f.replace(/\\/g, '/')).sort(), ['src/lib/ai-learning.ts', 'src/lib/knowledge.ts'], 'knowledge writes go through the reviewed store and apply path');
   // The learning API is admin-only for every action.
   const api = read('src/app/api/admin/ai-learning/route.ts');
   assert.ok(api.includes('adminDenied()'), 'creating a lesson requires admin');
@@ -87,7 +87,7 @@ test('3. nothing can publish a global lesson without an explicit admin approval 
   assert.ok(apiId.includes('adminDenied()'), 'approving/applying requires admin');
   // The engine only ever READS lessons.
   const ai = read('src/lib/ai.ts');
-  assert.ok(ai.includes('approvedLessons(5)'), 'the reply engine reads approved lessons');
+  assert.ok(ai.includes('approvedLessons(5, text)'), 'the reply engine reads approved, query-relevant lessons');
   assert.ok(!/recordLearningEvent|reviewLearningEvent|applyLearningEvent/.test(ai), 'the reply engine never creates or approves lessons');
   // The daily pattern learner may suggest, never approve.
   const patterns = read('src/lib/sales-patterns.ts');

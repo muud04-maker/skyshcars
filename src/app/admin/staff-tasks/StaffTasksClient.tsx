@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
   The staff queue (brief items 87-89, 104-105). Each card is a real stored task; a human moves it
   forward and the completion is recorded. No automatic message is ever sent from here.
 */
-const LABEL: Record<string, string> = { photo: 'Photos requested', freight: 'Freight quote', sourcing: 'Source a vehicle', follow_up: 'Follow up', serious_buyer: 'Serious buyer' };
+const LABEL: Record<string, string> = { photo: 'Photos requested', freight: 'Freight quote', sourcing: 'Source a vehicle', follow_up: 'Follow up', serious_buyer: 'Serious buyer', inventory_review: 'Inventory review' };
 const when = (v: any) => (v ? new Date(String(v).replace(' ', 'T')).toLocaleString() : '-');
 
 export default function StaffTasksClient() {
@@ -65,7 +65,7 @@ export default function StaffTasksClient() {
     </div>
     <p className="muted">
       {stats.pending || 0} pending · {stats.in_progress || 0} in progress · {stats.done || 0} done · {stats.declined || 0} declined
-      {' '}| open photos {stats.photos_open || 0} · freight {stats.freight_open || 0} · sourcing {stats.sourcing_open || 0}
+      {' '}| open photos {stats.photos_open || 0} · freight {stats.freight_open || 0} · sourcing {stats.sourcing_open || 0} · inventory reviews {stats.inventory_reviews_open || 0}
     </p>
     {msg ? <div className="setupAlert">{msg}</div> : null}
     {health ? <div className="chCard" style={{ marginBottom: 12, borderColor: health.ok ? '#bfe3cd' : '#e7b4b4' }}>

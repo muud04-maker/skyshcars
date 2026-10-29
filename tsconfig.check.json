@@ -20,6 +20,8 @@
     "src/lib/shadow-learning.ts",
     "src/lib/vehicle-events.ts",
     "src/lib/business-policy.ts",
+    "src/lib/knowledge.ts",
+    "src/lib/ai-training.ts",
     "src/lib/bulk-vehicles.ts"
   ]
 }
