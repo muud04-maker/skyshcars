@@ -311,13 +311,8 @@ export async function repairTelegramSourceAssociations() {
   if (canonicalIds.some((id) => !id) || new Set(canonicalIds).size !== 4) {
     throw new Error('Canonical Telegram source imports are missing or duplicated');
   }
-  const archiveItemId = Number(mondeoPhotos[0].import_item_id);
-  if (!archiveItemId || canonicalIds.includes(archiveItemId)) {
-    throw new Error('The mixed Telegram archive import could not be identified safely');
-  }
-  const mediaImportIds = [...canonicalIds, archiveItemId];
   const importRows = await rows<ImportRow>(`SELECT * FROM inventory_import_items
-    WHERE id IN (${mediaImportIds.map(() => '?').join(',')})`, mediaImportIds);
+    WHERE id IN (${canonicalIds.map(() => '?').join(',')})`, canonicalIds);
   const byId = new Map(importRows.map((row) => [Number(row.id), row]));
   const item = (id: number) => {
     const row = byId.get(Number(id));
@@ -331,7 +326,25 @@ export async function repairTelegramSourceAssociations() {
   if ([focusItem, mondeoItem, vwItem, motoItem].some((row) => !row.vehicle_id)) {
     throw new Error('A canonical Telegram import is missing its pending vehicle draft');
   }
+  if ([mondeoItem, vwItem, motoItem].every((row) => String(row.source_message_id).startsWith('tg-assoc-v38:'))) {
+    return {
+      ok: true, already_repaired: true,
+      matches: await refreshRepairMatches(canonicalIds, chatId),
+      private_content_included: false,
+    };
+  }
 
+  const archiveItemId = Number(mondeoPhotos[0].import_item_id);
+  if (!archiveItemId || canonicalIds.includes(archiveItemId)) {
+    throw new Error('The mixed Telegram archive import could not be identified safely');
+  }
+  const archiveItem = await one<ImportRow>('SELECT * FROM inventory_import_items WHERE id=? LIMIT 1', [archiveItemId]);
+  if (!archiveItem || archiveItem.review_status === 'approved' || !archiveItem.vehicle_id) {
+    throw new Error('The mixed Telegram archive import could not be identified safely');
+  }
+  byId.set(archiveItemId, archiveItem);
+
+  const mediaImportIds = [...canonicalIds, archiveItemId];
   const mediaRows = await rows<MediaRow>(`SELECT id,import_item_id,url,mime_type FROM inventory_import_media
     WHERE import_item_id IN (${mediaImportIds.map(() => '?').join(',')}) ORDER BY import_item_id,id`, mediaImportIds);
   const mediaFor = (id: number) => mediaRows.filter((row) => Number(row.import_item_id) === Number(id));
@@ -340,20 +353,12 @@ export async function repairTelegramSourceAssociations() {
   const vwMedia = mediaFor(Number(vwItem.id));
   const motoMedia = mediaFor(Number(motoItem.id));
   if (focusMedia.length !== 5 || vwMedia.length !== 13 || motoMedia.length !== 6 || mondeoMedia.length !== 0) {
-    if (motoMedia.length === 6 && vwMedia.length === 7) {
-      return {
-        ok: true, already_repaired: true,
-        matches: await refreshRepairMatches(canonicalIds, chatId),
-        private_content_included: false,
-      };
-    }
     throw new Error('Stored Telegram media layout differs from the verified repair plan');
   }
   const mondeoArchiveMedia = mondeoMedia.length ? mondeoMedia : [];
   const archivePhotos = mondeoPhotos;
   if (mondeoArchiveMedia.length) throw new Error('Unexpected Mondeo media state');
 
-  const archiveItem = item(archiveItemId);
   const archiveMedia = mediaFor(archiveItemId);
   if (archiveMedia.length !== 15 || !archiveItem.vehicle_id) {
     throw new Error('Mixed Telegram archive import could not be identified safely');
