@@ -158,6 +158,7 @@ test('source cost is never treated as selling price without configured markup', 
   assert.equal(telegram.telegramSellingPrice(4500, null, null), null);
   assert.equal(telegram.telegramSellingPrice(4500, 1000, null), 5500);
   assert.equal(telegram.telegramSellingPrice(4500, null, 10), 4950);
+  assert.match(read('src/lib/group-import.ts'), /price_usd:null,price_currency:price\.currency/);
 });
 
 test('V38 source association replaces the broad three-minute merge path', () => {

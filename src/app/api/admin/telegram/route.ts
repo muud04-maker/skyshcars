@@ -13,6 +13,7 @@ import {
 } from '../../../../lib/telegram-automation';
 import { needsSetupJson } from '../../../../lib/setup';
 import { repairApprovedTelegramImports } from '../../../../lib/group-import';
+import { repairTelegramSourceAssociations } from '../../../../lib/telegram-repair';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
     if (action === 'retry') return Response.json({ ok: true, ...(await retryTelegramFailures()) });
     if (action === 'process_queue') return Response.json({ ok: true, processed: await processTelegramQueue(20) });
     if (action === 'repair_imports') return Response.json({ ok: true, ...(await repairApprovedTelegramImports()) });
+    if (action === 'repair_source_associations') return Response.json(await repairTelegramSourceAssociations());
     if (action === 'v37_diagnostic') return Response.json({ ok: true, diagnostic: await telegramV37Diagnostic() });
     if (action === 'save_settings') return Response.json({ ok: true, settings: await saveTelegramSettings(body.settings || {}) });
     if (action === 'test_sample') {

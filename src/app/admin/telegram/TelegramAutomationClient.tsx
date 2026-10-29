@@ -68,6 +68,13 @@ export default function TelegramAutomationClient() {
     const result = await post('repair_imports');
     setMessage(result.ok ? `Import repair completed for ${result.json.repaired?.length || 0} approved listing(s).` : result.json.error || 'Import repair failed');
   }
+  async function repairSourceAssociations() {
+    if (!confirm('Repair the known mixed Telegram source albums? This keeps every source record, reuses pending vehicles, and never publishes.')) return;
+    const result = await post('repair_source_associations');
+    setMessage(result.ok
+      ? `Source repair completed for ${result.json.repaired?.length || 0} pending vehicle(s). Nothing was published.`
+      : result.json.error || 'Source repair failed');
+  }
   async function runDiagnostic() {
     const result = await post('v37_diagnostic');
     setTest(result.json);
@@ -122,6 +129,7 @@ export default function TelegramAutomationClient() {
           <button className="miniBtn" disabled={busy === 'retry'} onClick={retry}>Retry failed jobs</button>
           <button className="miniBtn" disabled={busy === 'process_queue'} onClick={processQueue}>Process durable queue</button>
           <button className="miniBtn" disabled={busy === 'repair_imports'} onClick={repairImports}>Repair approved imports</button>
+          <button className="miniBtn" disabled={busy === 'repair_source_associations'} onClick={repairSourceAssociations}>Repair mixed Telegram sources</button>
           <button className="miniBtn" disabled={busy === 'v37_diagnostic'} onClick={runDiagnostic}>Run V37 diagnostic</button>
         </div>
       </div>

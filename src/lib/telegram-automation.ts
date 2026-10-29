@@ -375,6 +375,9 @@ async function maybeAutoPublishTelegram(itemId: number) {
   if (item.review_status !== 'pending') return { status: item.review_status, reasons: [] };
   const proposed: any = parseProposed(item.proposed_vehicle);
   const raw: any = parseProposed(item.raw_payload);
+  if (proposed.repair_review_required === true || proposed.source_repair?.review_required === true) {
+    return { status: 'review', reasons: ['Historical source-association repair requires manual approval'] };
+  }
   const media: any = await one<any>(`SELECT COUNT(*) n,
       SUM(blob_name IS NOT NULL AND url LIKE '/media/%') verified
     FROM inventory_import_media WHERE import_item_id=?`, [itemId]);

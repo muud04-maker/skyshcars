@@ -210,7 +210,8 @@ function pendingVehicleFields(p:any){
     model_year:int(p.model_year),mileage_km:mileage??int(p.mileage_km),engine:str(p.engine,120),transmission:str(p.transmission,80),
     fuel_type:str(p.fuel_type,80),steering:['LHD','RHD','unknown'].includes(p.steering)?p.steering:'unknown',color:str(p.color,80),
     vehicle_condition:str(p.condition,80),vin:str(p.vin,32),supplier_reference:str(p.supplier_reference,191),
-    price_usd:price.currency==='USD'?price.value:null,price_currency:price.currency,
+    // Supplier cost is never copied into the customer-facing selling-price column.
+    price_usd:null,price_currency:price.currency,
     supplier_price_usd:price.currency==='USD'?price.value:null,supplier_currency:price.currency,
     source_description:str(p.original_description||p.description,20000),extraction_method:str(p.extraction_method,30),
     extraction_quality:str(p.extraction_quality,20),
