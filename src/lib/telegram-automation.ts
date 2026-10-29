@@ -651,6 +651,11 @@ export async function bootstrapTelegramWebhook() {
   try {
     const registration = await registerTelegramWebhook();
     const probe: any = registration.probe;
+    const [sourceCount, importCount, lastSource] = await Promise.all([
+      one<any>('SELECT COUNT(*) n FROM telegram_source_messages').catch(() => null),
+      one<any>(`SELECT COUNT(*) n, SUM(review_status='approved') approved FROM inventory_import_items WHERE source='telegram'`).catch(() => null),
+      one<any>('SELECT MAX(received_at) at FROM telegram_source_messages').catch(() => null),
+    ]);
     return {
       ok: probe?.ok === true,
       state: probe?.ok ? 'registered' : 'attention_required',
@@ -662,7 +667,15 @@ export async function bootstrapTelegramWebhook() {
       group_type: probe?.group?.type || null,
       source_chat_format: probe?.source_chat_format || null,
       webhook_url_matches: probe?.webhook?.matches === true,
+      pending_update_count: Number(probe?.webhook?.pending_update_count || 0),
+      webhook_last_error: probe?.webhook?.last_error_message || null,
       diagnostic: probe?.errors?.group || probe?.errors?.member || probe?.error || probe?.webhook?.last_error_message || null,
+      ingestion: {
+        source_messages: Number(sourceCount?.n || 0),
+        imports: Number(importCount?.n || 0),
+        approved: Number(importCount?.approved || 0),
+        last_received: lastSource?.at || null,
+      },
     };
   } catch (error: any) {
     return { ok: false, state: 'registration_failed', error: safeTelegramError(error) };
