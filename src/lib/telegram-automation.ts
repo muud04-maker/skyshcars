@@ -604,7 +604,7 @@ export async function telegramConnectionProbe() {
       pending_updates=VALUES(pending_updates),last_error=VALUES(last_error),details=VALUES(details),checked_at=NOW()`, [
       result.ok && botIsAdmin ? 'connected' : 'attention_required', expectedUrl, result.group.id, result.group.title,
       result.bot.id, result.bot.username, botIsAdmin ? 1 : 0, result.webhook.pending_update_count,
-      meError || webhookError || chatError || memberError || result.webhook.last_error_message || null, JSON.stringify(result),
+      result.ok ? null : (meError || webhookError || chatError || memberError || result.webhook.last_error_message || null), JSON.stringify(result),
     ]).catch(() => {});
     return result;
   } catch (error: any) {
@@ -701,7 +701,8 @@ export async function bootstrapTelegramWebhook() {
       webhook_url_matches: probe?.webhook?.matches === true,
       pending_update_count: Number(probe?.webhook?.pending_update_count || 0),
       webhook_last_error: probe?.webhook?.last_error_message || null,
-      diagnostic: probe?.errors?.group || probe?.errors?.member || probe?.error || probe?.webhook?.last_error_message || null,
+      diagnostic: probe?.ok ? null : (probe?.errors?.group || probe?.errors?.member || probe?.error || probe?.webhook?.last_error_message || null),
+      historical_webhook_error: probe?.webhook?.last_error_message || null,
       ingestion: {
         source_messages: Number(sourceCount?.n || 0),
         imports: Number(importCount?.n || 0),
