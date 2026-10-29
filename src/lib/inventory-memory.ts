@@ -225,9 +225,11 @@ export async function candidateVehicles(spec: IdentitySpec, fingerprints: ImageF
   if (shape.brand && shape.model) {
     add(await rows<any>(`SELECT id,category,brand,model,trim_name,model_year,mileage_km,price_usd,engine,transmission,
       fuel_type,color,vin,supplier_reference,stock_no,status FROM vehicles
-      WHERE LOWER(brand)=? AND LOWER(model)=? AND (? IS NULL OR model_year=?)
+      WHERE LOWER(TRIM(brand))=?
+        AND (LOWER(TRIM(model))=? OR LOWER(TRIM(model)) LIKE CONCAT(?, ' %') OR ? LIKE CONCAT(LOWER(TRIM(model)), ' %'))
+        AND (? IS NULL OR model_year=?)
       ORDER BY ABS(COALESCE(model_year,0)-?) LIMIT 30`,
-      [shape.brand, shape.model, shape.model_year, shape.model_year, shape.model_year || 0]));
+      [shape.brand, shape.model, shape.model, shape.model, shape.model_year, shape.model_year, shape.model_year || 0]));
   }
 
   if (found.size) {
