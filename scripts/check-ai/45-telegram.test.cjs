@@ -44,6 +44,9 @@ test('webhook secret comparison is exact and source chat IDs cannot be substitut
     assert.equal(telegram.telegramSecretMatches('wrong'), false);
     assert.equal(telegram.telegramChatAllowed({ id: -1001234567890 }), true);
     assert.equal(telegram.telegramChatAllowed({ id: -1009999999999 }), false);
+    assert.equal(telegram.telegramChatApiId('SkyshcarsGroup'), '@SkyshcarsGroup');
+    assert.equal(telegram.telegramChatApiId('@SkyshcarsGroup'), '@SkyshcarsGroup');
+    assert.equal(telegram.telegramChatApiId('-1001234567890'), '-1001234567890');
   });
 });
 

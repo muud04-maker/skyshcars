@@ -6,6 +6,7 @@ import {
   decideTelegramAutoPublish,
   largestTelegramPhoto,
   telegramAvailability,
+  telegramChatApiId,
   telegramBotToken,
   telegramChatAllowed,
   telegramConfigSummary,
@@ -525,11 +526,12 @@ export async function telegramConnectionProbe() {
     let meError: string | null = null, webhookError: string | null = null, chatError: string | null = null;
     try { me = await telegramApi('getMe'); } catch (error: any) { meError = safeTelegramError(error); }
     try { webhook = await telegramApi('getWebhookInfo'); } catch (error: any) { webhookError = safeTelegramError(error); }
-    try { chat = await telegramApi('getChat', { chat_id: telegramSourceChatId() }); } catch (error: any) { chatError = safeTelegramError(error); }
+    const apiChatId = telegramChatApiId();
+    try { chat = await telegramApi('getChat', { chat_id: apiChatId }); } catch (error: any) { chatError = safeTelegramError(error); }
     let member: any = null;
     let memberError: string | null = null;
     if (me?.id && chat?.id != null) {
-      try { member = await telegramApi('getChatMember', { chat_id: telegramSourceChatId(), user_id: me.id }); }
+      try { member = await telegramApi('getChatMember', { chat_id: apiChatId, user_id: me.id }); }
       catch (error: any) { memberError = safeTelegramError(error); }
     }
     const botIsAdmin = ['administrator', 'creator'].includes(String(member?.status || ''));
@@ -540,7 +542,7 @@ export async function telegramConnectionProbe() {
       configured: true,
       config,
       bot: { id: me?.id || null, username: me?.username || null, name: me?.first_name || null },
-      group: { id: String(chat?.id || ''), title: chat?.title || chat?.username || null, type: chat?.type || null },
+      group: { id: String(chat?.id || ''), title: chat?.title || chat?.username || null, username: chat?.username || null, type: chat?.type || null },
       bot_is_admin: botIsAdmin,
       bot_member_status: member?.status || null,
       source_chat_format: /^-\d+$/.test(configuredSource) ? 'negative_numeric_group_id'
@@ -637,7 +639,7 @@ export async function bootstrapTelegramWebhook() {
       state: probe?.ok ? 'registered' : 'attention_required',
       webhook_registered: probe?.webhook?.matches === true,
       bot_is_admin: probe?.bot_is_admin === true,
-      group_identified: probe?.group?.id === telegramSourceChatId(),
+      group_identified: telegramChatAllowed(probe?.group),
       bot_username: probe?.bot?.username || null,
       group_title: probe?.group?.title || null,
       group_type: probe?.group?.type || null,
@@ -663,7 +665,7 @@ export async function testTelegramSampleVehicle(vehicleId: number) {
   const facebook: any = facebookResult;
   const checks = {
     telegram_configured: connection.configured,
-    source_group_identified: connection.group?.id === telegramSourceChatId(),
+    source_group_identified: telegramChatAllowed(connection.group),
     bot_is_admin: connection.bot_is_admin === true,
     webhook_matches: connection.webhook?.matches === true,
     vehicle_available: vehicle.status === 'available',

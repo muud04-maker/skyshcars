@@ -27,6 +27,15 @@ export function telegramSourceChatId() {
   return String(process.env.TELEGRAM_SOURCE_CHAT_ID || '').trim();
 }
 
+/** Telegram getChat/getChatMember require @ for a public username, while the env may omit it. */
+export function telegramChatApiId(value: string | null | undefined = telegramSourceChatId()) {
+  const configured = String(value || '').trim();
+  if (!configured) return '';
+  if (/^-\d+$/.test(configured) || /^@[\w]+$/.test(configured)) return configured;
+  if (/^[A-Za-z][A-Za-z0-9_]{4,}$/.test(configured)) return `@${configured}`;
+  return configured;
+}
+
 export function telegramConfigSummary() {
   return {
     bot_token_present: !!telegramBotToken(),
