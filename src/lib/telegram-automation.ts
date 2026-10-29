@@ -521,21 +521,33 @@ export async function telegramConnectionProbe() {
     return result;
   }
   try {
-    const [me, webhook, chat] = await Promise.all([
-      telegramApi('getMe'), telegramApi('getWebhookInfo'), telegramApi('getChat', { chat_id: telegramSourceChatId() }),
-    ]);
+    let me: any = null, webhook: any = null, chat: any = null;
+    let meError: string | null = null, webhookError: string | null = null, chatError: string | null = null;
+    try { me = await telegramApi('getMe'); } catch (error: any) { meError = safeTelegramError(error); }
+    try { webhook = await telegramApi('getWebhookInfo'); } catch (error: any) { webhookError = safeTelegramError(error); }
+    try { chat = await telegramApi('getChat', { chat_id: telegramSourceChatId() }); } catch (error: any) { chatError = safeTelegramError(error); }
     let member: any = null;
-    try { member = await telegramApi('getChatMember', { chat_id: telegramSourceChatId(), user_id: me.id }); } catch {}
+    let memberError: string | null = null;
+    if (me?.id && chat?.id != null) {
+      try { member = await telegramApi('getChatMember', { chat_id: telegramSourceChatId(), user_id: me.id }); }
+      catch (error: any) { memberError = safeTelegramError(error); }
+    }
     const botIsAdmin = ['administrator', 'creator'].includes(String(member?.status || ''));
     const expectedUrl = String(process.env.TELEGRAM_WEBHOOK_URL || `${String(process.env.NEXT_PUBLIC_SITE_URL || 'https://skyshcars.com').replace(/\/$/, '')}/api/integrations/telegram/webhook`);
+    const configuredSource = telegramSourceChatId();
     const result = {
-      ok: !!me?.id && chat?.id != null,
+      ok: !!me?.id && chat?.id != null && String(webhook?.url || '') === expectedUrl,
       configured: true,
       config,
       bot: { id: me?.id || null, username: me?.username || null, name: me?.first_name || null },
       group: { id: String(chat?.id || ''), title: chat?.title || chat?.username || null, type: chat?.type || null },
       bot_is_admin: botIsAdmin,
       bot_member_status: member?.status || null,
+      source_chat_format: /^-\d+$/.test(configuredSource) ? 'negative_numeric_group_id'
+        : /^@\w+$/.test(configuredSource) ? 'at_username'
+        : /^\w+$/.test(configuredSource) ? 'username_without_at'
+        : configuredSource ? 'unrecognized_format' : 'missing',
+      errors: { bot: meError, webhook: webhookError, group: chatError, group_member: memberError },
       webhook: {
         url: webhook?.url || null,
         expected_url: expectedUrl,
@@ -553,7 +565,7 @@ export async function telegramConnectionProbe() {
       pending_updates=VALUES(pending_updates),last_error=VALUES(last_error),details=VALUES(details),checked_at=NOW()`, [
       result.ok && botIsAdmin ? 'connected' : 'attention_required', expectedUrl, result.group.id, result.group.title,
       result.bot.id, result.bot.username, botIsAdmin ? 1 : 0, result.webhook.pending_update_count,
-      result.webhook.last_error_message || null, JSON.stringify(result),
+      meError || webhookError || chatError || memberError || result.webhook.last_error_message || null, JSON.stringify(result),
     ]).catch(() => {});
     return result;
   } catch (error: any) {
@@ -629,8 +641,9 @@ export async function bootstrapTelegramWebhook() {
       bot_username: probe?.bot?.username || null,
       group_title: probe?.group?.title || null,
       group_type: probe?.group?.type || null,
+      source_chat_format: probe?.source_chat_format || null,
       webhook_url_matches: probe?.webhook?.matches === true,
-      diagnostic: probe?.error || probe?.webhook?.last_error_message || null,
+      diagnostic: probe?.errors?.group || probe?.errors?.member || probe?.error || probe?.webhook?.last_error_message || null,
     };
   } catch (error: any) {
     return { ok: false, state: 'registration_failed', error: safeTelegramError(error) };
