@@ -470,6 +470,17 @@ async function processClaimedRows(sourceRows: any[]) {
   };
   const imported: any = await createGroupImport(payload);
   const itemId = Number(imported.id);
+  if (!itemId && imported.listing === false) {
+    const ignoredIds = sourceRows.map((row) => Number(row.id));
+    await db().execute(`UPDATE telegram_source_messages SET processing_state='ignored',processed_at=NOW(),error=NULL,
+      prior_import_item_id=NULL,prior_vehicle_id=NULL WHERE id IN (${ignoredIds.map(() => '?').join(',')})`, ignoredIds);
+    await db().execute(`UPDATE telegram_updates SET state='processed',processed_at=NOW(),error=NULL
+      WHERE update_id IN (${sourceRows.map(() => '?').join(',')})`, sourceRows.map((row) => row.last_update_id));
+    await telegramEvent('message_ignored', 'ok', { reason: 'not_a_vehicle_listing', photos: photos.length }, {
+      sourceMessageId: Number(first.id),
+    });
+    return { state: 'ignored', photos: photos.length };
+  }
   if (!itemId) throw new Error('Telegram import did not return an inventory review item');
   const item: any = await one<any>('SELECT * FROM inventory_import_items WHERE id=? LIMIT 1', [itemId]);
   const vehicleId = Number(item?.approved_vehicle_id || item?.matched_vehicle_id || item?.vehicle_id || imported.vehicleId || 0) || null;
