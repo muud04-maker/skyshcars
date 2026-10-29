@@ -64,7 +64,7 @@ test('the largest Telegram album photo is selected', () => {
 
 test('complete new Telegram listings are eligible for automatic Sell Now publication', () => {
   const decision = telegram.decideTelegramAutoPublish({
-    match_status: 'new', review_status: 'pending', extraction_confidence: 0.91,
+    association_status: 'same_album', match_status: 'new', review_status: 'pending', extraction_confidence: 0.91,
     brand: 'Toyota', model: 'Hilux', model_year: 2022, category: 'car',
     price_value: 18500, price_currency: 'USD', mileage_km: 42000,
     text: 'Toyota Hilux 2022 USD 18500, mileage 42000 km, ready for shipment', photo_count: 4,
@@ -76,7 +76,7 @@ test('complete new Telegram listings are eligible for automatic Sell Now publica
 
 test('incomplete, uncertain, non-USD or sold listings never auto-publish', () => {
   const base = {
-    match_status: 'new', review_status: 'pending', extraction_confidence: 0.92,
+    association_status: 'same_album', match_status: 'new', review_status: 'pending', extraction_confidence: 0.92,
     brand: 'Toyota', model: 'Hilux', model_year: 2022, category: 'car',
     price_value: 18500, price_currency: 'USD', photo_count: 3, text: 'Available now',
   };

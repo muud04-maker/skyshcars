@@ -47,6 +47,17 @@ export function telegramConfigSummary() {
   };
 }
 
+/** Convert a verified supplier USD cost to a selling price only through an explicit owner policy. */
+export function telegramSellingPrice(sourcePriceUsd: unknown, markupUsd: unknown, markupPercent: unknown) {
+  const source = Number(sourcePriceUsd);
+  if (!Number.isFinite(source) || source <= 0) return null;
+  const fixed = markupUsd === null || markupUsd === undefined || markupUsd === '' ? null : Number(markupUsd);
+  if (fixed !== null && Number.isFinite(fixed) && fixed >= 0) return Math.round((source + fixed) * 100) / 100;
+  const percent = markupPercent === null || markupPercent === undefined || markupPercent === '' ? null : Number(markupPercent);
+  if (percent !== null && Number.isFinite(percent) && percent >= 0) return Math.round(source * (1 + percent / 100) * 100) / 100;
+  return null;
+}
+
 /** Constant-time comparison of the exact Telegram secret-token header. */
 export function telegramSecretMatches(given: string | null | undefined) {
   const expected = telegramSecret();
@@ -109,10 +120,12 @@ export function telegramAvailability(text: string, extracted?: unknown): Telegra
 }
 
 export type TelegramAutoInput = {
+  association_status?: string | null;
   match_status?: string | null;
   duplicate_risk?: number | string | null;
   review_status?: string | null;
   extraction_confidence?: number | string | null;
+  extraction_quality?: string | null;
   price_value?: number | string | null;
   price_usd?: number | string | null;
   price_currency?: string | null;
@@ -165,8 +178,14 @@ export function decideTelegramAutoPublish(input: TelegramAutoInput, minConfidenc
   if (!photoUsd(priceUsd)) reasons.push('an exact USD selling price is required');
   if (currency !== 'USD') reasons.push('price currency is not USD');
   if (photoCount < 1) reasons.push('original vehicle photo is missing');
-  if (!Number.isFinite(confidence) || confidence < minConfidence) reasons.push('extraction confidence is below the automatic threshold');
+  const qualityComplete = String(input.extraction_quality || '') === 'complete';
+  if (!qualityComplete && (!Number.isFinite(confidence) || confidence < minConfidence)) {
+    reasons.push('extraction quality is not sufficient for automatic publication');
+  }
   if (availability === 'unavailable') reasons.push('listing says the vehicle is sold, reserved or unavailable');
+  if (!['same_album','explicit_reply','semantic_adjacent'].includes(String(input.association_status || ''))) {
+    reasons.push('vehicle text and photos are not confidently associated');
+  }
 
   return {
     eligible: reasons.length === 0,

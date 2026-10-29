@@ -16,6 +16,9 @@ type Item = {
   match_confidence?: number;
   duplicate_risk?: number;
   extraction_confidence?: number;
+  extraction_quality?: string;
+  association_status?: string;
+  association_evidence?: any;
   approval_method?: string;
   approved_by?: string;
   evidence_json?: any;
@@ -31,6 +34,7 @@ type Item = {
   last_observed_at?: string;
   media_count: number;
   media_urls?: string | null;
+  media_items?: any;
   match_candidates?: any;
   change_proposals?: any;
 };
@@ -48,16 +52,17 @@ function object(x: any) {
 const CATS = ['car', 'motorcycle', 'truck', 'van', 'bus', 'machinery', 'other'];
 
 function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
+  const raw = object(it.raw_payload);
   const proposed = object(it.proposed_vehicle);
   const candidates = parse(it.match_candidates);
   const proposals = parse(it.change_proposals);
   const [f, setF] = useState<any>({
-    category: proposed.category || 'car', brand: proposed.brand || '', model: proposed.model || '',
+    category: proposed.category || 'car', brand: proposed.brand || '', manufacturer: proposed.manufacturer || '', model: proposed.model || '',
     trim_name: proposed.trim_name || '', model_year: proposed.model_year || '', mileage_km: proposed.mileage_km || '',
     engine: proposed.engine || '', fuel_type: proposed.fuel_type || '', transmission: proposed.transmission || '',
     steering: proposed.steering && proposed.steering !== 'unknown' ? proposed.steering : '',
     color: proposed.color || '', condition: proposed.condition || '',
-    price_usd: proposed.price_usd ?? (String(proposed.price_currency || '').toUpperCase() === 'USD' ? proposed.price_value || '' : ''),
+    price_usd: '',
     description: proposed.description || '', ai_enabled: true,
     existing_vehicle_id: it.matched_vehicle_id || candidates[0]?.id || '',
   });
@@ -102,16 +107,18 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
       await review(canApproveNew ? 'approve' : 'merge', { sellNow: true, publishFacebook: facebook });
     }
   }
-  async function publishApprovedOverride(facebook: boolean) {
-    if (!confirm(facebook
-      ? 'Publish this existing duplicate to Sell Now and Facebook? This will be audited.'
-      : 'Publish this existing duplicate to Sell Now? This will be audited.')) return;
+  async function publishApprovedOverride(facebook: boolean, sellNow = true) {
+    if (!confirm(facebook && !sellNow
+      ? 'Publish this existing Available duplicate to Facebook? This will be audited.'
+      : facebook
+        ? 'Publish this existing duplicate to Sell Now and Facebook? This will be audited.'
+        : 'Publish this existing duplicate to Sell Now? This will be audited.')) return;
     setBusy(true); setErr('');
     const r = await fetch('/api/admin/imports/group', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: it.id, action: 'override_publish',
-        options: { confirmDuplicate: true, publishFacebook: facebook },
+        options: { confirmDuplicate: true, publishFacebook: facebook, sellNow },
       }),
     });
     const j = await r.json().catch(() => ({}));
@@ -119,17 +126,44 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
     if (!r.ok) { setErr(j.error || 'Publication override failed'); return; }
     onDone();
   }
+  async function retryExtraction() {
+    setBusy(true); setErr('');
+    const response = await fetch('/api/admin/imports/group', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: it.id, action: 'reextract' }),
+    });
+    const json = await response.json().catch(() => ({}));
+    setBusy(false);
+    if (!response.ok) { setErr(json.error || 'Extraction retry failed'); return; }
+    onDone();
+  }
+  async function chooseCover(mediaId: number) {
+    setBusy(true); setErr('');
+    const response = await fetch('/api/admin/imports/group', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: it.id, action: 'set_cover', media_id: mediaId }),
+    });
+    const json = await response.json().catch(() => ({}));
+    setBusy(false);
+    if (!response.ok) { setErr(json.error || 'Could not set cover'); return; }
+    onDone();
+  }
 
   const field = (k: string, label: string, type = 'text') =>
     <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>{label}<input type={type} value={f[k]} onChange={set(k)} /></label>;
   const unresolved = it.review_status === 'pending';
   const hasDraft = !!it.vehicle_id && Number(it.vehicle_id) !== Number(it.matched_vehicle_id || 0);
+  const mediaItems = parse(it.media_items);
 
   return <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
     {(it.match_status === 'possible' || it.match_status === 'confirmed') && <div style={{ border: '1px solid #e4b44d', background: '#fff8df', padding: 10, borderRadius: 8 }}>
       <b>{it.match_status === 'confirmed' ? 'Existing vehicle detected' : 'Possible duplicate — review required'}</b>
       <p style={{ margin: '5px 0' }}>
         Duplicate risk {Math.round(Number(it.duplicate_risk ?? it.match_confidence ?? 0) * 100)}% · Match confidence {Math.round(Number(it.match_confidence || 0) * 100)}% · {it.match_type || 'similar specifications'}
+      </p>
+      <p style={{ margin: '5px 0' }}>
+        Association: <b>{String(it.association_status || raw?.association?.status || 'unknown').replaceAll('_',' ')}</b>
+        {raw?.association?.reason ? ` · ${raw.association.reason}` : ''}
       </p>
       {it.matched_vehicle_id && <p style={{ margin: 0 }}>
         Candidate #{it.matched_vehicle_id} {it.matched_brand || ''} {it.matched_model || ''} {it.matched_model_year || ''}
@@ -147,9 +181,19 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
       </ul>
     </div>}
 
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 10 }}>
+    {mediaItems.length > 0 && <div>
+      <b>Original photo order and cover</b>
+      <div className="importMediaGrid">
+        {mediaItems.map((media: any) => <button type="button" key={media.id} className={Number(media.is_cover) ? 'importMediaChoice on' : 'importMediaChoice'} disabled={busy} onClick={() => chooseCover(Number(media.id))}>
+          <img src={media.url} alt="" />
+          <span>{Number(media.is_cover) ? 'Cover' : 'Set cover'}{media.telegram_message_id ? ` · msg ${media.telegram_message_id}` : ''}</span>
+        </button>)}
+      </div>
+    </div>}
+
+    <div className="reviewFields">
       <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>Category<select value={f.category} onChange={set('category')}>{CATS.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
-      {field('brand', 'Make *')}{field('model', 'Model *')}{field('trim_name', 'Trim')}
+      {field('brand', 'Make *')}{field('manufacturer', 'Manufacturer')}{field('model', 'Model *')}{field('trim_name', 'Trim')}
       {field('model_year', 'Year', 'number')}{field('mileage_km', 'Mileage (km)', 'number')}
       {field('engine', 'Engine')}{field('fuel_type', 'Fuel')}{field('transmission', 'Transmission')}
       <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>Steering<select value={f.steering} onChange={set('steering')}><option value="">Not confirmed</option><option value="LHD">LHD</option><option value="RHD">RHD</option></select></label>
@@ -163,7 +207,10 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
     <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>Public description (optional — phone numbers, links and supplier contacts are removed)<textarea rows={3} value={f.description} onChange={set('description')} /></label>
     {err && <p style={{ color: '#b3261e', margin: 0 }}>{err}</p>}
     <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 14 }}><input type="checkbox" checked={f.ai_enabled !== false} onChange={(e) => setF((x: any) => ({ ...x, ai_enabled: e.target.checked }))} />Make this approved vehicle available to the customer AI</label>
-    {unresolved && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    <div className="pager">
+      <button className="miniBtn" type="button" disabled={busy} onClick={retryExtraction}>Retry extraction</button>
+    </div>
+    {unresolved && <div className="reviewActions">
       {hasDraft && <button className="btn" disabled={busy} onClick={() => review('approve', { sellNow: true, publishFacebook: false, duplicateOverride: highRisk })}>{busy ? 'Working…' : highRisk ? 'Override → Sell Now' : 'Approve as new → Sell Now'}</button>}
       {!hasDraft && it.matched_vehicle_id && <button className="btn" disabled={busy} onClick={() => publishExplicitly(false)}>{busy ? 'Working…' : highRisk ? 'Publish duplicate → Sell Now' : 'Publish → Sell Now'}</button>}
       {(hasDraft || it.matched_vehicle_id) && <button className="btn dark" disabled={busy} onClick={() => publishExplicitly(true)}>{busy ? 'Working…' : highRisk ? 'Publish duplicate → Sell Now + Facebook' : 'Publish → Sell Now + Facebook'}</button>}
@@ -171,9 +218,10 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
       {proposals.some((proposal: any) => proposal.status === 'pending') && <button className="btn" disabled={busy} onClick={() => review('apply_changes')}>Apply proposed updates</button>}
       <button className="btn dark" disabled={busy} onClick={() => review('reject')}>Reject</button>
     </div>}
-    {!unresolved && it.review_status === 'approved' && it.approved_vehicle_id && highRisk && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    {!unresolved && it.review_status === 'approved' && it.approved_vehicle_id && highRisk && <div className="reviewActions">
       <button className="btn" disabled={busy} onClick={() => publishApprovedOverride(false)}>Publish duplicate → Sell Now</button>
       <button className="btn dark" disabled={busy} onClick={() => publishApprovedOverride(true)}>Publish duplicate → Sell Now + Facebook</button>
+      {it.vehicle_status === 'available' && <button className="btn-neutral" disabled={busy} onClick={() => publishApprovedOverride(true, false)}>Publish duplicate → Facebook only</button>}
     </div>}
   </div>;
 }
@@ -225,14 +273,14 @@ export default function V16ImportClient() {
           const raw = object(it.raw_payload);
           const proposed = object(it.proposed_vehicle);
           const urls = String(it.media_urls || '').split('\n').filter(Boolean);
-          return <div key={it.id} style={{ border: '1px solid #d8e2ec', borderRadius: 10, padding: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <b>#{it.id} {proposed.category === 'motorcycle' ? 'Motorcycle · ' : ''}{proposed.brand || 'Unknown make'} {proposed.model || 'Unknown model'} {proposed.model_year || ''}</b>
+          return <div key={it.id} className="supplierReviewCard">
+            <div className="supplierReviewHead">
+              <b className="supplierReviewTitle">#{it.id} {proposed.model_year || ''} {proposed.brand || 'Unknown make'} {proposed.model || 'Unknown model'} {proposed.trim_name || ''}</b>
               <span>{it.source === 'telegram' ? 'TELEGRAM · ' : ''}{it.review_status.toUpperCase()} · {String(it.match_status || 'new').replaceAll('_', ' ')} {it.stock_no ? `· ${it.stock_no}` : ''}{it.vehicle_status ? ` · ${it.vehicle_status.replaceAll('_', ' ')}` : ''}</span>
             </div>
-            <p style={{ margin: '8px 0', whiteSpace: 'pre-wrap' }}>{raw.text || 'No text (photos only)'}</p>
-            {urls.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{urls.slice(0, 12).map((url) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt="" style={{ width: 84, height: 64, objectFit: 'cover', borderRadius: 6, border: '1px solid #d8e2ec' }} /></a>)}</div>}
-            <p className="muted">Photos: {it.media_count || 0}{raw.mergedMessageIds?.length > 1 ? ` · merged from ${raw.mergedMessageIds.length} messages` : ''} · Extraction confidence: {it.extraction_confidence == null ? 'unknown' : `${Math.round(Number(it.extraction_confidence) * 100)}%`} · Source: {it.source_message_id}</p>
+            <p className="supplierSourceText">{raw.text || 'No text (photos only)'}</p>
+            {urls.length > 0 && <div className="importPhotoStrip">{urls.slice(0, 12).map((url) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt="" /></a>)}</div>}
+            <p className="muted reviewMeta">Photos: {it.media_count || 0}{raw.mergedMessageIds?.length > 1 ? ` · ${raw.mergedMessageIds.length} source messages` : ''} · Extraction: {proposed.extraction_quality || 'unknown'} · Duplicate risk: {it.duplicate_risk == null ? 'unknown' : `${Math.round(Number(it.duplicate_risk) * 100)}%`} · Association: {String(it.association_status || raw.association?.status || 'unknown').replaceAll('_',' ')}</p>
             {it.review_status === 'pending' && <ReviewForm it={it} onDone={load} />}
             {it.approved_vehicle_id && <p>Existing vehicle: <a href={`/admin/vehicles?edit=${it.approved_vehicle_id}`}>#{it.approved_vehicle_id}</a> · <a href={`/vehicles/${it.approved_vehicle_id}`} target="_blank" rel="noreferrer">public listing</a></p>}
           </div>;

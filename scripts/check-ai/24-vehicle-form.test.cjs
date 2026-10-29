@@ -69,7 +69,7 @@ test('15. the form is responsive (3/2/1 columns), no per-step pages', () => {
   assert.ok(css.includes('.formGrid'), 'shared responsive grid');
   assert.ok(/max-width:850px[^}]*formGrid|formGrid[^}]*grid-template-columns:1fr/.test(css.replace(/\s+/g, '')), 'grid collapses on small screens');
   assert.ok(read(FORM).includes('maxWidth: 1100'), 'sensible max width');
-  assert.ok(read(FORM).includes("position: 'sticky'"), 'sticky save bar on long pages');
+  assert.ok(css.includes('.formActionBar{position:sticky'), 'sticky save bar on long pages');
 });
 
 test('16. motorcycles can be created through the same form', () => {

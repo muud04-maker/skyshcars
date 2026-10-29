@@ -12,12 +12,21 @@ const FUELS = ['petrol', 'diesel', 'hybrid', 'electric'];
 const TRANSMISSIONS = ['automatic', 'manual'];
 const STATUSES: [string, string][] = [['available', 'Available'], ['reserved', 'Reserved'], ['sold', 'Sold'], ['pending_verification', 'Pending verification'], ['hidden', 'Hidden']];
 const EMPTY = {
-  category: 'car', stock_no: '', brand: '', model: '', model_year: '', trim_name: '', manufacturing_date: '',
+  category: 'car', stock_no: '', brand: '', manufacturer: '', model: '', model_year: '', trim_name: '', manufacturing_date: '',
   mileage_km: '', engine: '', fuel_type: '', transmission: '', steering: 'LHD', color: '', drivetrain: '', body_type: '',
-  price_usd: '', location: 'China', status: 'available', description: '',
+  price_usd: '', supplier_price_usd: '', supplier_currency: '', source_description: '', extraction_method: '', extraction_quality: '',
+  location: 'China', status: 'available', description: '',
   ai_enabled: true, image_url: '',
 };
 type Photo = { file?: File; url: string; id?: number };
+type SupplierDraft = {
+  category: string | null; brand: string | null; manufacturer: string | null; model: string | null;
+  trim_name: string | null; model_year: number | null; manufacturing_date: string | null;
+  mileage_km: number | null; engine: string | null; transmission: string | null; fuel_type: string | null;
+  drive_type: string | null; steering: string | null; color: string | null; condition: string | null;
+  price_value: number | null; price_currency: string | null; price_usd: number | null;
+  original_description: string; missing_fields?: string[]; extraction_quality?: string; extraction_method?: string;
+};
 
 export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode: 'create' | 'edit'; initial?: any; onSaved?: (v: { id: number; stock_no: string }) => void; onCancel?: () => void }) {
   const [f, setF] = useState<any>({ ...EMPTY, ...(initial || {}) });
@@ -28,6 +37,11 @@ export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode
   const [msg, setMsg] = useState('');
   const [dup, setDup] = useState<{ stock_no: string; id?: number; title?: string } | null>(null);
   const [saved, setSaved] = useState<{ id: number; stock_no: string } | null>(null);
+  const [sourceText, setSourceText] = useState(String(initial?.source_description || ''));
+  const [drafts, setDrafts] = useState<SupplierDraft[]>([]);
+  const [selectedDraftIndex, setSelectedDraftIndex] = useState(0);
+  const [extracting, setExtracting] = useState(false);
+  const [extractionMessage, setExtractionMessage] = useState('');
   const busyRef = useRef(false);
   const set = (k: string, v: any) => { setF((x: any) => ({ ...x, [k]: v })); setErrors((e) => ({ ...e, [k]: '' })); };
   const title = useMemo(() => [f.model_year, f.brand, f.model, f.trim_name].filter(Boolean).join(' '), [f.model_year, f.brand, f.model, f.trim_name]);
@@ -35,6 +49,64 @@ export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode
   function reset() {
     setF({ ...EMPTY });
     setPhotos([]); setCover(0); setErrors({}); setMsg(''); setDup(null); setSaved(null);
+    setSourceText(''); setDrafts([]); setSelectedDraftIndex(0); setExtractionMessage('');
+  }
+  async function extractDescription() {
+    const text = sourceText.trim();
+    if (!text) { setExtractionMessage('Paste a supplier vehicle description first.'); return; }
+    setExtracting(true); setExtractionMessage('Reading the supplier description…');
+    try {
+      const response = await fetch('/api/admin/vehicles/extract', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setExtractionMessage(result.error || 'Extraction failed. Your text and form values were kept.');
+        return;
+      }
+      const extracted = Array.isArray(result.vehicles) ? result.vehicles : [];
+      setDrafts(extracted);
+      if (!extracted.length) {
+        setExtractionMessage('No vehicle could be identified. Your text has been preserved.');
+        return;
+      }
+      setSelectedDraftIndex(0);
+      applyDraft(extracted[0]);
+      setExtractionMessage(result.extraction_failed
+        ? 'AI was unavailable, so only reliable deterministic fields were filled. Nothing was invented.'
+        : `${extracted.length} vehicle draft${extracted.length === 1 ? '' : 's'} extracted. Review missing fields before saving.`);
+    } finally { setExtracting(false); }
+  }
+  function applyDraft(draft: SupplierDraft) {
+    setF((current: any) => ({
+      ...current,
+      category: draft.category || 'car',
+      brand: draft.brand || '',
+      manufacturer: draft.manufacturer || draft.brand || '',
+      model: draft.model || '',
+      trim_name: draft.trim_name || '',
+      model_year: draft.model_year ?? '',
+      manufacturing_date: draft.manufacturing_date || '',
+      mileage_km: draft.mileage_km ?? '',
+      engine: draft.engine || '',
+      transmission: draft.transmission || '',
+      fuel_type: draft.fuel_type || '',
+      drivetrain: draft.drive_type || '',
+      steering: draft.steering && ['LHD','RHD'].includes(draft.steering) ? draft.steering : 'unknown',
+      color: draft.color || '',
+      price_usd: '',
+      supplier_price_usd: draft.price_value ?? '',
+      supplier_currency: draft.price_currency || '',
+      source_description: sourceText || draft.original_description || current.source_description,
+      extraction_method: draft.extraction_method || 'deterministic',
+      extraction_quality: draft.extraction_quality || 'partial',
+    }));
+    setErrors({});
+  }
+  function resetExtraction() {
+    setDrafts([]); setSelectedDraftIndex(0); setExtractionMessage('');
+    setF((current: any) => ({ ...current, extraction_method: '', extraction_quality: '', source_description: sourceText }));
   }
   async function checkStock(value: string) {
     const stock = String(value || '').trim();
@@ -70,18 +142,28 @@ export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode
     return Object.keys(e).length === 0;
   }
 
-  async function save(ev?: any) {
+  async function save(ev?: any, intent: 'save' | 'draft' | 'publish' = 'save') {
     ev?.preventDefault?.();
     if (busyRef.current) return;                       // double-click protection
     if (!validate()) { setMsg('Please fix the highlighted fields.'); return; }
+    const desiredStatus = intent === 'draft' ? 'pending_verification' : intent === 'publish' ? 'available' : String(f.status || 'pending_verification');
+    const hasPhotos = photos.length > 0 || !!String(f.image_url || '').trim();
+    if (intent === 'publish') {
+      if (!String(f.model_year || '').trim()) { setErrors((e) => ({ ...e, model_year: 'Year is required before publishing.' })); setMsg('Year is required before publishing.'); return; }
+      if (!(Number(f.price_usd) > 0)) { setErrors((e) => ({ ...e, price_usd: 'Approved selling price is required before publishing.' })); setMsg('Approved selling price is required before publishing.'); return; }
+      if (!hasPhotos) { setErrors((e) => ({ ...e, photos: 'At least one original vehicle photo is required before publishing.' })); setMsg('Add at least one original vehicle photo before publishing.'); return; }
+    }
     if (mode === 'create' && f.stock_no && !(await checkStock(f.stock_no))) { setMsg(''); return; }
     busyRef.current = true; setBusy(true); setMsg(mode === 'create' ? 'Saving vehicle...' : 'Saving changes...');
     try {
       const stock = String(f.stock_no || '').trim() || `SC${String(Date.now()).slice(-6)}`;
-      const body: any = { ...f, stock_no: stock, ai_enabled: !!f.ai_enabled,
+      const deferPublication = desiredStatus === 'available';
+      const body: any = { ...f, stock_no: stock, status: deferPublication ? 'pending_verification' : desiredStatus, ai_enabled: !!f.ai_enabled,
         model_year: f.model_year === '' ? null : Number(f.model_year),
         mileage_km: f.mileage_km === '' ? null : Number(f.mileage_km),
-        price_usd: f.price_usd === '' ? null : Number(f.price_usd) };
+        price_usd: f.price_usd === '' ? null : Number(f.price_usd),
+        supplier_price_usd: f.supplier_price_usd === '' ? null : Number(f.supplier_price_usd),
+        source_description: sourceText || f.source_description || null };
       if (f.body_type) body.description = [f.description, `Body type: ${f.body_type}`].filter(Boolean).join('\n');
       const r = await fetch('/api/admin/vehicles', {
         method: mode === 'create' ? 'POST' : 'PATCH',
@@ -114,8 +196,21 @@ export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode
         await fetch('/api/admin/media/manage', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: uploaded[cover].id, action: 'cover' }) }).catch(() => {});
       }
       if (imageErrors.length) setErrors((e) => ({ ...e, photos: imageErrors.join('; ') }));
+      if (id && desiredStatus === 'available' && !imageErrors.length) {
+        setMsg('Validating and publishing…');
+        const publishResponse = await fetch('/api/admin/vehicles', {
+          method: 'PATCH', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id, status: 'available' }),
+        });
+        const publishResult = await publishResponse.json().catch(() => ({}));
+        if (!publishResponse.ok) {
+          setErrors((e) => ({ ...e, photos: publishResult.error || 'Vehicle saved, but publishing failed validation.' }));
+          setSaved({ id, stock_no: stock });
+          return;
+        }
+      }
       setSaved({ id, stock_no: stock });
-      setMsg('');
+      setMsg(desiredStatus === 'available' ? 'Vehicle published to Sell Now.' : desiredStatus === 'pending_verification' ? 'Draft saved for review.' : 'Vehicle saved.');
       onSaved?.({ id, stock_no: stock });
     } catch (e: any) {
       setMsg('Could not save the vehicle. Please check your connection and try again.');
@@ -134,7 +229,7 @@ export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode
     </div>
   </div>;
 
-  return <form className="vehicleForm card" onSubmit={save} style={{ maxWidth: 1100 }}>
+  return <form className="vehicleForm card" onSubmit={(event) => void save(event, 'save')} style={{ maxWidth: 1100 }}>
     {dup ? <div className="dupAlert">
       <b>Stock number {dup.stock_no} already exists.</b>
       <div>{dup.title ? `${dup.title} already uses this stock number.` : 'Another vehicle already uses this stock number.'} Choose a different stock number to continue.</div>
@@ -144,10 +239,43 @@ export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode
       </div>
     </div> : null}
 
+    <section className="aiAutofillSection">
+      <div>
+        <span className="eyebrow">AI AUTOFILL</span>
+        <h2>Paste supplier vehicle description</h2>
+        <p className="muted">Supports multiline English, Chinese, Arabic, Somali and mixed-language descriptions. The original text is preserved separately from the extracted fields.</p>
+      </div>
+      <textarea
+        className="sourceDescriptionInput"
+        rows={6}
+        value={sourceText}
+        onChange={(event) => setSourceText(event.target.value)}
+        placeholder={'Volkswagen Touareg 2008 3.6FSI V6 Automatic Luxury Edition petrol\nManufacturer: Volkswagen\nEngine: 3.6L V6\nPrice: $4,500 USD'}
+      />
+      <div className="aiAutofillActions">
+        <button type="button" className="btn-primary" disabled={extracting || !sourceText.trim()} onClick={extractDescription}>{extracting ? 'Extracting…' : 'AI Extract / Autofill'}</button>
+        <button type="button" className="btn-neutral" disabled={extracting || (!drafts.length && !f.extraction_method)} onClick={resetExtraction}>Reset extraction</button>
+      </div>
+      {extractionMessage ? <p className={extractionMessage.toLowerCase().includes('unavailable') ? 'muted' : 'success'}>{extractionMessage}</p> : null}
+      {drafts.length > 1 ? <div className="extractedDrafts">
+        <h3>{drafts.length} distinct vehicles found</h3>
+        {drafts.map((draft, index) => <button type="button" key={`${draft.brand}-${draft.model}-${index}`} className={selectedDraftIndex === index ? 'miniBtn on' : 'miniBtn'} onClick={() => { setSelectedDraftIndex(index); applyDraft(draft); }}>
+          {draft.brand || 'Unknown make'} {draft.model || 'Unknown model'} {draft.model_year || ''}
+        </button>)}
+      </div> : null}
+      {drafts.length > 0 ? <div className="extractionPreview">
+        <b>{f.brand || 'Unknown make'} {f.model || 'Unknown model'} {f.model_year || ''}</b>
+        <span>{f.extraction_quality === 'complete' ? 'Core fields complete' : 'Review required'}</span>
+        {drafts[selectedDraftIndex]?.missing_fields?.length ? <p><b>Missing from source:</b> {drafts[selectedDraftIndex].missing_fields.join(', ')}</p> : <p className="success">All core source fields were recognized.</p>}
+        <small>Extraction quality is deterministic field coverage, not a fabricated probability.</small>
+      </div> : null}
+    </section>
+
     <h2 style={{ marginTop: 0 }}>Basic information</h2>
     <div className="formGrid">
       <label>Category<select value={f.category} onChange={(e) => set('category', e.target.value)}>{CATS.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
       <label>Brand *<input value={f.brand} onChange={(e) => set('brand', e.target.value)} placeholder="Toyota" />{errors.brand ? <small className="error">{errors.brand}</small> : null}</label>
+      <label>Manufacturer<input value={f.manufacturer || ''} onChange={(e) => set('manufacturer', e.target.value)} placeholder="e.g. Dongfeng Nissan" /></label>
       <label>Model *<input value={f.model} onChange={(e) => set('model', e.target.value)} placeholder="Corolla" />{errors.model ? <small className="error">{errors.model}</small> : null}</label>
       <label>Year<input type="number" value={f.model_year} onChange={(e) => set('model_year', e.target.value)} placeholder="2019" />{errors.model_year ? <small className="error">{errors.model_year}</small> : null}</label>
       <label>Trim<input value={f.trim_name} onChange={(e) => set('trim_name', e.target.value)} /></label>
@@ -169,10 +297,12 @@ export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode
 
     <h2>Pricing &amp; location</h2>
     <div className="formGrid">
+      <label>Supplier source price<input type="number" value={f.supplier_price_usd ?? ''} onChange={(e) => set('supplier_price_usd', e.target.value)} /></label>
+      <label>Source currency<input maxLength={3} value={f.supplier_currency || ''} onChange={(e) => set('supplier_currency', e.target.value.toUpperCase())} placeholder="USD" /></label>
       <label>Selling price USD<input type="number" value={f.price_usd} onChange={(e) => set('price_usd', e.target.value)} />{errors.price_usd ? <small className="error">{errors.price_usd}</small> : null}</label>
       <label>Location<input value={f.location} onChange={(e) => set('location', e.target.value)} /></label>
     </div>
-    <p className="muted">Supplier cost, margin and sourcing details are private and are never entered or shown here.</p>
+    <p className="muted">Supplier cost and selling price are stored separately. Supplier cost is private and never exposed by the public API. Set the final selling price only under the configured Sky Cars pricing policy.</p>
 
     <h2>Exact vehicle photos</h2>
     <p className="muted">These photos are what customers and the AI will receive for this stock unit. Only exact stock photos of this vehicle belong here.</p>
@@ -198,11 +328,14 @@ export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode
       <input type="checkbox" checked={!!f.ai_enabled} onChange={(e) => set('ai_enabled', e.target.checked)} /> <span>Let the AI sell this vehicle (AI Catalog) - separate from the public website status</span>
     </label>
     <label className="wide">Description<textarea value={f.description} onChange={(e) => set('description', e.target.value)} /></label>
+    {f.source_description ? <label className="wide">Original supplier description (preserved)<textarea rows={6} value={f.source_description} readOnly /></label> : null}
     {f.image_url !== undefined ? <label>Extra exact photo URL<input value={f.image_url || ''} onChange={(e) => set('image_url', e.target.value)} placeholder="https://..." /></label> : null}
 
     {msg ? <p className={errors.brand || errors.model ? 'error' : 'muted'}><b>{msg}</b></p> : null}
-    <div className="pager" style={{ position: 'sticky', bottom: 0, background: '#fff', paddingTop: 10 }}>
+    <div className="pager formActionBar">
       <button className="btn-primary" type="submit" disabled={busy}>{busy ? 'Saving...' : mode === 'create' ? 'Save Vehicle' : 'Save changes'}</button>
+      <button className="btn-neutral" type="button" disabled={busy} onClick={() => save(undefined, 'draft')}>Save Draft</button>
+      <button className="btn dark" type="button" disabled={busy} onClick={() => save(undefined, 'publish')}>Publish Now</button>
       {mode === 'create' ? <button type="button" className="btn-neutral" disabled={busy} onClick={reset}>Clear form</button> : null}
       {mode === 'edit' ? <button type="button" className="btn-neutral" disabled={busy} onClick={onCancel}>Cancel</button> : null}
       <a className="btn-neutral" href="/admin/vehicles">Back to inventory</a>

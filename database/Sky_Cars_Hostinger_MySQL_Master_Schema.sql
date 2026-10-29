@@ -316,6 +316,11 @@ CREATE TABLE IF NOT EXISTS inventory_import_media (
  url TEXT NULL,
  mime_type VARCHAR(100) NULL,
  blob_name VARCHAR(160) NULL,
+  telegram_message_id BIGINT NULL,
+  telegram_file_unique_id VARCHAR(255) NULL,
+  source_message_key VARCHAR(191) NULL,
+  is_cover BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order INT NOT NULL DEFAULT 0,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(import_item_id) REFERENCES inventory_import_items(id) ON DELETE CASCADE,
  INDEX(import_item_id)
@@ -352,6 +357,12 @@ CREATE TABLE IF NOT EXISTS whatsapp_group_bridge_status (
 ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vin VARCHAR(32) NULL;
 ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS supplier_reference VARCHAR(191) NULL;
 ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vehicle_condition VARCHAR(80) NULL;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS supplier_price_usd DECIMAL(12,2) NULL;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS manufacturer VARCHAR(120) NULL;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS supplier_currency CHAR(3) NULL;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS source_description TEXT NULL;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS extraction_method VARCHAR(30) NULL;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS extraction_quality VARCHAR(20) NULL;
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS group_external_id VARCHAR(191) NULL;
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS matched_vehicle_id BIGINT UNSIGNED NULL;
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS match_status VARCHAR(30) NOT NULL DEFAULT 'new';
@@ -363,6 +374,13 @@ ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS evidence_json JSON N
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS last_observed_at DATETIME NULL;
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS approval_method VARCHAR(30) NULL;
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS approved_by VARCHAR(191) NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS association_status VARCHAR(30) NOT NULL DEFAULT 'unknown';
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS association_evidence JSON NULL;
+ALTER TABLE inventory_import_media ADD COLUMN IF NOT EXISTS telegram_message_id BIGINT NULL;
+ALTER TABLE inventory_import_media ADD COLUMN IF NOT EXISTS telegram_file_unique_id VARCHAR(255) NULL;
+ALTER TABLE inventory_import_media ADD COLUMN IF NOT EXISTS source_message_key VARCHAR(191) NULL;
+ALTER TABLE inventory_import_media ADD COLUMN IF NOT EXISTS is_cover BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE inventory_import_media ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS vehicle_identity_memory (
   vehicle_id BIGINT UNSIGNED PRIMARY KEY,stock_no VARCHAR(60),vin VARCHAR(32),supplier_reference VARCHAR(191),
@@ -640,7 +658,7 @@ CREATE TABLE IF NOT EXISTS telegram_updates (
 
 CREATE TABLE IF NOT EXISTS telegram_source_messages (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,chat_id BIGINT NOT NULL,message_id BIGINT NOT NULL,
-  media_group_id VARCHAR(191),last_update_id BIGINT,edit_date BIGINT,message_thread_id BIGINT,from_id BIGINT,
+  media_group_id VARCHAR(191),last_update_id BIGINT,edit_date BIGINT,message_thread_id BIGINT,reply_to_message_id BIGINT,from_id BIGINT,
   sender_name VARCHAR(191),chat_title VARCHAR(191),text TEXT,caption TEXT,
   message_kind VARCHAR(30) NOT NULL DEFAULT 'other',file_id VARCHAR(255),file_unique_id VARCHAR(255),
   media_width INT,media_height INT,file_size BIGINT,
@@ -653,6 +671,7 @@ CREATE TABLE IF NOT EXISTS telegram_source_messages (
   UNIQUE KEY uq_telegram_message(chat_id,message_id),INDEX(media_group_id,processing_state),
   INDEX(processing_state,next_attempt_at),INDEX(import_item_id),INDEX(vehicle_id),INDEX(received_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE telegram_source_messages ADD COLUMN IF NOT EXISTS reply_to_message_id BIGINT NULL;
 
 CREATE TABLE IF NOT EXISTS telegram_automation_events (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,event_type VARCHAR(80) NOT NULL,status VARCHAR(40) NOT NULL,

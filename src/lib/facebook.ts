@@ -110,3 +110,44 @@ export async function facebookStatus(): Promise<FacebookStatus> {
   }
   return s;
 }
+
+/**
+ * Harmless production preflight. It verifies the intended Page and whether the token can read its
+ * feed. Manage-post permission is only "verified" when debug_token exposes scopes; otherwise it is
+ * explicitly unknown and no post is attempted.
+ */
+export async function facebookPublishPreflight() {
+  const status = await facebookStatus();
+  if (!status.connected) {
+    return {
+      ...status, pageReadable: false, feedReadable: false,
+      managePostsVerified: false, publicationReady: false,
+    };
+  }
+  let token = '';
+  try { token = await resolvePageToken(); }
+  catch (error: any) {
+    return { ...status, connected: false, pageReadable: false, feedReadable: false,
+      managePostsVerified: false, publicationReady: false, error: graphError(error) };
+  }
+  let feedReadable = false;
+  let feedError: string | null = null;
+  try {
+    await axios.get(`${GRAPH}/${encodeURIComponent(fbPageId())}/feed`, {
+      params: { fields: 'id', limit: 1, access_token: token }, timeout: 15000,
+    });
+    feedReadable = true;
+  } catch (error: any) {
+    feedError = graphError(error);
+  }
+  const managePostsVerified = Array.isArray(status.missingScopes) && status.missingScopes.length === 0;
+  return {
+    ...status,
+    pageReadable: status.connected,
+    feedReadable,
+    feedError,
+    managePostsVerified,
+    publicationReady: status.connected && feedReadable && managePostsVerified,
+    publicationReadiness: managePostsVerified ? 'verified' : 'permission_not_debuggable',
+  };
+}

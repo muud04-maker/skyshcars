@@ -24,6 +24,12 @@ async function addColumn(table: string, column: string, definition: string, inde
 export function ensureInventoryMemorySchema() {
   if (!ready) ready = (async () => {
     await addColumn('vehicles', 'vin', 'VARCHAR(32) NULL');
+    await addColumn('vehicles', 'manufacturer', 'VARCHAR(120) NULL');
+    await addColumn('vehicles', 'supplier_price_usd', 'DECIMAL(12,2) NULL');
+    await addColumn('vehicles', 'supplier_currency', 'CHAR(3) NULL');
+    await addColumn('vehicles', 'source_description', 'TEXT NULL');
+    await addColumn('vehicles', 'extraction_method', 'VARCHAR(30) NULL');
+    await addColumn('vehicles', 'extraction_quality', 'VARCHAR(20) NULL');
     await addColumn('vehicles', 'supplier_reference', 'VARCHAR(191) NULL', ', ADD INDEX idx_vehicle_supplier_ref(supplier_reference)');
     await addColumn('vehicles', 'vehicle_condition', 'VARCHAR(80) NULL');
     await addColumn('inventory_import_items', 'group_external_id', 'VARCHAR(191) NULL');

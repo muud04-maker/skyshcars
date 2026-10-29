@@ -82,6 +82,48 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .inbox, .inbox.noDrawer { grid-template-columns: 300px minmax(0, 1fr); }
   .contextDrawer { position: absolute; inset: 0 0 0 auto; width: min(360px, 90vw); z-index: 40; box-shadow: -8px 0 30px #0c33502e; }
 }
+
+/* V38 supplier review and AI autofill */
+.aiAutofillSection{display:grid;gap:12px;margin:8px 0 24px;padding:20px;border:1px solid #bfd5e5;border-radius:16px;background:linear-gradient(135deg,#f3f9fd,#fff);min-width:0}
+.aiAutofillSection h2{margin:2px 0 6px;color:#0b2e48}
+.sourceDescriptionInput{width:100%;min-height:140px;resize:vertical;font:inherit;line-height:1.55;padding:12px;border:1px solid #a9c2d6;border-radius:10px;background:#fff}
+.aiAutofillActions,.formActionBar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.aiAutofillActions .btn-primary,.aiAutofillActions .btn-neutral{width:auto}
+.extractedDrafts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px;border-radius:10px;background:#eef5fa}
+.extractedDrafts h3{width:100%;margin:0;font-size:14px}
+.extractedDrafts .miniBtn.on{border-color:#0b7a3b;background:#e5f6ec;color:#085d2e}
+.extractionPreview{display:grid;gap:5px;padding:12px;border-left:4px solid #1784c7;background:#f7fbfd;border-radius:8px;overflow-wrap:anywhere}
+.extractionPreview span,.extractionPreview small{color:#5c7285;font-size:12px}
+.supplierReviewCard{min-width:0;overflow:hidden;border:1px solid #d8e2ec;border-radius:12px;padding:14px;background:#fff}
+.supplierReviewHead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;min-width:0}
+.supplierReviewHead>span{overflow-wrap:anywhere;color:#5c7285;font-size:12px}
+.supplierReviewTitle{display:block;min-width:0;overflow-wrap:anywhere;font-size:16px;line-height:1.35;color:#0b2e48}
+.supplierSourceText{margin:10px 0;white-space:pre-wrap;overflow-wrap:anywhere;max-height:190px;overflow:auto;line-height:1.5}
+.importPhotoStrip{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.importPhotoStrip img{width:82px;height:62px;object-fit:cover;border-radius:7px;border:1px solid #d8e2ec}
+.reviewMeta{overflow-wrap:anywhere;line-height:1.5}
+.reviewFields{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;min-width:0}
+.reviewFields label,.reviewFields input,.reviewFields select,.reviewFields textarea{min-width:0;max-width:100%}
+.reviewActions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-bottom:8px}
+.reviewActions .btn,.reviewActions .btn-dark,.reviewActions .miniBtn{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.importMediaGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px;margin-top:7px}
+.importMediaChoice{display:grid;gap:4px;padding:5px;border:2px solid #d8e2ec;border-radius:9px;background:#fff;color:#52697c;font:inherit;font-size:10.5px;text-align:left;min-width:0}
+.importMediaChoice.on{border-color:#0b7a3b;background:#eef9f2}
+.importMediaChoice img{width:100%;height:76px;object-fit:cover;border-radius:6px}
+.importMediaChoice span{overflow-wrap:anywhere}
+.formActionBar{position:sticky;bottom:0;z-index:20;padding-bottom:calc(16px + env(safe-area-inset-bottom));background:#fff}
+@media(max-width:700px){
+  .supplierReviewCard{padding:11px;border-radius:10px}
+  .supplierReviewTitle{font-size:15px}
+  .reviewFields{grid-template-columns:1fr}
+  .reviewActions{display:grid;grid-template-columns:1fr}
+  .reviewActions>*{width:100%;text-align:center}
+  .importPhotoStrip img{width:70px;height:54px}
+  .aiAutofillSection{padding:14px;border-radius:12px}
+  .aiAutofillActions{display:grid;grid-template-columns:1fr}
+  .formActionBar{position:static!important;display:grid;grid-template-columns:1fr}
+  .formActionBar>*{width:100%;text-align:center}
+}
 @media (max-width: 900px) {
   .inbox, .inbox.noDrawer { grid-template-columns: 1fr; }
   .chatDesk { min-height: 72vh; }

@@ -5,7 +5,7 @@ import {ensureLast50Vehicles} from '../../../../lib/inventory-seed';
 import {ensureAiCatalog} from '../../../../lib/ai-catalog';
 /** "Let the AI sell this car": ON unless the form explicitly unticks it. */
 async function setAiEnabled(id:number,v:any){try{await ensureAiCatalog();await db().execute('UPDATE vehicles SET ai_enabled=? WHERE id=?',[v===false||v===0||v==='0'?0:1,id])}catch(e){console.error('AI_ENABLED_SAVE',e)}}
-const allowed=['category','brand','model','trim_name','model_year','manufacturing_date','mileage_km','engine','transmission','fuel_type','drivetrain','steering','color','price_usd','location','status','description'];
+const allowed=['category','brand','manufacturer','model','trim_name','model_year','manufacturing_date','mileage_km','engine','transmission','fuel_type','drivetrain','steering','color','price_usd','supplier_price_usd','supplier_currency','source_description','extraction_method','extraction_quality','location','status','description'];
 
 async function ensureVehicleSchema(){
   try{
@@ -13,6 +13,17 @@ async function ensureVehicleSchema(){
     const type=String(cols?.[0]?.Type||'');
     if(type && (!type.includes("'hidden'")||!type.includes("'pending_verification'"))){
       await db().execute("ALTER TABLE vehicles MODIFY status ENUM('available','reserved','sold','pending_verification','hidden') NOT NULL DEFAULT 'pending_verification'");
+    }
+    for(const [column,definition] of [
+      ['supplier_price_usd','DECIMAL(12,2) NULL'],
+      ['manufacturer','VARCHAR(120) NULL'],
+      ['supplier_currency','CHAR(3) NULL'],
+      ['source_description','TEXT NULL'],
+      ['extraction_method','VARCHAR(30) NULL'],
+      ['extraction_quality','VARCHAR(20) NULL'],
+    ] as Array<[string,string]>){
+      try{await db().execute(`ALTER TABLE vehicles ADD COLUMN ${column} ${definition}`)}
+      catch(e:any){if(e?.code!=='ER_DUP_FIELDNAME')throw e}
     }
   }catch(e){console.error('VEHICLE_SCHEMA_CHECK',e)}
 }

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { db, one, rows } from './db';
-import { createGroupImport, publicDescription, reviewGroupImport } from './group-import';
+import { createGroupImport, ensureGroupImportSchema, publicDescription, reviewGroupImport } from './group-import';
 import { deliverVehicleToWhatsAppGroup, recentWhatsAppGroupAttempts, whatsappGroupDeliveryStatus } from './whatsapp-group-publish';
 import {
   decideTelegramAutoPublish,
@@ -12,11 +12,12 @@ import {
   telegramConfigSummary,
   telegramMessageKind,
   telegramSecret,
+  telegramSellingPrice,
   telegramSourceChatId,
   telegramText,
 } from './telegram-rules';
 import { exactPhotoSql, sellableVehicleSql } from './exact-photos';
-import { facebookStatus } from './facebook';
+import { facebookPublishPreflight, facebookStatus } from './facebook';
 
 const SETTINGS_KEY = 'telegram_automation_v36';
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -30,6 +31,8 @@ export type TelegramAutomationSettings = {
   auto_facebook: boolean;
   auto_whatsapp_group: boolean;
   min_extraction_confidence: number;
+  markup_usd: number | null;
+  markup_percent: number | null;
 };
 
 const DEFAULT_SETTINGS: TelegramAutomationSettings = {
@@ -39,6 +42,8 @@ const DEFAULT_SETTINGS: TelegramAutomationSettings = {
   auto_facebook: true,
   auto_whatsapp_group: false,
   min_extraction_confidence: 0.65,
+  markup_usd: null,
+  markup_percent: null,
 };
 
 let schemaReady: Promise<void> | null = null;
@@ -65,6 +70,7 @@ export function ensureTelegramSchema() {
       last_update_id BIGINT NULL,
       edit_date BIGINT NULL,
       message_thread_id BIGINT NULL,
+      reply_to_message_id BIGINT NULL,
       from_id BIGINT NULL,
       sender_name VARCHAR(191) NULL,
       chat_title VARCHAR(191) NULL,
@@ -92,6 +98,8 @@ export function ensureTelegramSchema() {
       INDEX(media_group_id,processing_state), INDEX(processing_state,next_attempt_at),
       INDEX(import_item_id), INDEX(vehicle_id), INDEX(received_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    try { await db().execute('ALTER TABLE telegram_source_messages ADD COLUMN reply_to_message_id BIGINT NULL'); }
+    catch (error: any) { if (error?.code !== 'ER_DUP_FIELDNAME') throw error; }
     await db().execute(`CREATE TABLE IF NOT EXISTS telegram_automation_events(
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       event_type VARCHAR(80) NOT NULL,
@@ -160,6 +168,8 @@ export async function saveTelegramSettings(input: Partial<TelegramAutomationSett
     auto_facebook: input.auto_facebook === undefined ? current.auto_facebook : !!input.auto_facebook,
     auto_whatsapp_group: false,
     min_extraction_confidence: Math.max(0.5, Math.min(1, Number(input.min_extraction_confidence ?? current.min_extraction_confidence) || 0.65)),
+    markup_usd: input.markup_usd === undefined ? current.markup_usd : (input.markup_usd === null || String(input.markup_usd).trim() === '' ? null : Math.max(0, Number(input.markup_usd) || 0)),
+    markup_percent: input.markup_percent === undefined ? current.markup_percent : (input.markup_percent === null || String(input.markup_percent).trim() === '' ? null : Math.max(0, Number(input.markup_percent) || 0)),
   };
   await db().execute(`INSERT INTO business_settings(setting_key,setting_value) VALUES(?,?)
     ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_at=CURRENT_TIMESTAMP`, [SETTINGS_KEY, JSON.stringify(next)]);
@@ -248,13 +258,14 @@ export async function receiveTelegramUpdate(body: any) {
       const existing = existingRows?.[0] || null;
       if (existing?.id && parsed.edited) {
         await connection.execute(`UPDATE telegram_source_messages SET
-          media_group_id=COALESCE(?,media_group_id),last_update_id=?,edit_date=?,message_thread_id=?,from_id=?,sender_name=?,chat_title=?,
+          media_group_id=COALESCE(?,media_group_id),last_update_id=?,edit_date=?,message_thread_id=?,reply_to_message_id=COALESCE(?,reply_to_message_id),from_id=?,sender_name=?,chat_title=?,
           text=?,caption=?,message_kind=?,file_id=?,file_unique_id=?,media_width=?,media_height=?,file_size=?,
           processing_state=IF(?='other','ignored','queued'),retry_count=0,next_attempt_at=NOW(),error=NULL,payload=?,processed_at=NULL,
           prior_import_item_id=COALESCE(prior_import_item_id,import_item_id),prior_vehicle_id=COALESCE(prior_vehicle_id,vehicle_id),
           import_item_id=NULL,vehicle_id=NULL
           WHERE id=?`, [
           message.media_group_id || null, updateId, Number(message.edit_date || 0) || null, message.message_thread_id || null,
+          Number(message.reply_to_message?.message_id || 0) || null,
           message.from?.id || null, senderName, chat.title || chat.username || null, text || null, caption || null, kind,
           photo?.file_id || null, photo?.file_unique_id || null, photo?.width || null, photo?.height || null, photo?.file_size || null,
           kind, JSON.stringify(body), existing.id,
@@ -262,11 +273,12 @@ export async function receiveTelegramUpdate(body: any) {
         sourceId = Number(existing.id);
       } else if (!existing?.id) {
         const [insert]: any = await connection.execute(`INSERT INTO telegram_source_messages(
-          chat_id,message_id,media_group_id,last_update_id,edit_date,message_thread_id,from_id,sender_name,chat_title,
+          chat_id,message_id,media_group_id,last_update_id,edit_date,message_thread_id,reply_to_message_id,from_id,sender_name,chat_title,
           text,caption,message_kind,file_id,file_unique_id,media_width,media_height,file_size,processing_state,payload
-        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
           chatId, messageId, message.media_group_id || null, updateId, Number(message.edit_date || 0) || null,
-          message.message_thread_id || null, message.from?.id || null, senderName, chat.title || chat.username || null,
+          message.message_thread_id || null, Number(message.reply_to_message?.message_id || 0) || null,
+          message.from?.id || null, senderName, chat.title || chat.username || null,
           text || null, caption || null, kind, photo?.file_id || null, photo?.file_unique_id || null,
           photo?.width || null, photo?.height || null, photo?.file_size || null, kind === 'other' ? 'ignored' : 'queued',
           JSON.stringify(body),
@@ -365,14 +377,25 @@ async function maybeAutoPublishTelegram(itemId: number) {
   const media: any = await one<any>(`SELECT COUNT(*) n,
       SUM(blob_name IS NOT NULL AND url LIKE '/media/%') verified
     FROM inventory_import_media WHERE import_item_id=?`, [itemId]);
+  const sourcePriceUsd = Number(proposed.price_usd ?? (String(proposed.price_currency || '').toUpperCase() === 'USD' ? proposed.price_value : 0));
+  const sellingPriceUsd = telegramSellingPrice(sourcePriceUsd, settings.markup_usd, settings.markup_percent);
+  if (sellingPriceUsd === null) {
+    await telegramEvent('automatic_review_required', 'review', {
+      reasons: ['The Telegram source price is missing or no selling-price markup policy is configured'],
+      source_price_usd: sourcePriceUsd || null,
+    }, { importItemId: itemId, vehicleId: item.vehicle_id });
+    return { status: 'review', reasons: ['Configure a Telegram selling-price markup or approve a final selling price manually'] };
+  }
   const decision = decideTelegramAutoPublish({
+    association_status: item.association_status || raw.association?.status || null,
     match_status: item.match_status,
     duplicate_risk: item.duplicate_risk,
     review_status: item.review_status,
     extraction_confidence: item.extraction_confidence,
-    price_value: proposed.price_value,
-    price_usd: proposed.price_usd,
-    price_currency: proposed.price_currency,
+    extraction_quality: proposed.extraction_quality || proposed.specs?.extraction_quality || null,
+    price_value: sellingPriceUsd,
+    price_usd: sellingPriceUsd,
+    price_currency: 'USD',
     brand: proposed.brand,
     model: proposed.model,
     model_year: proposed.model_year,
@@ -414,6 +437,7 @@ async function maybeAutoPublishTelegram(itemId: number) {
       facebook: result.automation?.facebook || null,
       whatsapp,
       price_usd: decision.price_usd,
+      source_price_usd: sourcePriceUsd,
       duplicate_risk: decision.duplicate_risk,
     }, { importItemId: itemId, vehicleId: result.vehicleId });
     return {
@@ -454,6 +478,13 @@ async function processClaimedRows(sourceRows: any[]) {
   const importMessageId = edited
     ? `tg-edit:${first.chat_id}:${first.message_id}:${first.last_update_id}`
     : album ? `tg-album:${first.chat_id}:${album}` : sourceMessageKey(String(first.chat_id), first.message_id);
+  const replyToMessageIds = sourceRows.map((row) => Number(row.reply_to_message_id || 0)).filter(Boolean);
+  let replyToImportItemId: number | null = null;
+  if (replyToMessageIds.length) {
+    const root: any = await one<any>(`SELECT import_item_id FROM telegram_source_messages
+      WHERE chat_id=? AND message_id=? LIMIT 1`, [first.chat_id, replyToMessageIds[0]]);
+    replyToImportItemId = Number(root?.import_item_id || 0) || null;
+  }
   const payload = {
     source: 'telegram',
     messageId: importMessageId,
@@ -465,13 +496,23 @@ async function processClaimedRows(sourceRows: any[]) {
     text: combinedText,
     receivedAt: isoDate(first.received_at),
     photoCount: photos.length,
-    media: photos.map((photo) => ({ data: photo.data, mimeType: photo.mimeType, telegramFileId: photo.fileId, telegramFileUniqueId: photo.fileUniqueId })),
+    media: sourceRows.filter((row) => row.file_id).map((row) => {
+      const photo = photos.find((item) => item.fileId === row.file_id);
+      return photo ? {
+        data: photo.data, mimeType: photo.mimeType,
+        telegramFileId: photo.fileId, telegramFileUniqueId: photo.fileUniqueId,
+        telegramMessageId: Number(row.message_id),
+        sourceMessageKey: sourceMessageKey(String(row.chat_id), row.message_id),
+      } : null;
+    }).filter(Boolean),
     existingVehicleId: priorVehicleId,
     telegram: {
       chatId: String(first.chat_id),
       messageIds: sourceRows.map((row) => Number(row.message_id)),
       updateIds: sourceRows.map((row) => Number(row.last_update_id)),
       mediaGroupId: album || null,
+      replyToMessageIds,
+      replyToImportItemId,
       edited,
       priorImportItemId,
     },
@@ -982,11 +1023,11 @@ export async function telegramDashboard() {
     one<any>('SELECT * FROM telegram_connection_state WHERE id=1').catch(() => null),
     one<any>("SELECT MAX(received_at) at FROM telegram_source_messages").catch(() => null),
     one<any>(`SELECT COUNT(*) updates, SUM(edit_date IS NOT NULL) edits FROM telegram_updates`).catch(() => null),
-    rows<any>(`SELECT id,chat_id,message_id,media_group_id,last_update_id,edit_date,sender_name,chat_title,message_kind,
+    rows<any>(`SELECT id,chat_id,message_id,media_group_id,reply_to_message_id,last_update_id,edit_date,sender_name,chat_title,message_kind,
       processing_state,retry_count,next_attempt_at,import_item_id,vehicle_id,error,received_at,processed_at
       FROM telegram_source_messages ORDER BY id DESC LIMIT 80`).catch(() => []),
     rows<any>(`SELECT i.id,i.source_message_id,i.review_status,i.match_status,i.match_confidence,i.duplicate_risk,
-      i.extraction_confidence,i.approval_method,i.approved_by,
+      i.extraction_confidence,i.approval_method,i.approved_by,i.association_status,
       i.vehicle_id,i.matched_vehicle_id,i.approved_vehicle_id,i.created_at,v.stock_no,v.brand,v.model,v.model_year,v.status vehicle_status,
       (SELECT COUNT(*) FROM inventory_import_media m WHERE m.import_item_id=i.id) media_count
       FROM inventory_import_items i LEFT JOIN vehicles v ON v.id=i.vehicle_id
@@ -1233,9 +1274,132 @@ export async function telegramV37Diagnostic() {
       auto_facebook: settings.auto_facebook,
       auto_whatsapp_group: settings.auto_whatsapp_group,
       min_extraction_confidence: settings.min_extraction_confidence,
+      markup_usd: settings.markup_usd,
+      markup_percent: settings.markup_percent,
     },
     public_inventory: publicRules[0] || {},
     imports,
+  };
+}
+
+/** Sanitized V38 production inspection: source relationships and media metadata, never message text. */
+export async function telegramV38Diagnostic() {
+  await ensureTelegramSchema();
+  await ensureGroupImportSchema();
+  const parse = (value: any) => {
+    if (!value) return {};
+    if (typeof value === 'object') return value;
+    try { return JSON.parse(value); } catch { return {}; }
+  };
+  const [items, sourceMessages, media, settings, connection, facebook] = await Promise.all([
+    rows<any>(`SELECT i.id,i.source_message_id,i.review_status,i.match_status,i.duplicate_risk,i.extraction_confidence,
+      i.association_status,i.association_evidence,i.vehicle_id,i.matched_vehicle_id,i.approved_vehicle_id,
+      i.proposed_vehicle,i.raw_payload,i.created_at,
+      v.stock_no,v.category,v.brand,v.manufacturer,v.model,v.trim_name,v.model_year,v.price_usd,v.supplier_price_usd,
+      v.supplier_currency,v.status vehicle_status,v.ai_enabled,v.source_description
+      FROM inventory_import_items i LEFT JOIN vehicles v ON v.id=COALESCE(i.approved_vehicle_id,i.matched_vehicle_id,i.vehicle_id)
+      WHERE i.source='telegram' ORDER BY i.id DESC LIMIT 100`),
+    rows<any>(`SELECT id,import_item_id,message_id,media_group_id,reply_to_message_id,last_update_id,edit_date,from_id,sender_name,
+      message_kind,LENGTH(COALESCE(text,'')) text_length,LENGTH(COALESCE(caption,'')) caption_length,file_unique_id,
+      processing_state,error,received_at FROM telegram_source_messages ORDER BY message_id`),
+    rows<any>(`SELECT m.id,m.import_item_id,m.url,m.mime_type,m.blob_name,m.telegram_message_id,
+      m.telegram_file_unique_id,m.source_message_key,m.is_cover,m.sort_order
+      FROM inventory_import_media m JOIN inventory_import_items i ON i.id=m.import_item_id
+      WHERE i.source='telegram' ORDER BY m.import_item_id,m.is_cover DESC,m.sort_order,m.id`),
+    getTelegramSettings(),
+    telegramConnectionProbe().catch((error: any) => ({ ok:false,error:safeTelegramError(error) })),
+    facebookPublishPreflight().catch((error: any) => ({ configured:false,connected:false,error:safeTelegramError(error),warnings:[] })),
+  ]);
+  const connectionValue: any = connection;
+  const facebookValue: any = facebook;
+  const byImport = (input: any[]) => {
+    const grouped = new Map<number, any[]>();
+    input.forEach((row) => {
+      const key = Number(row.import_item_id);
+      grouped.set(key, [...(grouped.get(key) || []), row]);
+    });
+    return grouped;
+  };
+  const sourcesByImport = byImport(sourceMessages);
+  const mediaByImport = byImport(media);
+  return {
+    ok: true,
+    private_content_included: false,
+    telegram: {
+      ok: connectionValue?.ok === true,
+      group: connectionValue?.group || null,
+      bot_is_admin: connectionValue?.bot_is_admin === true,
+      pending_updates: Number(connectionValue?.webhook?.pending_update_count || 0),
+      webhook_matches: connectionValue?.webhook?.matches === true,
+      error: connectionValue?.diagnostic || connectionValue?.error || null,
+    },
+    facebook: {
+      configured: facebookValue?.configured === true,
+      connected: facebookValue?.connected === true,
+      page_id: facebookValue?.id || null,
+      page_name: facebookValue?.name || null,
+      token_source: facebookValue?.tokenSource || null,
+      missing_scopes: facebookValue?.missingScopes || null,
+      error: facebookValue?.error || null,
+      warnings: facebookValue?.warnings || [],
+      feed_readable: facebookValue?.feedReadable === true,
+      manage_posts_verified: facebookValue?.managePostsVerified === true,
+      publication_ready: facebookValue?.publicationReady === true,
+      publication_readiness: facebookValue?.publicationReadiness || 'unknown',
+      posted: false,
+    },
+    settings,
+    imports: items.map((item) => {
+      const proposed = parse(item.proposed_vehicle);
+      const raw = parse(item.raw_payload);
+      return {
+        import_id: Number(item.id), source_message_id: item.source_message_id,
+        review_status: item.review_status, match_status: item.match_status,
+        duplicate_risk: item.duplicate_risk == null ? null : Number(item.duplicate_risk),
+        extraction_confidence: item.extraction_confidence == null ? null : Number(item.extraction_confidence),
+        association_status: item.association_status || raw.association?.status || 'unknown',
+        association_evidence: parse(item.association_evidence) || raw.association || null,
+        ids: {
+          vehicle_id: item.vehicle_id == null ? null : Number(item.vehicle_id),
+          matched_vehicle_id: item.matched_vehicle_id == null ? null : Number(item.matched_vehicle_id),
+          approved_vehicle_id: item.approved_vehicle_id == null ? null : Number(item.approved_vehicle_id),
+        },
+        extraction: {
+          category: proposed.category || null, brand: proposed.brand || null,
+          manufacturer: proposed.manufacturer || proposed.specs?.manufacturer || null,
+          model: proposed.model || null, trim_name: proposed.trim_name || null,
+          model_year: proposed.model_year || null, engine: proposed.engine || null,
+          transmission: proposed.transmission || null, fuel_type: proposed.fuel_type || null,
+          mileage_km: proposed.mileage_km ?? null, price_value: proposed.price_value ?? null,
+          price_currency: proposed.price_currency || null, price_usd: proposed.price_usd ?? null,
+          extraction_quality: proposed.extraction_quality || proposed.specs?.extraction_quality || 'unknown',
+          missing_fields: proposed.evidence?.missing_fields || [],
+        },
+        vehicle: item.stock_no ? {
+          id: Number(item.approved_vehicle_id || item.matched_vehicle_id || item.vehicle_id),
+          stock_no: item.stock_no, category: item.category, brand: item.brand, manufacturer: item.manufacturer,
+          model: item.model, trim_name: item.trim_name, model_year: item.model_year == null ? null : Number(item.model_year),
+          price_usd: item.price_usd == null ? null : Number(item.price_usd),
+          supplier_price_usd: item.supplier_price_usd == null ? null : Number(item.supplier_price_usd),
+          supplier_currency: item.supplier_currency || null, status: item.vehicle_status,
+          ai_enabled: !!Number(item.ai_enabled), source_description_present: !!item.source_description,
+        } : null,
+        source_messages: (sourcesByImport.get(Number(item.id)) || []).map((row) => ({
+          id: Number(row.id), message_id: Number(row.message_id), media_group_id: row.media_group_id,
+          reply_to_message_id: row.reply_to_message_id == null ? null : Number(row.reply_to_message_id),
+          last_update_id: row.last_update_id == null ? null : Number(row.last_update_id),
+          message_kind: row.message_kind, text_length: Number(row.text_length || 0), caption_length: Number(row.caption_length || 0),
+          file_unique_id: row.file_unique_id, processing_state: row.processing_state, received_at: row.received_at,
+        })),
+        media: (mediaByImport.get(Number(item.id)) || []).map((row) => ({
+          id: Number(row.id), url: row.url, mime_type: row.mime_type, stored_blob: !!row.blob_name,
+          telegram_message_id: row.telegram_message_id == null ? null : Number(row.telegram_message_id),
+          telegram_file_unique_id: row.telegram_file_unique_id || null,
+          source_message_key: row.source_message_key || null, is_cover: !!Number(row.is_cover),
+          sort_order: Number(row.sort_order || 0),
+        })),
+      };
+    }),
   };
 }
 

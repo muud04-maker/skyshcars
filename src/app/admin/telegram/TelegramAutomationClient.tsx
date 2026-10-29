@@ -112,6 +112,11 @@ export default function TelegramAutomationClient() {
         <label style={{ display: 'block', marginTop: 14 }}>Minimum extraction confidence
           <input type="number" min="0.5" max="1" step="0.05" value={settings.min_extraction_confidence ?? 0.65} onChange={(event) => setData({ ...data, settings: { ...settings, min_extraction_confidence: Number(event.target.value) } })} />
         </label>
+        <div className="formGrid" style={{ marginTop: 12 }}>
+          <label>Fixed selling markup (USD)<input type="number" min="0" step="1" value={settings.markup_usd ?? ''} placeholder="Not configured" onChange={(event) => setData({ ...data, settings: { ...settings, markup_usd: event.target.value === '' ? null : Number(event.target.value) } })} /></label>
+          <label>Selling markup (%)<input type="number" min="0" step="0.1" value={settings.markup_percent ?? ''} placeholder="Optional fallback" onChange={(event) => setData({ ...data, settings: { ...settings, markup_percent: event.target.value === '' ? null : Number(event.target.value) } })} /></label>
+        </div>
+        <p className="muted">Supplier cost is never treated as the final selling price without one of these explicit policies. If neither is configured, complete imports remain in review.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
           <button className="btn" disabled={busy === 'save'} onClick={save}>Save settings</button>
           <button className="miniBtn" disabled={busy === 'retry'} onClick={retry}>Retry failed jobs</button>
@@ -173,25 +178,25 @@ export default function TelegramAutomationClient() {
     <div className="card" style={{ marginTop: 18 }}>
       <h2>Recent Telegram source messages</h2>
       <div className="tableWrap" style={{ boxShadow: 'none', border: 0 }}><table className="table">
-        <thead><tr><th>Received</th><th>Message</th><th>Kind</th><th>Album</th><th>State</th><th>Import</th><th>Vehicle</th><th>Error</th></tr></thead>
+        <thead><tr><th>Received</th><th>Message</th><th>Reply to</th><th>Kind</th><th>Album</th><th>State</th><th>Import</th><th>Vehicle</th><th>Error</th></tr></thead>
         <tbody>{(data.source_messages || []).length ? data.source_messages.map((row: any) => <tr key={row.id}>
-          <td>{dt(row.received_at)}</td><td>{row.message_id}{row.edit_date ? ' (edited)' : ''}</td><td>{row.message_kind}</td>
+          <td>{dt(row.received_at)}</td><td>{row.message_id}{row.edit_date ? ' (edited)' : ''}</td><td>{row.reply_to_message_id || '—'}</td><td>{row.message_kind}</td>
           <td>{row.media_group_id ? 'yes' : '—'}</td><td>{row.processing_state}{row.retry_count ? ` · retries ${row.retry_count}` : ''}</td>
           <td>{row.import_item_id || '—'}</td><td>{row.vehicle_id || '—'}</td><td style={{ maxWidth: 340 }}>{row.error || '—'}</td>
-        </tr>) : <tr><td colSpan={8}>No Telegram messages received yet.</td></tr>}</tbody>
+        </tr>) : <tr><td colSpan={9}>No Telegram messages received yet.</td></tr>}</tbody>
       </table></div>
     </div>
 
     <div className="card" style={{ marginTop: 18 }}>
       <h2>Recent imported vehicles</h2>
       <div className="tableWrap" style={{ boxShadow: 'none', border: 0 }}><table className="table">
-        <thead><tr><th>Import</th><th>Vehicle</th><th>Class</th><th>Risk</th><th>Review</th><th>Approval</th><th>Photos</th><th>Extraction</th></tr></thead>
+        <thead><tr><th>Import</th><th>Vehicle</th><th>Class</th><th>Association</th><th>Risk</th><th>Review</th><th>Approval</th><th>Photos</th><th>Extraction</th></tr></thead>
         <tbody>{(data.imports || []).length ? data.imports.map((row: any) => <tr key={row.id}>
           <td>{row.id}</td><td>{row.stock_no || row.vehicle_id || '—'} {row.brand || ''} {row.model || ''} {row.model_year || ''}</td>
-          <td>{row.match_status}</td><td>{row.duplicate_risk == null ? '—' : `${Math.round(Number(row.duplicate_risk) * 100)}%`}</td>
+          <td>{row.match_status}</td><td>{row.association_status || 'unknown'}</td><td>{row.duplicate_risk == null ? '—' : `${Math.round(Number(row.duplicate_risk) * 100)}%`}</td>
           <td>{row.review_status}</td><td>{row.approval_method || '—'}</td><td>{row.media_count}</td>
           <td>{row.extraction_confidence == null ? '—' : `${Math.round(Number(row.extraction_confidence) * 100)}%`}</td>
-        </tr>) : <tr><td colSpan={8}>No Telegram imports yet.</td></tr>}</tbody>
+        </tr>) : <tr><td colSpan={9}>No Telegram imports yet.</td></tr>}</tbody>
       </table></div>
     </div>
 

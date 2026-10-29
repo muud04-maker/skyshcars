@@ -102,6 +102,21 @@ export default function VehicleManager({ initial }: { initial: any[] }) {
     flash(r.ok ? `${stock} hidden.` : 'Could not hide the vehicle.', r.ok ? 'ok' : 'bad');
     await reload();
   }
+  async function publishFacebook(id: number, stock: string) {
+    if (!confirm(`Publish ${stock} to the connected Facebook Page now? This action is recorded and protected against duplicate posts.`)) return;
+    setBusy(true);
+    const response = await fetch('/api/admin/social', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ vehicle_id: id, channel: 'facebook' }),
+    });
+    const result = await response.json().catch(() => ({}));
+    setBusy(false);
+    const facebook = result.result?.facebook;
+    flash(response.ok && facebook?.ok
+      ? `Facebook post published${facebook.id ? ` (${facebook.id})` : ''}.`
+      : facebook?.error || facebook?.skipped || result.error || 'Facebook publication failed.',
+    response.ok && facebook?.ok ? 'ok' : 'bad');
+  }
 
   return <>
     <div className="adminActionBar">
@@ -172,6 +187,7 @@ export default function VehicleManager({ initial }: { initial: any[] }) {
           <td><div className="pager" style={{ margin: 0 }}>
             <button type="button" className="btn-info" onClick={() => edit(v)}>Edit</button>
             <a className="btn-neutral" href={`/admin/media?vehicle=${v.id}`}>Photos</a>
+            {v.status === 'available' && <button type="button" className="btn-neutral" disabled={busy} onClick={() => publishFacebook(Number(v.id), String(v.stock_no))}>Facebook</button>}
             <button type="button" className="btn-danger" disabled={busy} onClick={() => hide(v.id, v.stock_no)}>Hide</button>
           </div></td>
         </tr>)}</tbody>

@@ -32,7 +32,7 @@ test('V37 duplicate risk is numeric and categorical confidence is never manufact
 
 test('below-80% possible duplicate is automatic-eligible when every validation gate passes', () => {
   const decision = telegram.decideTelegramAutoPublish({
-    ...complete, match_status: 'possible', duplicate_risk: 0.62,
+    ...complete, association_status: 'same_album', match_status: 'possible', duplicate_risk: 0.62,
   });
   assert.equal(decision.eligible, true, decision.reasons.join(', '));
   assert.equal(decision.duplicate_risk, 0.62);
@@ -82,11 +82,11 @@ test('all approval paths attach original import photos idempotently', () => {
   assert.match(source, /attachImportOriginalPhotos\(Number\(item\.id\), vehicleId\)/);
 });
 
-test('source price is prefilled and blank approval cannot silently discard a verified USD price', () => {
+test('source price is preserved separately and blank approval never silently uses supplier cost', () => {
   const source = read('src/lib/group-import.ts');
   const ui = read('src/app/admin/imports/V16ImportClient.tsx');
-  assert.match(source, /suppliedPrice\.currency==='USD'\?suppliedPrice\.value:null/);
-  assert.match(ui, /proposed\.price_usd \?\? .*proposed\.price_value/);
+  assert.match(source, /edits\.price_usd===''\|\|edits\.price_usd==null\?null:int\(edits\.price_usd\)/);
+  assert.match(ui, /price_usd: ''/);
 });
 
 test('duplicate overrides are explicit, audited and blocked at 80% without the override flag', () => {

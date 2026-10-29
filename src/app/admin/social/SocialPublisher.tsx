@@ -7,6 +7,8 @@ function TokenStatus({fb}:{fb:any}){
  return <div style={{display:'grid',gap:4,fontSize:14}}>
   {fb.name&&<p style={{margin:0}}><b>{fb.name}</b><br/><small>Page ID {fb.id}</small></p>}
   <div className="settingRow"><span>Token source</span><b>{src}</b></div>
+  <div className="settingRow"><span>Page feed read</span><b className={fb.feedReadable?'ok':'bad'}>{fb.feedReadable?'Verified':fb.feedError||'Not verified'}</b></div>
+  <div className="settingRow"><span>Publish readiness</span><b className={fb.publicationReady?'ok':'bad'}>{fb.publicationReady?'Permissions verified':fb.publicationReadiness==='permission_not_debuggable'?'Manage-posts scope not debuggable':'Needs attention'}</b></div>
   {fb.debugAvailable&&<><div className="settingRow"><span>Expires</span><b className={fb.neverExpires||((fb.daysLeft??99)>=14)?'ok':'bad'}>{fb.neverExpires?'Never (long-lived Page token)':fb.expiresAt?`${new Date(fb.expiresAt).toLocaleDateString()} (${fb.daysLeft} days)`:'Unknown'}</b></div>
   <div className="settingRow"><span>Posting permission</span><b className={fb.missingScopes&&fb.missingScopes.length===0?'ok':'bad'}>{fb.missingScopes?(fb.missingScopes.length?`Missing ${fb.missingScopes.join(', ')}`:'pages_manage_posts ✓'):'Unknown'}</b></div></>}
   {fb.error&&<p className="bad" style={{margin:0}}>{fb.error}</p>}
