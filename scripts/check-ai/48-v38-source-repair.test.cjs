@@ -35,7 +35,7 @@ test('source repair is in-place, additive and never publishes or deletes evidenc
 test('identity candidates tolerate stored brand whitespace and model suffix text', () => {
   const memory = read('src/lib/inventory-memory.ts');
   assert.match(memory, /LOWER\(TRIM\(brand\)\)=/);
-  assert.match(memory, /LOWER\(TRIM\(model\)\) LIKE CONCAT\(\?, ' %'\)/);
+  assert.match(memory, /candidateModel\.startsWith\(`\$\{shape\.model\} `\)/);
 });
 
 test('source repair requires automation off and historical repairs stay in review', () => {
