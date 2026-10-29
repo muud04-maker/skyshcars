@@ -14,7 +14,10 @@ type Item = {
   match_status?: string;
   match_type?: string;
   match_confidence?: number;
+  duplicate_risk?: number;
   extraction_confidence?: number;
+  approval_method?: string;
+  approved_by?: string;
   evidence_json?: any;
   group_external_id?: string;
   stock_no?: string;
@@ -53,29 +56,51 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
     trim_name: proposed.trim_name || '', model_year: proposed.model_year || '', mileage_km: proposed.mileage_km || '',
     engine: proposed.engine || '', fuel_type: proposed.fuel_type || '', transmission: proposed.transmission || '',
     steering: proposed.steering && proposed.steering !== 'unknown' ? proposed.steering : '',
-    color: proposed.color || '', condition: proposed.condition || '', price_usd: '',
-    description: '', ai_enabled: true,
+    color: proposed.color || '', condition: proposed.condition || '',
+    price_usd: proposed.price_usd ?? (String(proposed.price_currency || '').toUpperCase() === 'USD' ? proposed.price_value || '' : ''),
+    description: proposed.description || '', ai_enabled: true,
     existing_vehicle_id: it.matched_vehicle_id || candidates[0]?.id || '',
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
 
-  async function review(action: 'approve' | 'reject' | 'merge' | 'apply_changes') {
+  async function review(
+    action: 'approve' | 'reject' | 'merge' | 'apply_changes',
+    options: { publishFacebook?: boolean; sellNow?: boolean; duplicateOverride?: boolean } = {},
+  ) {
     if (action === 'reject' && !confirm('Reject this supplier post? Existing vehicles and prior history are preserved.')) return;
     if (action === 'merge' && !Number(f.existing_vehicle_id)) { setErr('Choose an existing vehicle ID before merging.'); return; }
+    const risk = Number(it.duplicate_risk ?? (it.match_status === 'new' ? 0 : it.match_status === 'confirmed' ? 1 : it.match_confidence));
+    if (options.duplicateOverride && !confirm(`Duplicate risk is ${Math.round(Math.max(0, Math.min(1, risk)) * 100)}%.\n\nPublish anyway? This override will be recorded in the audit log.`)) return;
     setBusy(true); setErr('');
     const vehicle = action === 'merge'
       ? { existing_vehicle_id: Number(f.existing_vehicle_id), apply_changes: false }
       : action === 'approve' || action === 'apply_changes' ? f : {};
     const r = await fetch('/api/admin/imports/group', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: it.id, action, vehicle }),
+      body: JSON.stringify({ id: it.id, action, vehicle, options }),
     });
     const j = await r.json().catch(() => ({}));
     setBusy(false);
     if (!r.ok) { setErr(j.error || 'Review failed'); return; }
     onDone();
+  }
+
+  const risk = Number(it.duplicate_risk ?? (it.match_status === 'new' ? 0 : it.match_status === 'confirmed' ? 1 : it.match_confidence));
+  const highRisk = Number.isFinite(risk) && risk >= 0.8;
+  const canApproveNew = !!it.vehicle_id && Number(it.vehicle_id) !== Number(it.matched_vehicle_id || 0);
+  async function publishExplicitly(facebook: boolean) {
+    if (!confirm(facebook
+      ? 'Publish this vehicle to Sell Now and the configured Facebook Page?'
+      : 'Publish this vehicle to Sell Now now?')) return;
+    if (highRisk) {
+      await review(canApproveNew ? 'approve' : 'merge', {
+        sellNow: true, publishFacebook: facebook, duplicateOverride: true,
+      });
+    } else {
+      await review(canApproveNew ? 'approve' : 'merge', { sellNow: true, publishFacebook: facebook });
+    }
   }
 
   const field = (k: string, label: string, type = 'text') =>
@@ -87,7 +112,7 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
     {(it.match_status === 'possible' || it.match_status === 'confirmed') && <div style={{ border: '1px solid #e4b44d', background: '#fff8df', padding: 10, borderRadius: 8 }}>
       <b>{it.match_status === 'confirmed' ? 'Existing vehicle detected' : 'Possible duplicate — review required'}</b>
       <p style={{ margin: '5px 0' }}>
-        Match confidence {Math.round(Number(it.match_confidence || 0) * 100)}% · {it.match_type || 'similar specifications'}
+        Duplicate risk {Math.round(Number(it.duplicate_risk ?? it.match_confidence ?? 0) * 100)}% · Match confidence {Math.round(Number(it.match_confidence || 0) * 100)}% · {it.match_type || 'similar specifications'}
       </p>
       {it.matched_vehicle_id && <p style={{ margin: 0 }}>
         Candidate #{it.matched_vehicle_id} {it.matched_brand || ''} {it.matched_model || ''} {it.matched_model_year || ''}
@@ -122,7 +147,9 @@ function ReviewForm({ it, onDone }: { it: Item; onDone: () => void }) {
     {err && <p style={{ color: '#b3261e', margin: 0 }}>{err}</p>}
     <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 14 }}><input type="checkbox" checked={f.ai_enabled !== false} onChange={(e) => setF((x: any) => ({ ...x, ai_enabled: e.target.checked }))} />Make this approved vehicle available to the customer AI</label>
     {unresolved && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      {hasDraft && <button className="btn" disabled={busy} onClick={() => review('approve')}>{busy ? 'Working…' : 'Approve as new → Available'}</button>}
+      {hasDraft && <button className="btn" disabled={busy} onClick={() => review('approve', { sellNow: true, publishFacebook: false, duplicateOverride: highRisk })}>{busy ? 'Working…' : highRisk ? 'Override → Sell Now' : 'Approve as new → Sell Now'}</button>}
+      {!hasDraft && it.matched_vehicle_id && <button className="btn" disabled={busy} onClick={() => publishExplicitly(false)}>{busy ? 'Working…' : highRisk ? 'Publish duplicate → Sell Now' : 'Publish → Sell Now'}</button>}
+      {(hasDraft || it.matched_vehicle_id) && <button className="btn dark" disabled={busy} onClick={() => publishExplicitly(true)}>{busy ? 'Working…' : highRisk ? 'Publish duplicate → Sell Now + Facebook' : 'Publish → Sell Now + Facebook'}</button>}
       <button className="btn dark" disabled={busy} onClick={() => review('merge')}>Confirm same vehicle / merge</button>
       {proposals.some((proposal: any) => proposal.status === 'pending') && <button className="btn" disabled={busy} onClick={() => review('apply_changes')}>Apply proposed updates</button>}
       <button className="btn dark" disabled={busy} onClick={() => review('reject')}>Reject</button>

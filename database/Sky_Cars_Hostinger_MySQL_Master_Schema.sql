@@ -357,9 +357,12 @@ ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS matched_vehicle_id B
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS match_status VARCHAR(30) NOT NULL DEFAULT 'new';
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS match_type VARCHAR(80) NULL;
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS match_confidence DECIMAL(5,4) NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS duplicate_risk DECIMAL(5,4) NULL;
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS extraction_confidence DECIMAL(5,4) NULL;
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS evidence_json JSON NULL;
 ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS last_observed_at DATETIME NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS approval_method VARCHAR(30) NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS approved_by VARCHAR(191) NULL;
 
 CREATE TABLE IF NOT EXISTS vehicle_identity_memory (
   vehicle_id BIGINT UNSIGNED PRIMARY KEY,stock_no VARCHAR(60),vin VARCHAR(32),supplier_reference VARCHAR(191),

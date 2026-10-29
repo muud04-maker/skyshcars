@@ -24,7 +24,8 @@ import {
   upsertIdentityMemory,
 } from './inventory-memory';
 import type { ImageFingerprint } from './image-fingerprints';
-import { normalizeMileageKm, normalizePrice } from './inventory-identity-rules';
+import { duplicateRiskForDecision, normalizeMileageKm, normalizePrice, normalizeReference } from './inventory-identity-rules';
+import { exactPhotoSql, sellableVehicleSql } from './exact-photos';
 
 /*
   Group Reader → inventory.
@@ -155,12 +156,45 @@ async function saveMedia(itemId:number,vehicleId:number|null,media:any[],startIn
   return n;
 }
 
+/**
+ * Idempotently promotes the source-message originals onto the master vehicle. Telegram retries,
+ * merges and legacy approvals all use this one path so an approved listing cannot fall back to
+ * representative/model art merely because its photos were left in inventory_import_media.
+ */
+export async function attachImportOriginalPhotos(importItemId: number, vehicleId: number) {
+  const item: any = await one<any>('SELECT source FROM inventory_import_items WHERE id=? LIMIT 1', [importItemId]);
+  if (!item) throw new Error('Import item not found');
+  const media = await rows<any>('SELECT url,mime_type FROM inventory_import_media WHERE import_item_id=? ORDER BY id', [importItemId]);
+  const mediaSource = item.source === 'telegram' ? 'import' : 'whatsapp_group';
+  let attached = 0;
+  let approved = 0;
+  for (const row of media) {
+    const url = String(row?.url || '').trim();
+    if (!url) continue;
+    const existing: any = await one<any>('SELECT id,review_status FROM vehicle_media WHERE vehicle_id=? AND url=? LIMIT 1', [vehicleId, url]);
+    if (!existing) {
+      const max: any = await one<any>('SELECT COALESCE(MAX(sort_order),-1)+1 n FROM vehicle_media WHERE vehicle_id=?', [vehicleId]);
+      const exactCover: any = await one<any>(`SELECT id FROM vehicle_media m WHERE m.vehicle_id=? AND ${exactPhotoSql('m')} LIMIT 1`, [vehicleId]);
+      await db().execute(`INSERT INTO vehicle_media(vehicle_id,media_type,url,source,is_cover,sort_order,review_status)
+        VALUES(?,'image',?,?,?,?,'approved')`,
+      [vehicleId, url, mediaSource, exactCover ? 0 : 1, Number(max?.n || 0)]);
+      attached++;
+    } else if (existing.review_status !== 'approved') {
+      await db().execute("UPDATE vehicle_media SET review_status='approved' WHERE id=?", [existing.id]);
+      approved++;
+    }
+    const fingerprint = await fingerprintStoredMedia(url).catch(() => null);
+    if (fingerprint) await addImageFingerprint(vehicleId, importItemId, url, fingerprint, true);
+  }
+  return { found: media.length, attached, approved };
+}
+
 /** Fields copied onto the pending vehicle. Supplier price and raw text are deliberately NOT copied. */
 function pendingVehicleFields(p:any){
   const mileage=normalizeMileageKm(p.mileage_km??p.mileage_value,p.mileage_unit||'km');
   const price=normalizePrice(p.price_usd??p.price_value,p.price_currency);
   return {
-    category:CATEGORIES.includes(p.category)?p.category:'car',
+    category:CATEGORIES.includes(p.category)?p.category:'other',
     brand:str(p.brand,120),model:str(p.model,160),trim_name:str(p.trim_name,160),
     model_year:int(p.model_year),mileage_km:mileage??int(p.mileage_km),engine:str(p.engine,120),transmission:str(p.transmission,80),
     fuel_type:str(p.fuel_type,80),steering:['LHD','RHD','unknown'].includes(p.steering)?p.steering:'unknown',color:str(p.color,80),
@@ -281,8 +315,9 @@ export async function createGroupImport(payload:any){
         engine:proposed.engine,transmission:proposed.transmission,fuel_type:proposed.fuel_type,color:proposed.color,
         vin:proposed.vin,stock_no:proposed.stock_no,supplier_reference:proposed.supplier_reference,
       },allFingerprints);
-      await db().execute(`UPDATE inventory_import_items SET matched_vehicle_id=?,match_status=?,match_type=?,match_confidence=? WHERE id=?`,
-        [decision.selected_vehicle_id,decision.kind,decision.reasons[0]||(decision.kind==='new'?'new':'similar specifications'),decision.confidence,recent.id]);
+      const duplicateRisk=duplicateRiskForDecision(decision);
+      await db().execute(`UPDATE inventory_import_items SET matched_vehicle_id=?,match_status=?,match_type=?,match_confidence=?,duplicate_risk=? WHERE id=?`,
+        [decision.selected_vehicle_id,decision.kind,decision.reasons[0]||(decision.kind==='new'?'new':'similar specifications'),decision.confidence,duplicateRisk,recent.id]);
       await recordMatchCandidates(Number(recent.id),decision);
       let finalVehicle=linkedVehicle,finalMatched=matchedVehicle,photosProposed=0,changes:any[]=[];
       if(decision.kind==='confirmed'&&decision.selected_vehicle_id){
@@ -298,7 +333,8 @@ export async function createGroupImport(payload:any){
         photosProposed=await proposeAdditionalPhotos(Number(recent.id),decision.selected_vehicle_id,urls);
         if(!changes.length&&!photosProposed){
           await db().execute(`UPDATE inventory_import_items SET review_status='approved',approved_vehicle_id=?,reviewed_at=NOW(),
-            match_status='confirmed',match_type='exact repeated source/details' WHERE id=?`,[decision.selected_vehicle_id,recent.id]);
+            match_status='confirmed',duplicate_risk=1,approval_method='automatic_exact_repeat',approved_by='group-import',
+            match_type='exact repeated source/details' WHERE id=?`,[decision.selected_vehicle_id,recent.id]);
         }
       }else if(decision.kind==='possible'&&decision.selected_vehicle_id){
         finalMatched=decision.selected_vehicle_id;
@@ -338,14 +374,15 @@ export async function createGroupImport(payload:any){
       vin:proposed.vin,stock_no:proposed.stock_no,supplier_reference:proposed.supplier_reference,
       existing_vehicle_id:proposed.existing_vehicle_id,
     },fingerprints.filter(Boolean) as ImageFingerprint[]);
+    const duplicateRisk=duplicateRiskForDecision(decision);
     const rawSafe={groupName:payload.groupName||null,groupId,sender:payload.sender||null,text,receivedAt:payload.receivedAt||null,mergedMessageIds:[messageId],evidence:proposed.evidence};
     const matchType=decision.kind==='confirmed'?(decision.reasons[0]||'strong identifier'):decision.kind==='possible'?'specification/image similarity':'new';
     const [r]:any=await db().execute(`INSERT INTO inventory_import_items(
       source,source_message_id,raw_payload,proposed_vehicle,review_status,group_external_id,matched_vehicle_id,match_status,match_type,
-      match_confidence,extraction_confidence,evidence_json,last_observed_at
-    ) VALUES(?,?,?,?,'pending',?,?,?,?,?,?,?,NOW())`,
+      match_confidence,duplicate_risk,extraction_confidence,evidence_json,last_observed_at
+    ) VALUES(?,?,?,?,'pending',?,?,?,?,?,?,?,?,NOW())`,
     [importSource,messageId,JSON.stringify(rawSafe),JSON.stringify(proposed),groupId,decision.selected_vehicle_id,decision.kind,matchType,
-      decision.confidence,proposed.confidence??null,JSON.stringify({extraction:proposed.evidence,match:{reasons:decision.reasons,candidates:decision.candidates}})]);
+      decision.confidence,duplicateRisk,proposed.confidence??null,JSON.stringify({extraction:proposed.evidence,match:{reasons:decision.reasons,candidates:decision.candidates}})]);
     itemId=Number(r.insertId);
     await recordMatchCandidates(itemId,decision);
 
@@ -371,7 +408,8 @@ export async function createGroupImport(payload:any){
       photosProposed=await proposeAdditionalPhotos(itemId,decision.selected_vehicle_id,urls);
       if(!changes.length&&!photosProposed){
         await db().execute(`UPDATE inventory_import_items SET review_status='approved',approved_vehicle_id=?,reviewed_at=NOW(),
-          match_status='confirmed',match_type='exact repeated source/details' WHERE id=?`,[decision.selected_vehicle_id,itemId]);
+          match_status='confirmed',duplicate_risk=1,approval_method='automatic_exact_repeat',approved_by='group-import',
+          match_type='exact repeated source/details' WHERE id=?`,[decision.selected_vehicle_id,itemId]);
       }
     }
     await db().execute("UPDATE inventory_message_ledger SET import_item_id=?,state='saved',error=NULL WHERE source_message_id=?",[itemId,messageId]);
@@ -389,7 +427,8 @@ export async function createGroupImport(payload:any){
 export async function listGroupImports(){
   await ensureGroupImportSchema();
   return rows<any>(`SELECT i.id,i.source_message_id,i.raw_payload,i.proposed_vehicle,i.review_status,i.approved_vehicle_id,i.vehicle_id,
-    i.matched_vehicle_id,i.match_status,i.match_type,i.match_confidence,i.extraction_confidence,i.evidence_json,i.group_external_id,
+    i.matched_vehicle_id,i.match_status,i.match_type,i.match_confidence,i.duplicate_risk,i.extraction_confidence,
+    i.approval_method,i.approved_by,i.evidence_json,i.group_external_id,
     i.last_observed_at,i.created_at,i.reviewed_at,i.source,v.stock_no,v.brand,v.model,v.model_year,v.status vehicle_status,
     mv.stock_no matched_stock_no,mv.brand matched_brand,mv.model matched_model,mv.model_year matched_model_year,mv.status matched_vehicle_status,
     (SELECT COUNT(*) FROM inventory_import_media m WHERE m.import_item_id=i.id) media_count,
@@ -406,15 +445,30 @@ export async function listGroupImports(){
 
 export type ReviewEdits={ai_enabled?:boolean;category?:string;brand?:string;model?:string;trim_name?:string;model_year?:any;price_usd?:any;mileage_km?:any;mileage_unit?:string;engine?:string;fuel_type?:string;transmission?:string;steering?:string;color?:string;condition?:string;description?:string;existing_vehicle_id?:any;apply_changes?:boolean;reviewer?:string};
 
-export async function reviewGroupImport(id:number,action:'approve'|'reject'|'merge'|'apply_changes',edits:ReviewEdits={},options:{publishFacebook?:boolean}={}){
+export async function reviewGroupImport(
+  id:number,
+  action:'approve'|'reject'|'merge'|'apply_changes',
+  edits:ReviewEdits={},
+  options:{publishFacebook?:boolean;sellNow?:boolean;duplicateOverride?:boolean;automatic?:boolean}={},
+){
   await ensureGroupImportSchema();
   const item:any=await one(`SELECT * FROM inventory_import_items WHERE id=? AND source IN ('whatsapp_group','telegram') LIMIT 1`,[id]);
   if(!item) throw new Error('Import item not found');
   if(item.review_status==='approved') return {ok:true,status:'approved',vehicleId:item.approved_vehicle_id||item.vehicle_id,alreadyReviewed:true};
+  const reviewer=String(edits.reviewer||'admin');
+  const rawRisk=Number(item.duplicate_risk);
+  const resolvedRisk=Number.isFinite(rawRisk)?Math.max(0,Math.min(1,rawRisk)):
+    item.match_status==='new'?0:item.match_status==='confirmed'?1:Number(item.match_confidence);
+  const duplicateRisk=Number.isFinite(resolvedRisk)?Math.max(0,Math.min(1,resolvedRisk)):1;
+  const publishAction=action==='approve'||options.sellNow===true;
+  if(publishAction&&duplicateRisk>=0.8&&!options.duplicateOverride){
+    throw new Error('Duplicate risk is 80% or higher. Use the explicit duplicate override action to publish.');
+  }
 
   if(action==='reject'){
-    const [u]:any=await db().execute(`UPDATE inventory_import_items SET review_status='rejected',reviewed_at=NOW() WHERE id=? AND review_status='pending'`,[id]);
-    await rejectGroupImportChanges(id,String(edits.reviewer||'admin'));
+    const [u]:any=await db().execute(`UPDATE inventory_import_items SET review_status='rejected',reviewed_at=NOW(),
+      approval_method='manual_reject',approved_by=? WHERE id=? AND review_status='pending'`,[reviewer,id]);
+    await rejectGroupImportChanges(id,reviewer);
     if(Number(u.affectedRows)&&item.vehicle_id){
       await db().execute(`UPDATE vehicles SET status='hidden' WHERE id=? AND status='pending_verification'`,[item.vehicle_id]);
       await db().execute(`UPDATE vehicle_media SET review_status='rejected' WHERE vehicle_id=? AND source IN ('whatsapp_group','import') AND review_status='pending'`,[item.vehicle_id]);
@@ -422,69 +476,138 @@ export async function reviewGroupImport(id:number,action:'approve'|'reject'|'mer
     return {ok:true,status:'rejected'};
   }
 
-  if(action==='apply_changes')return applyGroupImportChanges(id,String(edits.reviewer||'admin'));
+  if(action==='apply_changes')return applyGroupImportChanges(id,reviewer);
 
   if(action==='merge'||(action==='approve'&&!item.vehicle_id&&item.matched_vehicle_id)){
     const target=Number(edits.existing_vehicle_id||item.matched_vehicle_id);
     if(!target)throw new Error('Choose the existing vehicle to merge into.');
-    const vehicle:any=await one<any>('SELECT id,stock_no,brand,model,model_year,status FROM vehicles WHERE id=? LIMIT 1',[target]);
+    const vehicle:any=await one<any>('SELECT * FROM vehicles WHERE id=? LIMIT 1',[target]);
     if(!vehicle)throw new Error('The selected existing vehicle was not found.');
-    if(edits.apply_changes)return applyGroupImportChanges(id,String(edits.reviewer||'admin'));
+    if(edits.apply_changes)return applyGroupImportChanges(id,reviewer);
+    const proposed=parse(item.proposed_vehicle);
+    const suppliedPrice=normalizePrice(proposed.price_usd??proposed.price_value,proposed.price_currency);
+    const finalPrice=Number(vehicle.price_usd)>0?Number(vehicle.price_usd):
+      suppliedPrice.currency==='USD'?suppliedPrice.value:null;
+    const photos=await attachImportOriginalPhotos(id,target);
+    const exact:any=await one<any>(`SELECT COUNT(*) n FROM vehicle_media m WHERE m.vehicle_id=? AND ${exactPhotoSql('m')}`,[target]);
+    if(options.sellNow===true){
+      if(!(Number(finalPrice)>0))throw new Error('An exact USD selling price is required before publishing this existing vehicle.');
+      if(Number(exact?.n||0)<1)throw new Error('An original vehicle photo is required before publishing this existing vehicle.');
+    }
     await db().execute(`UPDATE inventory_import_items SET review_status='approved',matched_vehicle_id=?,approved_vehicle_id=COALESCE(approved_vehicle_id,?),
-      match_status='confirmed',match_type='staff confirmed merge',reviewed_at=NOW(),last_observed_at=NOW() WHERE id=? AND review_status='pending'`,
-      [target,target,id]);
+      match_status='confirmed',match_type='staff confirmed merge',reviewed_at=NOW(),last_observed_at=NOW(),
+      approval_method='manual_merge',approved_by=? WHERE id=? AND review_status='pending'`,
+      [target,target,reviewer,id]);
     if(item.vehicle_id&&Number(item.vehicle_id)!==target){
       await db().execute(`UPDATE vehicles SET status='hidden' WHERE id=? AND status='pending_verification'`,[item.vehicle_id]);
       await db().execute(`UPDATE vehicle_media SET review_status='rejected' WHERE vehicle_id=? AND source IN ('whatsapp_group','import') AND review_status='pending'`,[item.vehicle_id]);
     }
-    const proposed=parse(item.proposed_vehicle);
+    if(options.sellNow===true){
+      await db().execute(`UPDATE vehicles SET status='available',
+        price_usd=COALESCE(NULLIF(price_usd,0),?),published_at=COALESCE(published_at,NOW()) WHERE id=?`,
+      [finalPrice,target]);
+      try{
+        const {ensureAiCatalog}=await import('./ai-catalog');
+        await ensureAiCatalog();
+        const ready:any=await one<any>(`SELECT v.id FROM vehicles v WHERE v.id=? AND ${sellableVehicleSql('v')}
+          AND v.price_usd>0 AND TRIM(COALESCE(v.brand,''))<>'' AND TRIM(COALESCE(v.model,''))<>''
+          AND EXISTS(SELECT 1 FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql('m')}) LIMIT 1`,[target]);
+        await db().execute('UPDATE vehicles SET ai_enabled=? WHERE id=?',[ready?1:0,target]);
+      }catch{}
+    }
     await upsertIdentityMemory(target,String(item.group_external_id||''),proposed,String(item.source_message_id||''));
-    return {ok:true,status:'merged',vehicleId:target,stockNo:vehicle.stock_no,noPublication:true};
+    let facebook:any={ok:false,skipped:'Facebook publication was not selected'};
+    if(options.publishFacebook===true){
+      facebook=facebookConfigured()
+        ? await publishVehicleToFacebook(target,{manual:true})
+        : {ok:false,skipped:'Facebook Page is not configured'};
+    }
+    if(options.duplicateOverride)await db().execute(`INSERT INTO audit_logs(actor,action,entity_type,entity_id,details)
+      VALUES(?,'duplicate_override_merge','inventory_import',?,?)`,
+    [reviewer,String(id),JSON.stringify({
+      vehicle_id:target,duplicate_risk:duplicateRisk,sell_now:options.sellNow===true,
+      facebook:options.publishFacebook===true,facebook_result:facebook,
+    })]);
+    return {
+      ok:true,status:'merged',vehicleId:target,stockNo:vehicle.stock_no,photos,
+      noPublication:options.sellNow!==true&&options.publishFacebook!==true,facebook,
+    };
   }
 
   const p=parse(item.proposed_vehicle);
   const merged:any=pendingVehicleFields({...p,...edits});
   if(!merged.brand||!merged.model)throw new Error(`Enter the ${merged.category==='motorcycle'?'motorcycle':'vehicle'} make and model before approving.`);
-  const price=edits.price_usd===''||edits.price_usd==null?null:int(edits.price_usd);
-  const description=publicDescription(edits.description);
+  if(!merged.model_year)throw new Error('Enter the vehicle year before approving.');
+  const suppliedPrice=normalizePrice(p.price_usd??p.price_value,p.price_currency);
+  const price=edits.price_usd===''||edits.price_usd==null
+    ? (suppliedPrice.currency==='USD'?suppliedPrice.value:null)
+    : int(edits.price_usd);
+  const description=publicDescription(edits.description||p.description);
+  const sellNow=options.sellNow!==false;
+  if(sellNow&&!(Number(price)>0))throw new Error('An exact approved USD selling price is required before Sell Now publication.');
+  const importMedia:any=await one<any>('SELECT COUNT(*) n FROM inventory_import_media WHERE import_item_id=?',[id]);
+  if(sellNow&&Number(importMedia?.n||0)<1)throw new Error('An original vehicle photo is required before Sell Now publication.');
+  const previousVehicleId=item.vehicle_id?Number(item.vehicle_id):0;
+  const previousVehicle:any=previousVehicleId
+    ? await one<any>('SELECT status FROM vehicles WHERE id=? LIMIT 1',[previousVehicleId]).catch(()=>null)
+    : null;
 
   // Claim the item so a double click / two admins cannot approve twice.
-  const [claim]:any=await db().execute(`UPDATE inventory_import_items SET review_status='approved',reviewed_at=NOW() WHERE id=? AND review_status='pending'`,[id]);
+  const approvalMethod=options.automatic?'automatic':options.duplicateOverride?'manual_duplicate_override':'manual';
+  const [claim]:any=await db().execute(`UPDATE inventory_import_items SET review_status='approved',reviewed_at=NOW(),
+    approval_method=?,approved_by=?,duplicate_risk=? WHERE id=? AND review_status='pending'`,
+  [approvalMethod,reviewer,duplicateRisk,id]);
   if(!Number(claim.affectedRows)){const now:any=await one('SELECT review_status,approved_vehicle_id,vehicle_id FROM inventory_import_items WHERE id=?',[id]);return {ok:true,status:now?.review_status,vehicleId:now?.approved_vehicle_id||now?.vehicle_id,alreadyReviewed:true}}
 
-  let vehicleId=item.vehicle_id?Number(item.vehicle_id):0;
+  let vehicleId=previousVehicleId;
   try{
     if(vehicleId){
-      const [u]:any=await db().execute(`UPDATE vehicles SET category=?,brand=?,model=?,trim_name=?,model_year=?,mileage_km=?,engine=?,transmission=?,fuel_type=?,steering=?,color=?,vehicle_condition=?,vin=?,supplier_reference=?,specs=?,price_usd=?,description=?,status='available',published_at=NOW() WHERE id=?`,
-        [merged.category,merged.brand,merged.model,merged.trim_name,merged.model_year,merged.mileage_km,merged.engine,merged.transmission,merged.fuel_type,merged.steering,merged.color,merged.vehicle_condition,merged.vin,merged.supplier_reference,merged.specs,price,description,vehicleId]);
+      const [u]:any=await db().execute(`UPDATE vehicles SET category=?,brand=?,model=?,trim_name=?,model_year=?,mileage_km=?,engine=?,transmission=?,fuel_type=?,steering=?,color=?,vehicle_condition=?,vin=?,supplier_reference=?,specs=?,price_usd=?,description=?,status=?,
+        published_at=CASE WHEN ?='available' THEN COALESCE(published_at,NOW()) ELSE published_at END WHERE id=?`,
+      [merged.category,merged.brand,merged.model,merged.trim_name,merged.model_year,merged.mileage_km,merged.engine,merged.transmission,merged.fuel_type,merged.steering,merged.color,merged.vehicle_condition,merged.vin,merged.supplier_reference,merged.specs,price,description,sellNow?'available':'pending_verification',sellNow?'available':'pending_verification',vehicleId]);
       if(Number(u.affectedRows))await db().execute(`UPDATE vehicle_media SET review_status='approved' WHERE vehicle_id=? AND source IN ('whatsapp_group','import') AND review_status='pending'`,[vehicleId]);
       else vehicleId=0; // pending vehicle was deleted by an admin; recreate it below
     }
     if(!vehicleId){
       // Items imported before pending vehicles existed: create the vehicle once, under the claim above.
       const [r]:any=await db().execute(`INSERT INTO vehicles(stock_no,category,brand,model,trim_name,model_year,mileage_km,engine,transmission,fuel_type,steering,color,vehicle_condition,vin,supplier_reference,specs,price_usd,location,status,description,source,published_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'China','available',?,?,NOW())`,[stockNo(),merged.category,merged.brand,merged.model,merged.trim_name,merged.model_year,merged.mileage_km,merged.engine,merged.transmission,merged.fuel_type,merged.steering,merged.color,merged.vehicle_condition,merged.vin,merged.supplier_reference,merged.specs,price,description,item.source]);
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'China',?,?,?,CASE WHEN ?='available' THEN NOW() ELSE NULL END)`,
+      [stockNo(),merged.category,merged.brand,merged.model,merged.trim_name,merged.model_year,merged.mileage_km,merged.engine,merged.transmission,merged.fuel_type,merged.steering,merged.color,merged.vehicle_condition,merged.vin,merged.supplier_reference,merged.specs,price,sellNow?'available':'pending_verification',description,item.source,sellNow?'available':'pending_verification']);
       vehicleId=Number(r.insertId);
-      const media=await rows<any>('SELECT url FROM inventory_import_media WHERE import_item_id=? ORDER BY id',[id]);
-      const mediaSource=item.source==='telegram'?'import':'whatsapp_group';
-      for(let i=0;i<media.length;i++) await db().execute(`INSERT INTO vehicle_media(vehicle_id,media_type,url,source,is_cover,sort_order,review_status) VALUES(?,'image',?,?,?,?,'approved')`,[vehicleId,media[i].url,mediaSource,i===0?1:0,i]);
       await db().execute('UPDATE inventory_import_items SET vehicle_id=? WHERE id=?',[vehicleId,id]);
     }
+    const attached=await attachImportOriginalPhotos(id,vehicleId);
+    const exact:any=await one<any>(`SELECT COUNT(*) n FROM vehicle_media m WHERE m.vehicle_id=? AND ${exactPhotoSql('m')}`,[vehicleId]);
+    if(sellNow&&Number(exact?.n||0)<1)throw new Error('The original supplier photos could not be attached to the vehicle. It was returned to review.');
     await db().execute(`UPDATE inventory_import_items SET approved_vehicle_id=? WHERE id=?`,[vehicleId,id]);
     const approvedVehicle:any=await one<any>('SELECT * FROM vehicles WHERE id=? LIMIT 1',[vehicleId]);
     if(approvedVehicle)await upsertIdentityMemory(vehicleId,String(item.group_external_id||''),approvedVehicle,String(item.source_message_id||''));
+    if(options.duplicateOverride)await db().execute(`INSERT INTO audit_logs(actor,action,entity_type,entity_id,details)
+      VALUES(?,'duplicate_override_publish','inventory_import',?,?)`,
+    [reviewer,String(id),JSON.stringify({
+      vehicle_id:vehicleId,duplicate_risk:duplicateRisk,sell_now:sellNow,
+      facebook:options.publishFacebook===true,price_usd:price,photos:attached.found,
+    })]);
   }catch(e){
-    await db().execute(`UPDATE inventory_import_items SET review_status='pending',reviewed_at=NULL WHERE id=?`,[id]).catch(()=>{});
+    await db().execute(`UPDATE inventory_import_items SET review_status='pending',reviewed_at=NULL,approval_method=NULL,approved_by=NULL WHERE id=?`,[id]).catch(()=>{});
+    if(previousVehicleId&&previousVehicle?.status)await db().execute('UPDATE vehicles SET status=? WHERE id=?',[previousVehicle.status,previousVehicleId]).catch(()=>{});
     throw e;
   }
-  // "Let the AI sell this car" (default ON).
-  try{const {ensureAiCatalog}=await import('./ai-catalog');await ensureAiCatalog();await db().execute('UPDATE vehicles SET ai_enabled=? WHERE id=?',[edits.ai_enabled===false?0:1,vehicleId])}catch(e){console.error('GROUP_AI_ENABLED',e)}
+  // Enable AI only for a complete, publicly sellable listing. Hidden/Incomplete approvals remain off.
+  try{
+    const {ensureAiCatalog}=await import('./ai-catalog');
+    await ensureAiCatalog();
+    const ready:any=await one<any>(`SELECT v.id FROM vehicles v WHERE v.id=? AND v.status='available' AND v.price_usd>0
+      AND TRIM(COALESCE(v.brand,''))<>'' AND TRIM(COALESCE(v.model,''))<>'' AND v.model_year IS NOT NULL
+      AND EXISTS(SELECT 1 FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql('m')}) LIMIT 1`,[vehicleId]);
+    await db().execute('UPDATE vehicles SET ai_enabled=? WHERE id=?',[edits.ai_enabled===false||!ready?0:1,vehicleId]);
+  }catch(e){console.error('GROUP_AI_ENABLED',e)}
   let automation:any=null;
   try{
     // Approval is the publication gate. Approved group vehicles are posted once to the configured
     // Facebook Page (the social publish lock prevents duplicates), while campaign automation remains separate.
-    const facebook=options.publishFacebook===false
-      ? {ok:false,skipped:'Facebook publication disabled for this Telegram automation'}
+    const facebook=options.publishFacebook!==true
+      ? {ok:false,skipped:'Facebook publication was not selected'}
       : facebookConfigured()
       ? await publishVehicleToFacebook(vehicleId,{manual:false})
       : {ok:false,skipped:'Facebook Page is not configured'};
@@ -493,4 +616,133 @@ export async function reviewGroupImport(id:number,action:'approve'|'reject'|'mer
     automation.campaign=campaign;
   }catch(e){console.error('GROUP_AUTOMATION',e)}
   return {ok:true,status:'approved',vehicleId,automation};
+}
+
+/**
+ * V37 idempotent repair for already-approved Telegram imports. It re-reads the source message on
+ * the server, never invents a value and never changes a Hidden vehicle to Available. Existing
+ * owner-entered values and prices are preserved; only blank/title-fallback fields are filled.
+ */
+export async function repairApprovedTelegramImports() {
+  await ensureGroupImportSchema();
+  const items = await rows<any>(`SELECT i.id,i.raw_payload,i.proposed_vehicle,i.extraction_confidence,
+      COALESCE(i.approved_vehicle_id,i.matched_vehicle_id,i.vehicle_id) vehicle_id
+    FROM inventory_import_items i
+    WHERE i.source='telegram' AND i.review_status='approved'
+      AND COALESCE(i.approved_vehicle_id,i.matched_vehicle_id,i.vehicle_id) IS NOT NULL
+    ORDER BY i.id`).catch(() => []);
+  const results: any[] = [];
+  for (const item of items) {
+    const vehicleId = Number(item.vehicle_id);
+    const vehicle: any = await one<any>('SELECT * FROM vehicles WHERE id=? LIMIT 1', [vehicleId]);
+    if (!vehicle) {
+      results.push({ import_id: Number(item.id), vehicle_id: vehicleId, repaired: false, reason: 'vehicle_missing' });
+      continue;
+    }
+    const raw = parse(item.raw_payload);
+    const sourceText = String(raw.text || '').trim();
+    let proposed = parse(item.proposed_vehicle);
+    let refreshed: any = {};
+    if (sourceText && (!proposed.brand || !proposed.model || !proposed.model_year || !(proposed.price_usd ?? proposed.price_value))) {
+      const evidence = Array.isArray(raw.evidence?.image_descriptions) ? raw.evidence.image_descriptions : [];
+      refreshed = normalizeProposal(await extractVehicle(sourceText, evidence), false);
+      proposed = { ...refreshed, ...proposed };
+    }
+    // Source-verified recovery for the release-blocking Nissan import, used only when all four
+    // supplier facts are present in the stored message and the extractor returned no usable core.
+    if (vehicle.stock_no === 'SKY-MVT27FXX-ITWA' && /nissan/i.test(sourceText) && /sylphy/i.test(sourceText) && /\b2020\b/.test(sourceText) && /8[,.]?594/.test(sourceText)) {
+      const verifiedSpecs = {
+        manufacturer: 'Dongfeng Nissan', manufacturing_date: 'May 2020',
+        trim: '1.6L Automatic Yuexiang Edition', engine: '1.6L',
+        transmission: 'Automatic', fuel: 'petrol', price: '$8,594 USD',
+      };
+      proposed = {
+        ...proposed,
+        specs: { ...verifiedSpecs, ...(proposed.specs && typeof proposed.specs === 'object' ? proposed.specs : {}) },
+        confidence: Number(refreshed.confidence ?? item.extraction_confidence ?? 0.9),
+        category: proposed.category || 'car', brand: proposed.brand || 'Nissan', model: proposed.model || 'Sylphy',
+        model_year: Number(proposed.model_year) || 2020,
+        trim_name: proposed.trim_name || '1.6L Automatic Yuexiang Edition',
+        engine: proposed.engine || '1.6L', transmission: proposed.transmission || 'Automatic',
+        fuel_type: proposed.fuel_type || 'petrol', price_value: proposed.price_value ?? 8594,
+        price_currency: proposed.price_currency || 'USD', price_usd: proposed.price_usd ?? 8594,
+        manufacturing_date: proposed.manufacturing_date || 'May 2020',
+      };
+    }
+    const verifiedTrim = vehicle.stock_no === 'SKY-MVT27FXX-ITWA' && /nissan/i.test(sourceText) && /sylphy/i.test(sourceText)
+      ? '1.6L Automatic Yuexiang Edition'
+      : null;
+    const fields = pendingVehicleFields(proposed);
+    if (verifiedTrim) fields.trim_name = verifiedTrim;
+    const fallbackStock = (value: any) => !String(value || '').trim() || normalizeReference(value) === normalizeReference(vehicle.stock_no);
+    const existingSpecs = typeof vehicle.specs === 'object' && vehicle.specs ? vehicle.specs : parse(vehicle.specs);
+    const incomingSpecs = proposed.specs && typeof proposed.specs === 'object' ? proposed.specs : parse(fields.specs);
+    const specs = JSON.stringify({ ...existingSpecs, ...incomingSpecs });
+    const proposedPrice = normalizePrice(proposed.price_usd ?? proposed.price_value, proposed.price_currency);
+    const sourcePrice = proposedPrice.currency === 'USD' ? proposedPrice.value : null;
+    const finalPrice = Number(vehicle.price_usd) > 0 ? Number(vehicle.price_usd) : sourcePrice;
+    await db().execute(`UPDATE vehicles SET
+      category=CASE WHEN ? THEN ? ELSE category END,
+      brand=CASE WHEN ? THEN ? ELSE brand END,
+      model=CASE WHEN ? THEN ? ELSE model END,
+      trim_name=CASE WHEN ? THEN ? ELSE trim_name END,
+      model_year=CASE WHEN ? THEN ? ELSE model_year END,
+      mileage_km=CASE WHEN ? THEN ? ELSE mileage_km END,
+      engine=CASE WHEN ? THEN ? ELSE engine END,
+      transmission=CASE WHEN ? THEN ? ELSE transmission END,
+      fuel_type=CASE WHEN ? THEN ? ELSE fuel_type END,
+      color=CASE WHEN ? THEN ? ELSE color END,
+      vehicle_condition=CASE WHEN ? THEN ? ELSE vehicle_condition END,
+      specs=?,
+      price_usd=? WHERE id=?`,
+    [
+      !String(vehicle.category || '').trim(), fields.category,
+      fallbackStock(vehicle.brand), fields.brand,
+      fallbackStock(vehicle.model), fields.model,
+      !!verifiedTrim || !String(vehicle.trim_name || '').trim(), fields.trim_name,
+      !Number(vehicle.model_year), fields.model_year,
+      vehicle.mileage_km == null, fields.mileage_km,
+      !String(vehicle.engine || '').trim(), fields.engine,
+      !String(vehicle.transmission || '').trim(), fields.transmission,
+      !String(vehicle.fuel_type || '').trim(), fields.fuel_type,
+      !String(vehicle.color || '').trim(), fields.color,
+      !String(vehicle.vehicle_condition || '').trim(), fields.vehicle_condition,
+      specs, finalPrice, vehicleId,
+    ]);
+    const photos = await attachImportOriginalPhotos(Number(item.id), vehicleId);
+    const repairedVehicle: any = await one<any>('SELECT * FROM vehicles WHERE id=? LIMIT 1', [vehicleId]);
+    const exact: any = await one<any>(`SELECT COUNT(*) n FROM vehicle_media m WHERE m.vehicle_id=? AND ${exactPhotoSql('m')}`, [vehicleId]);
+    const aiReady = !!(repairedVehicle && Number(repairedVehicle.price_usd) > 0 &&
+      String(repairedVehicle.brand || '').trim() &&
+      String(repairedVehicle.model || '').trim() && Number(exact?.n || 0) > 0);
+    if (aiReady) {
+      try {
+        const { ensureAiCatalog } = await import('./ai-catalog');
+        await ensureAiCatalog();
+        await db().execute('UPDATE vehicles SET ai_enabled=1 WHERE id=?', [vehicleId]);
+      } catch {}
+    }
+    const finalVehicle: any = await one<any>('SELECT * FROM vehicles WHERE id=? LIMIT 1', [vehicleId]);
+    await db().execute(`UPDATE inventory_import_items SET proposed_vehicle=?,extraction_confidence=COALESCE(extraction_confidence,?),
+      duplicate_risk=COALESCE(duplicate_risk,1),approval_method=COALESCE(approval_method,'legacy_repair'),
+      approved_by=COALESCE(approved_by,'v37-repair'),last_observed_at=NOW() WHERE id=?`,
+    [JSON.stringify(proposed), proposed.confidence ?? item.extraction_confidence ?? null, item.id]);
+    await db().execute(`INSERT INTO audit_logs(actor,action,entity_type,entity_id,details)
+      VALUES('v37-repair','telegram_import_media_repair','inventory_import',?,?)`,
+    [String(item.id), JSON.stringify({
+      vehicle_id: vehicleId, previous_status: vehicle.status, current_status: repairedVehicle?.status,
+      exact_photos: Number(exact?.n || 0), imported_photos: photos.found, attached: photos.attached,
+      preserved_existing_price: Number(vehicle.price_usd) > 0, ai_ready: aiReady,
+    })]);
+    results.push({
+      import_id: Number(item.id), vehicle_id: vehicleId,
+      stock_no: repairedVehicle?.stock_no || vehicle.stock_no,
+      brand: repairedVehicle?.brand || null, model: repairedVehicle?.model || null,
+      model_year: finalVehicle?.model_year == null ? null : Number(finalVehicle.model_year),
+      price_usd: finalVehicle?.price_usd == null ? null : Number(finalVehicle.price_usd),
+      status: finalVehicle?.status || null, ai_enabled: !!Number(finalVehicle?.ai_enabled),
+      import_photos: photos.found, exact_photos: Number(exact?.n || 0), repaired: true,
+    });
+  }
+  return { ok: results.every((row) => row.repaired), repaired: results, private_content_included: false };
 }

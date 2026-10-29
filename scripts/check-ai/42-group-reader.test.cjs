@@ -46,7 +46,7 @@ test('authorized groups are pinned by exact WhatsApp ID', () => {
 test('approved imports become AI-searchable and can publish once to Facebook', () => {
   const src = read('src/lib/group-import.ts');
   assert.match(src, /UPDATE vehicles SET ai_enabled=/);
-  assert.match(src, /status='available',published_at=NOW\(\)/);
+  assert.match(src, /status=\?,\s*published_at=CASE WHEN \?='available'/);
   assert.match(src, /publishVehicleToFacebook\(vehicleId,\{manual:false\}\)/);
   assert.match(src, /facebookConfigured\(\)/);
   const social = read('src/lib/social.ts');

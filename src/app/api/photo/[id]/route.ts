@@ -15,7 +15,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     const m = await one<any>(`SELECT m.url FROM vehicle_media m JOIN vehicles v ON v.id=m.vehicle_id
       WHERE m.id=? AND m.media_type='image' AND m.review_status='approved'
         AND v.status IN ('available','reserved','pending_verification','sold')
-        AND NOT (COALESCE(v.source,'')='whatsapp_group' AND v.status='pending_verification') LIMIT 1`, [id]);
+        AND NOT (COALESCE(v.source,'') IN ('whatsapp_group','telegram') AND v.status='pending_verification') LIMIT 1`, [id]);
     const url = String(m?.url || '');
     if (!/^https?:\/\//i.test(url)) return new Response('Not found', { status: 404 });
     const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 20000);

@@ -362,9 +362,12 @@ async function maybeAutoPublishTelegram(itemId: number) {
   if (item.review_status !== 'pending') return { status: item.review_status, reasons: [] };
   const proposed: any = parseProposed(item.proposed_vehicle);
   const raw: any = parseProposed(item.raw_payload);
-  const media: any = await one<any>('SELECT COUNT(*) n FROM inventory_import_media WHERE import_item_id=?', [itemId]);
+  const media: any = await one<any>(`SELECT COUNT(*) n,
+      SUM(blob_name IS NOT NULL AND url LIKE '/media/%') verified
+    FROM inventory_import_media WHERE import_item_id=?`, [itemId]);
   const decision = decideTelegramAutoPublish({
     match_status: item.match_status,
+    duplicate_risk: item.duplicate_risk,
     review_status: item.review_status,
     extraction_confidence: item.extraction_confidence,
     price_value: proposed.price_value,
@@ -378,7 +381,7 @@ async function maybeAutoPublishTelegram(itemId: number) {
     category: proposed.category,
     availability: proposed.availability,
     text: raw.text || '',
-    photo_count: Number(media?.n || 0),
+    photo_count: Number(media?.verified || 0),
   }, settings.min_extraction_confidence);
   if (!decision.eligible) {
     await telegramEvent('automatic_review_required', 'review', { reasons: decision.reasons }, {
@@ -405,12 +408,13 @@ async function maybeAutoPublishTelegram(itemId: number) {
       description: publicDescription(proposed.description || raw.text || ''),
       ai_enabled: true,
       reviewer: 'telegram-auto',
-    }, { publishFacebook: settings.auto_facebook });
+    }, { publishFacebook: settings.auto_facebook, sellNow: true, automatic: true });
     const whatsapp = await deliverVehicleToWhatsAppGroup(Number(result.vehicleId));
     await telegramEvent('automatic_published', 'ok', {
       facebook: result.automation?.facebook || null,
       whatsapp,
       price_usd: decision.price_usd,
+      duplicate_risk: decision.duplicate_risk,
     }, { importItemId: itemId, vehicleId: result.vehicleId });
     return {
       status: 'published',
@@ -981,7 +985,8 @@ export async function telegramDashboard() {
     rows<any>(`SELECT id,chat_id,message_id,media_group_id,last_update_id,edit_date,sender_name,chat_title,message_kind,
       processing_state,retry_count,next_attempt_at,import_item_id,vehicle_id,error,received_at,processed_at
       FROM telegram_source_messages ORDER BY id DESC LIMIT 80`).catch(() => []),
-    rows<any>(`SELECT i.id,i.source_message_id,i.review_status,i.match_status,i.match_confidence,i.extraction_confidence,
+    rows<any>(`SELECT i.id,i.source_message_id,i.review_status,i.match_status,i.match_confidence,i.duplicate_risk,
+      i.extraction_confidence,i.approval_method,i.approved_by,
       i.vehicle_id,i.matched_vehicle_id,i.approved_vehicle_id,i.created_at,v.stock_no,v.brand,v.model,v.model_year,v.status vehicle_status,
       (SELECT COUNT(*) FROM inventory_import_media m WHERE m.import_item_id=i.id) media_count
       FROM inventory_import_items i LEFT JOIN vehicles v ON v.id=i.vehicle_id
@@ -1045,6 +1050,193 @@ export async function telegramSampleVehicles() {
   return rows<any>(`SELECT v.id,v.stock_no,v.brand,v.model,v.model_year,v.price_usd,
     (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql('m')}) exact_photo_count
     FROM vehicles v WHERE ${sellableVehicleSql('v')} AND v.price_usd>0 ORDER BY v.created_at DESC,v.id DESC LIMIT 100`).catch(() => []);
+}
+
+/**
+ * Temporary, fixed-input production repair diagnostic. It deliberately omits raw Telegram
+ * payloads, captions and text. The endpoint is rate-limited and returns IDs and vehicle/media
+ * metadata only; it never changes a vehicle or publication state.
+ */
+export async function telegramV37Diagnostic() {
+  await ensureTelegramSchema();
+  const lock = await db().getConnection();
+  let claimed = false;
+  try {
+    await lock.execute(`CREATE TABLE IF NOT EXISTS telegram_v37_diagnostic_lock(
+      id TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,
+      last_attempt_at DATETIME NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await lock.beginTransaction();
+    await lock.execute('INSERT IGNORE INTO telegram_v37_diagnostic_lock(id,last_attempt_at) VALUES(1,NULL)');
+    const [locked]: any = await lock.execute('SELECT last_attempt_at FROM telegram_v37_diagnostic_lock WHERE id=1 FOR UPDATE');
+    const last = locked?.[0]?.last_attempt_at ? new Date(locked[0].last_attempt_at).getTime() : 0;
+    if (!last || Date.now() - last >= 10 * 60 * 1000) {
+      await lock.execute('UPDATE telegram_v37_diagnostic_lock SET last_attempt_at=NOW() WHERE id=1');
+      claimed = true;
+    }
+    await lock.commit();
+  } catch (error) {
+    await lock.rollback().catch(() => {});
+    throw error;
+  } finally {
+    lock.release();
+  }
+  if (!claimed) {
+    return { ok: true, state: 'rate_limited', retry_after_seconds: 600, private_content_included: false };
+  }
+
+  const parse = (value: any) => {
+    if (!value) return {};
+    if (typeof value === 'object') return value;
+    try { return JSON.parse(value); } catch { return {}; }
+  };
+  const [importRows, connectionResult, facebookResult, settings] = await Promise.all([
+    rows<any>(`SELECT i.id,i.source_message_id,i.review_status,i.match_status,i.match_confidence,
+      i.extraction_confidence,i.vehicle_id,i.matched_vehicle_id,i.approved_vehicle_id,i.proposed_vehicle,
+      i.group_external_id,v.stock_no,v.category,v.brand,v.model,v.trim_name,v.model_year,v.mileage_km,v.engine,
+      v.transmission,v.fuel_type,v.color,v.vehicle_condition,v.price_usd,v.status vehicle_status,
+      v.ai_enabled,v.specs,
+      (SELECT COUNT(*) FROM inventory_import_media m WHERE m.import_item_id=i.id) import_media_count,
+      (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=COALESCE(i.approved_vehicle_id,i.matched_vehicle_id,i.vehicle_id) AND ${exactPhotoSql('m')}) exact_vehicle_media_count,
+      (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=COALESCE(i.approved_vehicle_id,i.matched_vehicle_id,i.vehicle_id) AND m.review_status='approved' AND m.media_type='image') approved_vehicle_media_count
+      FROM inventory_import_items i
+      LEFT JOIN vehicles v ON v.id=COALESCE(i.approved_vehicle_id,i.matched_vehicle_id,i.vehicle_id)
+      WHERE i.source='telegram'
+      ORDER BY i.id DESC LIMIT 50`),
+    telegramConnectionProbe().catch((error: any) => ({ ok: false, error: safeTelegramError(error) })),
+    facebookStatus().catch((error: any) => ({
+      configured: false, connected: false, error: safeTelegramError(error), warnings: [],
+    })),
+    getTelegramSettings(),
+  ]);
+  const connection: any = connectionResult;
+  const facebook: any = facebookResult;
+  const ids = importRows.map((item) => Number(item.id)).filter(Boolean);
+  const [importMedia, candidates, publicRules] = await Promise.all([
+    ids.length ? rows<any>(`SELECT import_item_id,id,url,mime_type,blob_name
+      FROM inventory_import_media WHERE import_item_id IN (${ids.map(() => '?').join(',')})
+      ORDER BY import_item_id,id`, ids) : [],
+    ids.length ? rows<any>(`SELECT import_item_id,vehicle_id,confidence,reasons
+      FROM inventory_match_candidates WHERE import_item_id IN (${ids.map(() => '?').join(',')})
+      ORDER BY import_item_id,confidence DESC`, ids) : [],
+    rows<any>(`SELECT COUNT(*) total,
+      SUM(status='available') available,
+      SUM(status='hidden') hidden,
+      SUM(source='telegram' AND status='pending_verification') pending_telegram
+      FROM vehicles`),
+  ]);
+  const byImport = (input: any[]) => {
+    const grouped = new Map<number, any[]>();
+    input.forEach((row) => {
+      const key = Number(row.import_item_id);
+      grouped.set(key, [...(grouped.get(key) || []), row]);
+    });
+    return grouped;
+  };
+  const mediaByImport = byImport(importMedia);
+  const candidatesByImport = byImport(candidates);
+  const imports = importRows.map((item) => {
+    const proposed = parse(item.proposed_vehicle);
+    return {
+      import_id: Number(item.id),
+      source_message_id: item.source_message_id,
+      group_external_id: item.group_external_id,
+      review_status: item.review_status,
+      match_status: item.match_status,
+      match_confidence: item.match_confidence == null ? null : Number(item.match_confidence),
+      extraction_confidence: item.extraction_confidence == null ? null : Number(item.extraction_confidence),
+      ids: {
+        draft_vehicle_id: item.vehicle_id == null ? null : Number(item.vehicle_id),
+        matched_vehicle_id: item.matched_vehicle_id == null ? null : Number(item.matched_vehicle_id),
+        approved_vehicle_id: item.approved_vehicle_id == null ? null : Number(item.approved_vehicle_id),
+      },
+      extraction: {
+        category: proposed.category || null,
+        brand: proposed.brand || null,
+        model: proposed.model || null,
+        trim_name: proposed.trim_name || null,
+        model_year: proposed.model_year || null,
+        manufacturer: proposed.manufacturer || proposed.specs?.manufacturer || proposed.specs?.make || null,
+        manufacturing_date: proposed.manufacturing_date || proposed.specs?.manufacturing_date || null,
+        mileage_km: proposed.mileage_km ?? proposed.mileage_value ?? null,
+        engine: proposed.engine || null,
+        transmission: proposed.transmission || null,
+        fuel_type: proposed.fuel_type || null,
+        color: proposed.color || null,
+        condition: proposed.condition || null,
+        price_value: proposed.price_value ?? null,
+        price_currency: proposed.price_currency || null,
+        price_usd: proposed.price_usd ?? null,
+        has_evidence: !!proposed.evidence,
+      },
+      vehicle: item.stock_no ? {
+        id: Number(item.approved_vehicle_id || item.matched_vehicle_id || item.vehicle_id),
+        stock_no: item.stock_no,
+        category: item.category || null,
+        brand: item.brand || null,
+        model: item.model || null,
+        trim_name: item.trim_name || null,
+        model_year: item.model_year == null ? null : Number(item.model_year),
+        mileage_km: item.mileage_km == null ? null : Number(item.mileage_km),
+        engine: item.engine || null,
+        transmission: item.transmission || null,
+        fuel_type: item.fuel_type || null,
+        color: item.color || null,
+        condition: item.vehicle_condition || null,
+        price_usd: item.price_usd == null ? null : Number(item.price_usd),
+        status: item.vehicle_status || null,
+        ai_enabled: !!Number(item.ai_enabled),
+        specs: parse(item.specs),
+      } : null,
+      media: {
+        import_count: Number(item.import_media_count || 0),
+        exact_on_vehicle: Number(item.exact_vehicle_media_count || 0),
+        approved_on_vehicle: Number(item.approved_vehicle_media_count || 0),
+        import_urls: (mediaByImport.get(Number(item.id)) || []).map((row) => ({
+          id: Number(row.id), url: row.url, mime_type: row.mime_type, stored_blob: !!row.blob_name,
+        })),
+      },
+      match_candidates: (candidatesByImport.get(Number(item.id)) || []).map((row) => ({
+        vehicle_id: Number(row.vehicle_id),
+        confidence: row.confidence == null ? null : Number(row.confidence),
+        reasons: parse(row.reasons),
+      })),
+    };
+  });
+  return {
+    ok: true,
+    state: 'diagnosed',
+    private_content_included: false,
+    telegram: {
+      ok: connection?.ok === true,
+      group: connection?.group || null,
+      bot_is_admin: connection?.bot_is_admin === true,
+      webhook: connection?.webhook || null,
+      source_pinned: connection?.source_pinned === true,
+      error: connection?.diagnostic || connection?.error || null,
+    },
+    facebook: {
+      configured: facebook?.configured === true,
+      connected: facebook?.connected === true,
+      page_id: facebook?.id || null,
+      page_name: facebook?.name || null,
+      token_source: facebook?.tokenSource || null,
+      missing_scopes: facebook?.missingScopes || null,
+      error: facebook?.error || null,
+      warnings: facebook?.warnings || [],
+      posted: false,
+    },
+    settings: {
+      enabled: settings.enabled,
+      auto_publish: settings.auto_publish,
+      auto_approve_new: settings.auto_approve_new,
+      auto_facebook: settings.auto_facebook,
+      auto_whatsapp_group: settings.auto_whatsapp_group,
+      min_extraction_confidence: settings.min_extraction_confidence,
+    },
+    public_inventory: publicRules[0] || {},
+    imports,
+  };
 }
 
 export async function recordTelegramAvailabilityProposal(itemId: number, text: string) {

@@ -31,9 +31,12 @@ export function ensureInventoryMemorySchema() {
     await addColumn('inventory_import_items', 'match_status', "VARCHAR(30) NOT NULL DEFAULT 'new'", ', ADD INDEX idx_import_match_status(match_status)');
     await addColumn('inventory_import_items', 'match_type', 'VARCHAR(80) NULL');
     await addColumn('inventory_import_items', 'match_confidence', 'DECIMAL(5,4) NULL');
+    await addColumn('inventory_import_items', 'duplicate_risk', 'DECIMAL(5,4) NULL');
     await addColumn('inventory_import_items', 'extraction_confidence', 'DECIMAL(5,4) NULL');
     await addColumn('inventory_import_items', 'evidence_json', 'JSON NULL');
     await addColumn('inventory_import_items', 'last_observed_at', 'DATETIME NULL');
+    await addColumn('inventory_import_items', 'approval_method', 'VARCHAR(30) NULL');
+    await addColumn('inventory_import_items', 'approved_by', 'VARCHAR(191) NULL');
 
     await db().execute(`CREATE TABLE IF NOT EXISTS vehicle_identity_memory(
       vehicle_id BIGINT UNSIGNED PRIMARY KEY,
@@ -404,7 +407,8 @@ export async function applyGroupImportChanges(importItemId: number, reviewer = '
     await db().execute('UPDATE vehicle_identity_memory SET approved_changes=? WHERE vehicle_id=?', [JSON.stringify(history.slice(-100)), vehicleId]);
   }
   await db().execute(`UPDATE inventory_import_items SET review_status='approved',matched_vehicle_id=?,approved_vehicle_id=COALESCE(approved_vehicle_id,?),
-    match_status='confirmed',reviewed_at=NOW(),last_observed_at=NOW() WHERE id=?`, [vehicleId, vehicleId, importItemId]);
+    match_status='confirmed',approval_method='manual_apply_changes',approved_by=?,reviewed_at=NOW(),last_observed_at=NOW() WHERE id=?`,
+  [vehicleId, vehicleId, reviewer, importItemId]);
   return { ok: true, status: 'approved', mergedInto: vehicleId, applied };
 }
 

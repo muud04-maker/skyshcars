@@ -110,6 +110,7 @@ export function telegramAvailability(text: string, extracted?: unknown): Telegra
 
 export type TelegramAutoInput = {
   match_status?: string | null;
+  duplicate_risk?: number | string | null;
   review_status?: string | null;
   extraction_confidence?: number | string | null;
   price_value?: number | string | null;
@@ -133,6 +134,7 @@ export type TelegramAutoDecision = {
   price_usd: number | null;
   price_currency: string | null;
   mileage_km: number | null;
+  duplicate_risk: number | null;
 };
 
 /**
@@ -147,8 +149,15 @@ export function decideTelegramAutoPublish(input: TelegramAutoInput, minConfidenc
   const photoCount = Math.max(0, Number(input.photo_count) || 0);
   const confidence = Number(input.extraction_confidence);
   const availability = telegramAvailability(String(input.text || ''), input.availability);
+  const hasSuppliedRisk = input.duplicate_risk !== null && input.duplicate_risk !== undefined && String(input.duplicate_risk).trim() !== '';
+  const suppliedRisk = Number(input.duplicate_risk);
+  const duplicateRisk = hasSuppliedRisk && Number.isFinite(suppliedRisk) ? Math.max(0, Math.min(1, suppliedRisk))
+    : input.match_status === 'new' ? 0
+    : input.match_status === 'confirmed' ? 1
+    : null;
 
-  if (input.match_status !== 'new') reasons.push('vehicle identity is not a confident new listing');
+  if (duplicateRisk === null) reasons.push('numeric duplicate risk is unavailable');
+  else if (duplicateRisk >= 0.8) reasons.push('duplicate risk is 80% or higher');
   if (input.review_status && input.review_status !== 'pending') reasons.push('import is not pending automatic review');
   if (!input.brand || !input.model) reasons.push('make or model is missing');
   if (!input.model_year && !String(input.model_year || '').match(/(?:19|20)\d{2}/)) reasons.push('year is missing');
@@ -165,6 +174,7 @@ export function decideTelegramAutoPublish(input: TelegramAutoInput, minConfidenc
     price_usd: priceUsd,
     price_currency: currency,
     mileage_km: normalizeMileageKm(input.mileage_km ?? input.mileage_value, input.mileage_unit || 'km'),
+    duplicate_risk: duplicateRisk,
   };
 }
 

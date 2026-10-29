@@ -63,6 +63,16 @@ export default function TelegramAutomationClient() {
     const result = await post('process_queue');
     setMessage(result.ok ? `${result.json.processed?.length || 0} durable Telegram job group(s) processed.` : result.json.error || 'Queue processing failed');
   }
+  async function repairImports() {
+    if (!confirm('Reconcile approved Telegram imports with their stored original photos and verified fields? Hidden vehicles stay Hidden.')) return;
+    const result = await post('repair_imports');
+    setMessage(result.ok ? `Import repair completed for ${result.json.repaired?.length || 0} approved listing(s).` : result.json.error || 'Import repair failed');
+  }
+  async function runDiagnostic() {
+    const result = await post('v37_diagnostic');
+    setTest(result.json);
+    setMessage(result.ok ? 'V37 diagnostic completed. It did not publish a vehicle.' : result.json.error || 'V37 diagnostic failed');
+  }
   async function runSample() {
     if (!sample) { setMessage('Choose an available sample vehicle.'); return; }
     const result = await post('test_sample', { vehicle_id: Number(sample) });
@@ -95,7 +105,7 @@ export default function TelegramAutomationClient() {
 
     <div className="settingsGrid">
       <div className="card">
-        <div className="sectionHead"><div><h2>Automatic publishing</h2><p>Only complete, confidently new Telegram listings with a source price in USD and original photos are published automatically.</p></div><span className={'badge ' + (settings.auto_publish ? '' : 'pending')}>{settings.auto_publish ? 'On' : 'Off'}</span></div>
+        <div className="sectionHead"><div><h2>Automatic publishing</h2><p>Complete, verified Telegram listings with duplicate risk below 80%, a source price in USD and original photos are eligible for automatic publishing. Risk at 80% or above stays in review.</p></div><span className={'badge ' + (settings.auto_publish ? '' : 'pending')}>{settings.auto_publish ? 'On' : 'Off'}</span></div>
         <div className="automationGrid">
           {toggle('enabled')}{toggle('auto_publish')}{toggle('auto_approve_new')}{toggle('auto_facebook')}{toggle('auto_whatsapp_group')}
         </div>
@@ -106,6 +116,8 @@ export default function TelegramAutomationClient() {
           <button className="btn" disabled={busy === 'save'} onClick={save}>Save settings</button>
           <button className="miniBtn" disabled={busy === 'retry'} onClick={retry}>Retry failed jobs</button>
           <button className="miniBtn" disabled={busy === 'process_queue'} onClick={processQueue}>Process durable queue</button>
+          <button className="miniBtn" disabled={busy === 'repair_imports'} onClick={repairImports}>Repair approved imports</button>
+          <button className="miniBtn" disabled={busy === 'v37_diagnostic'} onClick={runDiagnostic}>Run V37 diagnostic</button>
         </div>
       </div>
 
@@ -173,12 +185,13 @@ export default function TelegramAutomationClient() {
     <div className="card" style={{ marginTop: 18 }}>
       <h2>Recent imported vehicles</h2>
       <div className="tableWrap" style={{ boxShadow: 'none', border: 0 }}><table className="table">
-        <thead><tr><th>Import</th><th>Vehicle</th><th>Class</th><th>Review</th><th>Photos</th><th>Confidence</th></tr></thead>
+        <thead><tr><th>Import</th><th>Vehicle</th><th>Class</th><th>Risk</th><th>Review</th><th>Approval</th><th>Photos</th><th>Extraction</th></tr></thead>
         <tbody>{(data.imports || []).length ? data.imports.map((row: any) => <tr key={row.id}>
           <td>{row.id}</td><td>{row.stock_no || row.vehicle_id || '—'} {row.brand || ''} {row.model || ''} {row.model_year || ''}</td>
-          <td>{row.match_status}</td><td>{row.review_status}</td><td>{row.media_count}</td>
+          <td>{row.match_status}</td><td>{row.duplicate_risk == null ? '—' : `${Math.round(Number(row.duplicate_risk) * 100)}%`}</td>
+          <td>{row.review_status}</td><td>{row.approval_method || '—'}</td><td>{row.media_count}</td>
           <td>{row.extraction_confidence == null ? '—' : `${Math.round(Number(row.extraction_confidence) * 100)}%`}</td>
-        </tr>) : <tr><td colSpan={6}>No Telegram imports yet.</td></tr>}</tbody>
+        </tr>) : <tr><td colSpan={8}>No Telegram imports yet.</td></tr>}</tbody>
       </table></div>
     </div>
 

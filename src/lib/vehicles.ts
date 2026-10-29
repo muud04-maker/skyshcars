@@ -19,7 +19,8 @@ function verifiedMediaSql(allowRepresentative = ALLOW_REPRESENTATIVE_MODEL_PHOTO
 const VERIFIED_MEDIA = verifiedMediaSql();
 // Supplier-hosted (external) photos are served through our own URL so supplier domains never appear publicly.
 const PUBLIC_URL = `CASE WHEN m.url LIKE 'http%' THEN CONCAT('/api/photo/', m.id) ELSE m.url END`;
-const COVER = `(SELECT ${PUBLIC_URL} FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${VERIFIED_MEDIA}
+const COVER = `(SELECT ${PUBLIC_URL} FROM vehicle_media m WHERE m.vehicle_id=v.id
+  AND (CASE WHEN COALESCE(v.source,'')='telegram' THEN (${exactPhotoSql('m')}) ELSE (${VERIFIED_MEDIA}) END)
   ORDER BY m.is_cover DESC, m.sort_order, m.id LIMIT 1) cover_url`;
 
 let readyPromise: Promise<void> | null = null;
@@ -88,6 +89,8 @@ function syntheticRepresentativePhotos(ref: any, count = 5) {
 
 function withRepresentative(v: any) {
   if (!v) return v;
+  // Supplier imports must never substitute model art for the actual unit.
+  if (String(v.source || '') === 'telegram') return v;
   if (v.cover_url) return v;
   const rep = getRepresentativeCover(v.stock_no);
   if (rep) return { ...v, cover_url: rep.url, photo_kind: 'representative' };
@@ -109,8 +112,9 @@ import { publicStatusCondition } from './bulk-vehicles';
 export { publicStatusCondition };
 
 function num(v: any) { const n = Number(v); return Number.isFinite(n) ? n : null; }
-// Group Reader posts stay private until an admin approves them.
-export const NOT_PENDING_GROUP = `NOT (COALESCE(v.source,'')='whatsapp_group' AND v.status='pending_verification')`;
+// Supplier-reader drafts stay private until approved. This covers both the legacy WhatsApp
+// bridge and Telegram; a pending car from either source must never leak through a public query.
+export const NOT_PENDING_GROUP = `NOT (COALESCE(v.source,'') IN ('whatsapp_group','telegram') AND v.status='pending_verification')`;
 function buildWhere(opts: VehicleQuery) {
   const args: any[] = []; let where = `${publicStatusCondition(opts.stockStatus, 'v')} AND ${NOT_PENDING_GROUP}`;
   where += ` AND NOT (v.category='motorcycle' AND (TRIM(COALESCE(v.brand,''))='' OR TRIM(COALESCE(v.model,''))=''))`;
@@ -266,7 +270,7 @@ export async function getVehicleFilterOptions(category = 'car') {
     const list = combinedFallbackInventory().filter((v: any) =>
       v.category === category &&
       ['available', 'reserved', 'pending_verification'].includes(String(v.status || 'available')) &&
-      !(String(v.source || '') === 'whatsapp_group' && String(v.status || '') === 'pending_verification') &&
+      !(['whatsapp_group', 'telegram'].includes(String(v.source || '')) && String(v.status || '') === 'pending_verification') &&
       !(category === 'motorcycle' && (!String(v.brand || '').trim() || !String(v.model || '').trim()))
     );
     const tally = (values: string[]) => {
@@ -297,7 +301,7 @@ export async function getVehicleFilterOptions(category = 'car') {
   }
   try {
     await ensureCatalogueReady();
-    const base = `status IN ('available','reserved','pending_verification') AND NOT (COALESCE(source,'')='whatsapp_group' AND status='pending_verification') AND category=?`;
+    const base = `status IN ('available','reserved','pending_verification') AND NOT (COALESCE(source,'') IN ('whatsapp_group','telegram') AND status='pending_verification') AND category=?`;
     const brands = await rows<any>(`SELECT brand,COUNT(*) count FROM vehicles WHERE ${base} AND TRIM(COALESCE(brand,''))<>'' GROUP BY brand ORDER BY brand`, [category]);
     const fuels = await rows<any>(`SELECT LOWER(fuel_type) fuel,COUNT(*) count FROM vehicles WHERE ${base} AND TRIM(COALESCE(fuel_type,''))<>'' GROUP BY LOWER(fuel_type) ORDER BY fuel`, [category]);
     const bodies = await rows<any>(`SELECT LOWER(JSON_UNQUOTE(JSON_EXTRACT(specs,'$.body_type'))) body,COUNT(*) count FROM vehicles WHERE ${base} AND JSON_EXTRACT(specs,'$.body_type') IS NOT NULL GROUP BY body ORDER BY body`, [category]);
@@ -344,9 +348,13 @@ export async function getVehicleMedia(vehicleId: number | string) {
     return representativeFor(v);
   }
   try {
-    const media = await rows<any>(`SELECT id,${PUBLIC_URL} url,caption,is_cover,sort_order, CASE WHEN COALESCE(caption,'') LIKE 'MODEL PHOTO%' OR COALESCE(caption,'') LIKE '%Representative%' THEN 1 ELSE 0 END is_representative FROM vehicle_media m WHERE m.vehicle_id=? AND ${VERIFIED_MEDIA} ORDER BY is_cover DESC,sort_order,id LIMIT 20`, [vehicleId]);
+    const owner = await one<any>('SELECT v.source FROM vehicles v WHERE v.id=? OR v.stock_no=? LIMIT 1', [vehicleId, String(vehicleId)]);
+    if (!owner) return [];
+    const mediaPredicate = String(owner.source || '') === 'telegram' ? exactPhotoSql('m') : VERIFIED_MEDIA;
+    const media = await rows<any>(`SELECT id,${PUBLIC_URL} url,caption,is_cover,sort_order, CASE WHEN COALESCE(caption,'') LIKE 'MODEL PHOTO%' OR COALESCE(caption,'') LIKE '%Representative%' THEN 1 ELSE 0 END is_representative FROM vehicle_media m WHERE m.vehicle_id=? AND ${mediaPredicate} ORDER BY is_cover DESC,sort_order,id LIMIT 20`, [vehicleId]);
     if (media.length) return media;
     const vehicle = await getVehicle(String(vehicleId));
+    if (String(vehicle?.source || '') === 'telegram') return [];
     return representativeFor(vehicle);
   } catch (e) { console.error('GET_VEHICLE_MEDIA_DB_ERROR', e); return []; }
 }

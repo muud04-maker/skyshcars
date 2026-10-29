@@ -36,6 +36,14 @@ export type IdentityDecision = {
   candidates: Array<{ vehicle_id: number; confidence: number; reasons: string[] }>;
 };
 
+/** Durable duplicate risk used by the owner's 80% automatic-publication policy. */
+export function duplicateRiskForDecision(decision: Pick<IdentityDecision, 'kind' | 'confidence'>) {
+  if (decision.kind === 'new') return 0;
+  if (decision.kind === 'confirmed') return 1;
+  const confidence = Number(decision.confidence);
+  return Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : null;
+}
+
 export function normalizeIdentityText(value: unknown) {
   return String(value ?? '')
     .normalize('NFKD')

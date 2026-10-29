@@ -16,7 +16,16 @@ export async function POST(req:Request){
   if(!id||!['approve','reject','merge','apply_changes'].includes(String(b.action)))return Response.json({error:'Bad request'},{status:400});
   try{
     const session=await getAdminSession();
-    return Response.json(await reviewGroupImport(id,b.action,{...(typeof b.vehicle==='object'&&b.vehicle?b.vehicle:{}),reviewer:String(session?.email||'admin')}));
+    const options=typeof b.options==='object'&&b.options?{
+      publishFacebook:b.options.publishFacebook===true,
+      sellNow:b.options.sellNow===true,
+      duplicateOverride:b.options.duplicateOverride===true,
+    }:{};
+    return Response.json(await reviewGroupImport(
+      id,b.action,
+      {...(typeof b.vehicle==='object'&&b.vehicle?b.vehicle:{}),reviewer:String(session?.email||'admin')},
+      options,
+    ));
   }catch(e:any){
     return Response.json({error:e?.message||'Review failed'},{status:400});
   }
