@@ -651,10 +651,12 @@ export async function bootstrapTelegramWebhook() {
   try {
     const registration = await registerTelegramWebhook();
     const probe: any = registration.probe;
-    const [sourceCount, importCount, lastSource] = await Promise.all([
+    const [sourceCount, importCount, lastSource, stateRows, lastJobError] = await Promise.all([
       one<any>('SELECT COUNT(*) n FROM telegram_source_messages').catch(() => null),
       one<any>(`SELECT COUNT(*) n, SUM(review_status='approved') approved FROM inventory_import_items WHERE source='telegram'`).catch(() => null),
       one<any>('SELECT MAX(received_at) at FROM telegram_source_messages').catch(() => null),
+      rows<any>(`SELECT processing_state state,COUNT(*) n FROM telegram_source_messages GROUP BY processing_state`).catch(() => []),
+      one<any>(`SELECT error FROM telegram_source_messages WHERE error IS NOT NULL ORDER BY id DESC LIMIT 1`).catch(() => null),
     ]);
     return {
       ok: probe?.ok === true,
@@ -675,6 +677,8 @@ export async function bootstrapTelegramWebhook() {
         imports: Number(importCount?.n || 0),
         approved: Number(importCount?.approved || 0),
         last_received: lastSource?.at || null,
+        states: Object.fromEntries(stateRows.map((row: any) => [String(row.state), Number(row.n || 0)])),
+        last_job_error: lastJobError?.error ? String(lastJobError.error).slice(0, 500) : null,
       },
     };
   } catch (error: any) {
