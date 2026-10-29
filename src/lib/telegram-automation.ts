@@ -343,6 +343,11 @@ function parseProposed(raw: any) {
   try { return JSON.parse(raw); } catch { return {}; }
 }
 
+function isoDate(value: any, fallback = new Date()) {
+  const parsed = value instanceof Date ? value : new Date(String(value || ''));
+  return (Number.isNaN(parsed.getTime()) ? fallback : parsed).toISOString();
+}
+
 async function maybeAutoPublishTelegram(itemId: number) {
   const settings = await getTelegramSettings();
   const item: any = await one<any>('SELECT * FROM inventory_import_items WHERE id=? AND source=? LIMIT 1', [itemId, 'telegram']);
@@ -450,7 +455,7 @@ async function processClaimedRows(sourceRows: any[]) {
     sender: String(first.from_id || ''),
     senderName: first.sender_name || null,
     text: combinedText,
-    receivedAt: new Date(String(first.received_at).replace(' ', 'T')).toISOString(),
+    receivedAt: isoDate(first.received_at),
     photoCount: photos.length,
     media: photos.map((photo) => ({ data: photo.data, mimeType: photo.mimeType, telegramFileId: photo.fileId, telegramFileUniqueId: photo.fileUniqueId })),
     existingVehicleId: priorVehicleId,
@@ -651,6 +656,7 @@ export async function bootstrapTelegramWebhook() {
   try {
     const registration = await registerTelegramWebhook();
     const probe: any = registration.probe;
+    const processed = await processTelegramQueue(4).catch(() => []);
     const [sourceCount, importCount, lastSource, stateRows, lastJobError] = await Promise.all([
       one<any>('SELECT COUNT(*) n FROM telegram_source_messages').catch(() => null),
       one<any>(`SELECT COUNT(*) n, SUM(review_status='approved') approved FROM inventory_import_items WHERE source='telegram'`).catch(() => null),
@@ -680,6 +686,7 @@ export async function bootstrapTelegramWebhook() {
         states: Object.fromEntries(stateRows.map((row: any) => [String(row.state), Number(row.n || 0)])),
         last_job_error: lastJobError?.error ? String(lastJobError.error).slice(0, 500) : null,
       },
+      processed_jobs: processed.map((job: any) => ({ state: job.state, itemId: job.itemId || null, vehicleId: job.vehicleId || null })),
     };
   } catch (error: any) {
     return { ok: false, state: 'registration_failed', error: safeTelegramError(error) };
