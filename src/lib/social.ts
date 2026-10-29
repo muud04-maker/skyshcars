@@ -33,6 +33,21 @@ export async function ensureSocialSchema() {
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX(vehicle_id), INDEX(channel), INDEX(created_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await db().execute(`CREATE TABLE IF NOT EXISTS social_publications(
+    vehicle_id BIGINT UNSIGNED NOT NULL,
+    channel VARCHAR(40) NOT NULL,
+    state ENUM('processing','sent','failed','uncertain') NOT NULL DEFAULT 'processing',
+    external_id VARCHAR(191) NULL,
+    approved_price_usd DECIMAL(12,2) NULL,
+    exact_photo_url TEXT NULL,
+    attempt_count INT UNSIGNED NOT NULL DEFAULT 1,
+    last_attempt_at DATETIME NULL,
+    last_error TEXT NULL,
+    publication_history JSON NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY(vehicle_id,channel), INDEX(state), INDEX(external_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 }
 
 export async function getSocialSettings(): Promise<SocialSettings> {
@@ -77,20 +92,26 @@ export async function getVehicleForSocial(vehicleId: number) {
 async function ensureLockTable() {
   await db().execute(`CREATE TABLE IF NOT EXISTS social_publish_lock(
     vehicle_id BIGINT UNSIGNED NOT NULL, channel VARCHAR(40) NOT NULL,
-    status ENUM('processing','sent','failed') NOT NULL, external_id VARCHAR(191) NULL,
+    status ENUM('processing','sent','failed','uncertain') NOT NULL, external_id VARCHAR(191) NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY(vehicle_id,channel)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  try{await db().execute(`ALTER TABLE social_publish_lock MODIFY status ENUM('processing','sent','failed','uncertain') NOT NULL`)}catch{}
 }
-type Claim = { claimed: true } | { claimed: false; reason: 'already_posted' | 'in_progress' | 'just_posted'; externalId?: string | null };
+type Claim = { claimed: true } | { claimed: false; reason: 'already_posted' | 'in_progress' | 'just_posted' | 'uncertain'; externalId?: string | null };
 async function claimPublish(vehicleId: number, channel: string, repost: boolean): Promise<Claim> {
+  await ensureSocialSchema();
   await ensureLockTable();
   // Posts made before this lock existed still count as posted.
   const legacy = await one<any>("SELECT external_id FROM social_publish_log WHERE vehicle_id=? AND channel=? AND status='sent' ORDER BY id DESC LIMIT 1", [vehicleId, channel]);
+  const publication = await one<any>('SELECT state,external_id FROM social_publications WHERE vehicle_id=? AND channel=? LIMIT 1',[vehicleId,channel]);
+  if(publication?.state==='sent'&&!repost)return {claimed:false,reason:'already_posted',externalId:publication.external_id};
+  if(publication?.state==='uncertain')return {claimed:false,reason:'uncertain',externalId:publication.external_id};
   const [ins]: any = await db().execute(`INSERT IGNORE INTO social_publish_lock(vehicle_id,channel,status,external_id) VALUES(?,?,?,?)`, [vehicleId, channel, legacy && !repost ? 'sent' : 'processing', legacy?.external_id || null]);
   if (Number(ins.affectedRows)) return legacy && !repost ? { claimed: false, reason: 'already_posted', externalId: legacy.external_id } : { claimed: true };
   const row = await one<any>(`SELECT status,external_id,TIMESTAMPDIFF(SECOND,updated_at,NOW()) age FROM social_publish_lock WHERE vehicle_id=? AND channel=?`, [vehicleId, channel]);
-  if (row?.status === 'processing' && Number(row.age) < 600) return { claimed: false, reason: 'in_progress' };
+  if (row?.status === 'processing') return { claimed: false, reason: 'in_progress' };
+  if (row?.status === 'uncertain') return { claimed: false, reason: 'uncertain', externalId: row.external_id || null };
   if (row?.status === 'sent' && !repost) return { claimed: false, reason: 'already_posted', externalId: row.external_id };
   if (row?.status === 'sent' && Number(row.age) < 120) return { claimed: false, reason: 'just_posted', externalId: row.external_id };
   const [u]: any = await db().execute(`UPDATE social_publish_lock SET status='processing' WHERE vehicle_id=? AND channel=? AND status=?`, [vehicleId, channel, row?.status]);
@@ -98,6 +119,75 @@ async function claimPublish(vehicleId: number, channel: string, repost: boolean)
 }
 async function releasePublish(vehicleId: number, channel: string, status: 'sent' | 'failed', externalId?: string | null) {
   await db().execute(`UPDATE social_publish_lock SET status=?,external_id=COALESCE(?,external_id) WHERE vehicle_id=? AND channel=?`, [status, externalId || null, vehicleId, channel]);
+}
+
+async function publicationAttempt(vehicleId:number,channel:string,state:'processing'|'sent'|'failed'|'uncertain',
+  details:any={},externalId?:string|null){
+  await ensureSocialSchema();
+  await db().execute(`INSERT INTO social_publications(
+    vehicle_id,channel,state,external_id,approved_price_usd,exact_photo_url,attempt_count,last_attempt_at,last_error,publication_history
+  ) VALUES(?,?,?,?,?,?,1,NOW(),?,JSON_ARRAY(JSON_OBJECT('at',NOW(),'state',?,'external_id',?)))
+  ON DUPLICATE KEY UPDATE state=VALUES(state),external_id=COALESCE(VALUES(external_id),external_id),
+    approved_price_usd=COALESCE(VALUES(approved_price_usd),approved_price_usd),exact_photo_url=COALESCE(VALUES(exact_photo_url),exact_photo_url),
+    attempt_count=IF(VALUES(state)='processing',attempt_count+1,attempt_count),last_attempt_at=NOW(),
+    last_error=VALUES(last_error),
+    publication_history=JSON_ARRAY_APPEND(COALESCE(publication_history,JSON_ARRAY()),'$',JSON_OBJECT('at',NOW(),'state',?,'external_id',?))`,
+  [vehicleId,channel,state,externalId||null,details.price_usd??null,details.image_url??null,String(details.error||'').slice(0,2000)||null,
+    state,externalId||null,state,externalId||null]);
+  await db().execute(`UPDATE vehicle_identity_memory SET publication_history=JSON_ARRAY_APPEND(
+    COALESCE(publication_history,JSON_ARRAY()),'$',JSON_OBJECT('at',NOW(),'channel',?,'state',?,'external_id',?)
+  ) WHERE vehicle_id=?`,[channel,state,externalId||null,vehicleId]).catch(()=>{});
+}
+
+async function facebookRecentPagePosts(limit=50){
+  const token=await resolvePageToken();
+  const r=await axios.get(`${FB_GRAPH}/${fbPageId()}/posts`,{
+    params:{fields:'id,created_time,message,permalink_url',limit:Math.max(1,Math.min(100,limit)),access_token:token},
+    timeout:20000,
+  });
+  return Array.isArray(r.data?.data)?r.data.data:[];
+}
+
+async function findVehiclePost(vehicleId:number,stockNo?:string|null){
+  const posts=await facebookRecentPagePosts(75);
+  const needle=`/vehicles/${vehicleId}`;
+  return posts.find((post:any)=>{
+    const message=String(post.message||'');
+    return message.includes(needle)||(!!stockNo&&message.includes(`Stock: ${stockNo}`));
+  })||null;
+}
+
+/** Resolve an uncertain Facebook request against the Page before any retry is allowed. */
+export async function reconcileFacebookPublication(vehicleId:number){
+  await ensureSocialSchema();await ensureLockTable();
+  const publication=await one<any>('SELECT * FROM social_publications WHERE vehicle_id=? AND channel=? LIMIT 1',[vehicleId,'facebook']);
+  if(!publication||!['processing','uncertain'].includes(String(publication.state)))return {ok:true,state:publication?.state||'none'};
+  const vehicle=await one<any>('SELECT stock_no FROM vehicles WHERE id=? LIMIT 1',[vehicleId]);
+  try{
+    const post=await findVehiclePost(vehicleId,vehicle?.stock_no);
+    if(post){
+      const externalId=String(post.post_id||post.id||'');
+      await db().execute("UPDATE social_publish_lock SET status='sent',external_id=? WHERE vehicle_id=? AND channel='facebook'",[externalId,vehicleId]);
+      await publicationAttempt(vehicleId,'facebook','sent',{reconciled:true,permalink:post.permalink_url||null},externalId);
+      await log(vehicleId,'facebook','sent',{reconciled:true,facebook_post:externalId,permalink:post.permalink_url||null},externalId);
+      return {ok:true,state:'sent',externalId,permalink:post.permalink_url||null};
+    }
+    if(publication.state==='processing'){
+      await db().execute("UPDATE social_publish_lock SET status='uncertain' WHERE vehicle_id=? AND channel='facebook'",[vehicleId]);
+      await publicationAttempt(vehicleId,'facebook','uncertain',{error:'Previous request did not return; post not found on Page'});
+    }
+    return {ok:true,state:'uncertain',found:false};
+  }catch(e:any){
+    return {ok:false,state:'uncertain',error:graphError(e)};
+  }
+}
+
+export async function reconcilePendingFacebookPublications(){
+  await ensureSocialSchema();
+  const pending=await rows<any>("SELECT vehicle_id FROM social_publications WHERE channel='facebook' AND state IN ('processing','uncertain') ORDER BY last_attempt_at LIMIT 20");
+  const results=[];
+  for(const row of pending)results.push({vehicle_id:Number(row.vehicle_id),...(await reconcileFacebookPublication(Number(row.vehicle_id)))});
+  return results;
 }
 
 function safeCaption(v: any) {
@@ -169,20 +259,34 @@ const NO_EXACT_PHOTO_LINE = 'Exact photos of this unit are available on request 
 export async function publishVehicleToFacebook(vehicleId: number, mode: FacebookPublishMode = {}) {
   const v: any = await getVehicleForSocial(vehicleId);
   if (!v || !Number(v.sellable)) return { ok: false, skipped: 'Vehicle is not available for sale' };
+  if (!(Number(v.price_usd) > 0)) {
+    await log(vehicleId, 'facebook', 'skipped', 'Approved USD selling price is missing');
+    return { ok: false, skipped: 'Set and approve a USD selling price before publishing to Facebook' };
+  }
   if (!facebookConfigured()) {
     await log(vehicleId, 'facebook', 'skipped', 'Facebook Page not connected');
     return { ok: false, skipped: 'Facebook Page is not connected' };
   }
   const image = imageFor(v);
+  if (!image) {
+    await log(vehicleId, 'facebook', 'skipped', 'No approved original photo of this unit');
+    return { ok: false, skipped: 'An approved original photo of this exact unit is required before Facebook publication.' };
+  }
   if (!image && !mode.manual) {
     await log(vehicleId, 'facebook', 'skipped', 'No exact photo of this unit — automatic post skipped');
     return { ok: false, skipped: 'No exact photo of this unit, so it was not posted automatically. Add a real photo or post it manually as a link post.' };
   }
   const claim: any = await claimPublish(vehicleId, 'facebook', !!mode.repost);
   if (!claim.claimed) {
+    if(claim.reason==='uncertain'){
+      const reconciled:any=await reconcileFacebookPublication(vehicleId);
+      if(reconciled.state==='sent')return {ok:true,id:reconciled.externalId,reconciled:true};
+      return {ok:false,uncertain:true,skipped:'Publication state is uncertain and must be reconciled before retry'};
+    }
     const msg = claim.reason === 'in_progress' ? 'A post for this vehicle is already being published' : claim.reason === 'just_posted' ? 'This vehicle was posted less than 2 minutes ago' : 'Already posted';
     return { ok: claim.reason !== 'in_progress', skipped: msg, alreadyPosted: claim.reason !== 'in_progress', id: claim.externalId || null };
   }
+  await publicationAttempt(vehicleId,'facebook','processing',{price_usd:Number(v.price_usd),image_url:image.url,manual:!!mode.manual,repost:!!mode.repost});
   try {
     const token = await resolvePageToken();
     const caption = await aiCaption(v);
@@ -194,11 +298,25 @@ export async function publishVehicleToFacebook(vehicleId: number, mode: Facebook
     }
     const id = r.data?.post_id || r.data?.id || null;
     await releasePublish(vehicleId, 'facebook', 'sent', id);
+    await publicationAttempt(vehicleId,'facebook','sent',{price_usd:Number(v.price_usd),image_url:image.url,manual:!!mode.manual,repost:!!mode.repost},id);
     await log(vehicleId, 'facebook', 'sent', { image: image?.url || null, exact_photo: !!image, manual: !!mode.manual, repost: !!mode.repost }, id);
     return { ok: true, id, exactPhoto: !!image };
   } catch (e: any) {
     const err = graphError(e);
+    const uncertain=!e?.response||['ECONNABORTED','ETIMEDOUT','ECONNRESET','EPIPE'].includes(String(e?.code||''))||Number(e?.response?.status)>=500;
+    const reconciled:any=uncertain?await reconcileFacebookPublication(vehicleId):{state:'failed'};
+    if(reconciled.state==='sent'){
+      await log(vehicleId,'facebook','sent',{reconciled_after_uncertain_response:true,error:err},reconciled.externalId);
+      return {ok:true,id:reconciled.externalId,reconciled:true};
+    }
+    if(uncertain){
+      await db().execute("UPDATE social_publish_lock SET status='uncertain',external_id=NULL WHERE vehicle_id=? AND channel='facebook'",[vehicleId]);
+      await publicationAttempt(vehicleId,'facebook','uncertain',{price_usd:Number(v.price_usd),image_url:image.url,error:err});
+      await log(vehicleId,'facebook','failed',{error:err,uncertain:true,retry_blocked:true});
+      return {ok:false,uncertain:true,error:err,reconciliation:reconciled};
+    }
     await releasePublish(vehicleId, 'facebook', 'failed').catch(() => {});
+    await publicationAttempt(vehicleId,'facebook','failed',{price_usd:Number(v.price_usd),image_url:image.url,error:err});
     await log(vehicleId, 'facebook', 'failed', err);
     return { ok: false, error: err };
   }

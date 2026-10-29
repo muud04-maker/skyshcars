@@ -1,4 +1,4 @@
-import {createHash,timingSafeEqual} from 'crypto';
+import {createHash,randomUUID,timingSafeEqual} from 'crypto';
 import {db, one, rows} from './db';
 export async function ensureGroupReaderSchema(){
  await db().execute(`CREATE TABLE IF NOT EXISTS whatsapp_group_sources(
@@ -23,8 +23,47 @@ export async function ensureGroupReaderSchema(){
   last_heartbeat_at DATETIME NOT NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+ await db().execute(`CREATE TABLE IF NOT EXISTS whatsapp_group_checkpoints(
+  bridge_id VARCHAR(80) NOT NULL,
+  group_id VARCHAR(191) NOT NULL,
+  group_name VARCHAR(191) NULL,
+  last_message_id VARCHAR(191) NULL,
+  last_message_timestamp BIGINT NULL,
+  last_successful_sync_at DATETIME NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY(bridge_id,group_id),
+  INDEX(last_successful_sync_at)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+ await db().execute(`CREATE TABLE IF NOT EXISTS whatsapp_sync_runs(
+  run_id VARCHAR(80) PRIMARY KEY,
+  bridge_id VARCHAR(80) NOT NULL,
+  group_id VARCHAR(191) NULL,
+  group_name VARCHAR(191) NULL,
+  state ENUM('running','succeeded','failed','interrupted') NOT NULL DEFAULT 'running',
+  messages_received INT UNSIGNED NOT NULL DEFAULT 0,
+  media_received INT UNSIGNED NOT NULL DEFAULT 0,
+  website_saved BOOLEAN NOT NULL DEFAULT FALSE,
+  started_at DATETIME NOT NULL,
+  finished_at DATETIME NULL,
+  error VARCHAR(1000) NULL,
+  details JSON NULL,
+  INDEX(bridge_id,started_at), INDEX(state,started_at)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+ await db().execute(`CREATE TABLE IF NOT EXISTS whatsapp_group_sync_requests(
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  request_id VARCHAR(80) NOT NULL UNIQUE,
+  bridge_id VARCHAR(80) NOT NULL,
+  requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  claimed_at DATETIME NULL,
+  completed_at DATETIME NULL,
+  state ENUM('pending','claimed','completed','failed') NOT NULL DEFAULT 'pending',
+  error VARCHAR(1000) NULL,
+  INDEX(bridge_id,state,requested_at)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
  // Default authorized inventory group from the existing Sky Cars workflow.
  await db().execute(`INSERT IGNORE INTO whatsapp_group_sources(group_name,enabled,notes) VALUES('Sky cars motorcycles',1,'Primary Sky Cars inventory group')`);
+ await db().execute(`UPDATE whatsapp_group_sources SET group_external_id='120363429404519527@g.us'
+   WHERE LOWER(group_name)=LOWER('Sky cars motorcycles') AND (group_external_id IS NULL OR group_external_id='')`);
 }
 export async function listGroupSources(){await ensureGroupReaderSchema();return rows<any>(`SELECT * FROM whatsapp_group_sources ORDER BY enabled DESC,group_name`)}
 export async function listBridgeStatus(){await ensureGroupReaderSchema();return rows<any>(`SELECT * FROM whatsapp_group_bridge_status ORDER BY last_heartbeat_at DESC`)}
@@ -95,4 +134,140 @@ export function bridgeHealth(b:any){
  const minutes=Math.floor((Date.now()-new Date(b.last_heartbeat_at).getTime())/60000);
  const online=minutes<3&&b.status==='online';
  return {state:minutes>=3?'stale':String(b.status||'unknown'),online,minutes};
+}
+
+function safeJson(value:any){
+  if(value===null||value===undefined)return {};
+  if(typeof value==='object')return value;
+  try{return JSON.parse(String(value))}catch{return{}}
+}
+
+export async function saveSyncCheckpoint(p:any){
+  await ensureGroupReaderSchema();
+  const bridgeId=String(p.bridgeId||'primary').slice(0,80);
+  const groupId=String(p.groupId||'').trim().slice(0,191);
+  if(!groupId)throw new Error('groupId is required');
+  const timestamp=Number(p.lastMessageTimestamp);
+  await db().execute(`INSERT INTO whatsapp_group_checkpoints(
+    bridge_id,group_id,group_name,last_message_id,last_message_timestamp,last_successful_sync_at
+  ) VALUES(?,?,?,?,?,IF(?=1,NOW(),NULL))
+  ON DUPLICATE KEY UPDATE group_name=COALESCE(VALUES(group_name),group_name),
+    last_message_id=COALESCE(VALUES(last_message_id),last_message_id),
+    last_message_timestamp=GREATEST(COALESCE(last_message_timestamp,0),COALESCE(VALUES(last_message_timestamp),0)),
+    last_successful_sync_at=IF(?=1,NOW(),last_successful_sync_at)`,
+  [bridgeId,groupId,String(p.groupName||'').slice(0,191)||null,String(p.lastMessageId||'').slice(0,191)||null,
+    Number.isFinite(timestamp)?Math.floor(timestamp):null,p.success===true?1:0,p.success===true?1:0]);
+  return {ok:true};
+}
+
+export async function groupReaderCheckpoints(bridgeId='primary'){
+  await ensureGroupReaderSchema();
+  return rows<any>('SELECT * FROM whatsapp_group_checkpoints WHERE bridge_id=? ORDER BY group_id',[String(bridgeId).slice(0,80)]);
+}
+
+export async function startSyncRun(p:any){
+  await ensureGroupReaderSchema();
+  const runId=String(p.runId||randomUUID()).slice(0,80);
+  const bridgeId=String(p.bridgeId||'primary').slice(0,80);
+  await db().execute(`INSERT INTO whatsapp_sync_runs(run_id,bridge_id,group_id,group_name,state,started_at,details)
+    VALUES(?,?,?,?, 'running',NOW(),?) ON DUPLICATE KEY UPDATE state='running',finished_at=NULL,error=NULL`,
+  [runId,bridgeId,String(p.groupId||'').slice(0,191)||null,String(p.groupName||'').slice(0,191)||null,JSON.stringify(p.details||{})]);
+  return {ok:true,runId};
+}
+
+/**
+ * A run is succeeded only when the bridge explicitly proves that all received data reached the
+ * website. `websiteSaved=false` or `mediaComplete=false` is recorded as failed, never silently green.
+ */
+export async function finishSyncRun(p:any){
+  await ensureGroupReaderSchema();
+  const runId=String(p.runId||'').slice(0,80),bridgeId=String(p.bridgeId||'primary').slice(0,80);
+  if(!runId)throw new Error('runId is required');
+  const success=p.success===true&&p.websiteSaved===true&&p.mediaComplete!==false;
+  const state=success?'succeeded':(p.interrupted?'interrupted':'failed');
+  const error=success?null:String(p.error||'Required messages/media were not confirmed as saved').slice(0,1000);
+  await db().execute(`INSERT INTO whatsapp_sync_runs(run_id,bridge_id,group_id,group_name,state,messages_received,media_received,
+      website_saved,started_at,finished_at,error,details)
+    VALUES(?,?,?,?,?,?,?,?,COALESCE(?,NOW()),NOW(),?,?)
+    ON DUPLICATE KEY UPDATE state=VALUES(state),messages_received=GREATEST(messages_received,VALUES(messages_received)),
+      media_received=GREATEST(media_received,VALUES(media_received)),website_saved=VALUES(website_saved),
+      finished_at=NOW(),error=VALUES(error),details=VALUES(details)`,
+  [runId,bridgeId,String(p.groupId||'').slice(0,191)||null,String(p.groupName||'').slice(0,191)||null,state,
+    Math.max(0,Number(p.messagesReceived)||0),Math.max(0,Number(p.mediaReceived)||0),p.websiteSaved===true?1:0,
+    p.startedAt?new Date(String(p.startedAt)):null,error,JSON.stringify(p.details||{})]);
+  if(success){
+    const checkpoint=p.checkpoint||{};
+    if(checkpoint.groupId){
+      await saveSyncCheckpoint({bridgeId,groupId:checkpoint.groupId,groupName:checkpoint.groupName,
+        lastMessageId:checkpoint.lastMessageId,lastMessageTimestamp:checkpoint.lastMessageTimestamp,success:true});
+    }
+    await db().execute(`UPDATE whatsapp_group_sync_requests SET state='completed',completed_at=NOW()
+      WHERE bridge_id=? AND state IN ('pending','claimed')`,[bridgeId]);
+  }
+  return {ok:true,runId,state};
+}
+
+export async function requestManualSync(bridgeId='primary'){
+  await ensureGroupReaderSchema();
+  const requestId=randomUUID();
+  await db().execute(`INSERT INTO whatsapp_group_sync_requests(request_id,bridge_id,state) VALUES(?,?,'pending')`,
+    [requestId,String(bridgeId||'primary').slice(0,80)]);
+  return {ok:true,requestId,status:'pending'};
+}
+
+export async function pendingManualSync(bridgeId='primary'){
+  await ensureGroupReaderSchema();
+  await db().execute(`UPDATE whatsapp_group_sync_requests SET state='pending',claimed_at=NULL
+    WHERE bridge_id=? AND state='claimed' AND claimed_at < (NOW() - INTERVAL 10 MINUTE)`,[String(bridgeId||'primary').slice(0,80)]);
+  const row:any=await one<any>(`SELECT request_id,requested_at FROM whatsapp_group_sync_requests
+    WHERE bridge_id=? AND state='pending' ORDER BY id LIMIT 1`,[String(bridgeId||'primary').slice(0,80)]);
+  if(!row)return null;
+  await db().execute("UPDATE whatsapp_group_sync_requests SET state='claimed',claimed_at=NOW() WHERE request_id=? AND state='pending'",[row.request_id]);
+  return {requestId:row.request_id,requestedAt:row.requested_at};
+}
+
+export async function syncRunStatus(bridgeId:string='primary'){
+  await ensureGroupReaderSchema();
+  return rows<any>('SELECT * FROM whatsapp_sync_runs WHERE bridge_id=? ORDER BY started_at DESC LIMIT 30',[String(bridgeId)]);
+}
+
+export async function nextScheduledSync(){
+  const now=new Date();
+  const next=new Date(now);
+  next.setUTCMinutes(0,0,0);
+  if(next<=now)next.setUTCHours(next.getUTCHours()+1);
+  return next.toISOString();
+}
+
+export async function groupReaderDashboard(){
+  await ensureGroupReaderSchema();
+  const [groups,bridges,runs,latest,counts,changes]=await Promise.all([
+    listGroupSources(),listBridgeStatus(),syncRunStatus('primary'),
+    one<any>(`SELECT MAX(created_at) at FROM whatsapp_sync_runs WHERE state='succeeded'`).catch(()=>null),
+    one<any>(`SELECT
+      SUM(match_status='new') new_vehicles,
+      SUM(match_status='confirmed') existing_vehicles,
+      SUM(match_status='possible') possible_duplicates,
+      SUM(review_status='pending') pending_review
+      FROM inventory_import_items WHERE source='whatsapp_group'`).catch(()=>null),
+    one<any>(`SELECT SUM(change_type='price_change' AND status='pending') price_updates,
+      SUM(change_type='additional_photo' AND status='pending') additional_photos,
+      SUM(change_type='availability_change' AND status='pending') availability_updates
+      FROM inventory_change_proposals`).catch(()=>null),
+  ]);
+  const publications=await one<any>(`SELECT SUM(status='sent') published,SUM(status='failed') failed FROM social_publish_log`).catch(()=>null);
+  const bridge=bridges[0]||null;
+  const bridgeDetails=safeJson(bridge?.details);
+  const scheduled=Number(bridgeDetails.readerWindowMinutes)>0;
+  return {
+    groups,bridges,
+    health:{bridge:bridgeHealth(bridge),lastSuccessfulSync:latest?.at||null,nextScheduledSync:scheduled?nextScheduledSync():null,
+      schedule:scheduled?'10 minutes at the top of each hour via the external VPS timer':'Persistent external reader; no bounded schedule is currently reported'},
+    stats:{newVehicles:Number(counts?.new_vehicles||0),existingVehicles:Number(counts?.existing_vehicles||0),
+      possibleDuplicates:Number(counts?.possible_duplicates||0),pendingApproval:Number(counts?.pending_review||0),
+      priceUpdates:Number(changes?.price_updates||0),additionalPhotos:Number(changes?.additional_photos||0),
+      availabilityUpdates:Number(changes?.availability_updates||0),publishedVehicles:Number(publications?.published||0),
+      failedPublications:Number(publications?.failed||0)},
+    runs,
+  };
 }

@@ -23,7 +23,7 @@ export async function GET() {
     one<any>(`SELECT MAX(created_at) at FROM ai_agent_events WHERE event_type IN ('reply','ai_queued')`).catch(() => null),
     one<any>(`SELECT COUNT(*) n FROM conversation_state WHERE pending_ai_reply_at IS NOT NULL`).catch(() => null),
     one<any>(`SELECT COUNT(*) n FROM inventory_import_items WHERE review_status='pending'`).catch(() => null),
-    rows<any>(`SELECT bridge_online,last_seen_at FROM whatsapp_group_bridge_status ORDER BY id DESC LIMIT 1`).catch(() => []),
+    rows<any>(`SELECT status,last_heartbeat_at FROM whatsapp_group_bridge_status ORDER BY last_heartbeat_at DESC LIMIT 1`).catch(() => []),
   ]);
   const secretPresent = !!(process.env.WHATSAPP_APP_SECRET || '').trim();
   const requireSig = String(process.env.REQUIRE_WHATSAPP_SIGNATURE || '').toLowerCase() === 'true';
@@ -37,7 +37,7 @@ export async function GET() {
     ai_queue_pending: Number(queue?.n || 0),
     signature: { secret_present: secretPresent, enforced: secretPresent && requireSig, mode: !secretPresent ? 'compatibility (no app secret)' : requireSig ? 'secure' : 'monitor' },
     media_ai: { configured: (() => { try { return mediaAiConfigured(); } catch { return false; } })(), note: 'Code path ready; configure OPENAI_API_KEY or MEDIA_AI_API_KEY in Hostinger.' },
-    group_reader: { bridge_seen: bridge[0] ? String(bridge[0].last_seen_at || '') : null, online: bridge[0] ? !!Number(bridge[0].bridge_online) : false, pending_drafts: Number(group?.n || 0) },
+    group_reader: { bridge_seen: bridge[0] ? String(bridge[0].last_heartbeat_at || '') : null, online: bridge[0]?.status === 'online', pending_drafts: Number(group?.n || 0) },
     optional: ['media_ai', 'group_reader'],
   });
 }

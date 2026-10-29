@@ -32,6 +32,21 @@ sudo systemctl status skycars-group-reader
 sudo journalctl -u skycars-group-reader -f
 ```
 
+## Optional 10-minutes-per-hour schedule
+
+The default service is persistent. If WhatsApp Web is reliably available on the VPS, install the
+hourly bounded mode instead:
+
+```bash
+sudo HOURLY_READER=1 bash vps/install-ubuntu.sh
+systemctl list-timers skycars-group-reader.timer
+```
+
+This starts `skycars-group-reader-scheduled.service` at the top of each hour. The reader keeps the
+persistent WhatsApp session, catches up messages newer than its website checkpoint, sends all queued
+messages/media to the website, reports the run, and shuts down after 10 minutes. Do not enable the
+persistent service and timer at the same time.
+
 ## Private QR workflow
 
 From the administrator's computer, open an SSH tunnel:

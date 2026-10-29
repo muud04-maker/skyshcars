@@ -62,6 +62,7 @@ test('Ubuntu service uses Node 22, systemd restarts and an unprivileged account'
   assert.match(read(`${bridge}/Dockerfile`), /FROM node:22/);
   assert.match(read(`${bridge}/package.json`), /"node":">=22\.12\.0"/);
   assert.ok(fs.existsSync(path.join(root, bridge, 'vps/install-ubuntu.sh')));
+  assert.ok(fs.existsSync(path.join(root, bridge, 'vps/skycars-group-reader.timer')));
 });
 
 test('live integration diagnostics are secret-protected and never return credentials', () => {

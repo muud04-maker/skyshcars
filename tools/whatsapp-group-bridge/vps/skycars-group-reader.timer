@@ -1,0 +1,12 @@
+[Unit]
+Description=Start the Sky Cars Group Reader for 10 minutes every hour
+
+[Timer]
+OnCalendar=*-*-* *:00:00
+Persistent=true
+AccuracySec=30s
+RandomizedDelaySec=15s
+Unit=skycars-group-reader-scheduled.service
+
+[Install]
+WantedBy=timers.target

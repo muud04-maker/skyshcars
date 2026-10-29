@@ -22,6 +22,8 @@
     "src/lib/business-policy.ts",
     "src/lib/knowledge.ts",
     "src/lib/ai-training.ts",
-    "src/lib/bulk-vehicles.ts"
+    "src/lib/bulk-vehicles.ts",
+    "src/lib/inventory-identity-rules.ts",
+    "src/lib/image-fingerprints.ts"
   ]
 }

@@ -45,9 +45,19 @@ if [[ ! -f /etc/skycars-group-reader.env ]]; then
 fi
 
 install -m 0644 -o root -g root "${SCRIPT_DIR}/skycars-group-reader.service" /etc/systemd/system/skycars-group-reader.service
+install -m 0644 -o root -g root "${SCRIPT_DIR}/skycars-group-reader-scheduled.service" /etc/systemd/system/skycars-group-reader-scheduled.service
+install -m 0644 -o root -g root "${SCRIPT_DIR}/skycars-group-reader.timer" /etc/systemd/system/skycars-group-reader.timer
 systemctl daemon-reload
-systemctl enable skycars-group-reader.service
+if [[ "${HOURLY_READER:-0}" == "1" ]]; then
+  systemctl disable --now skycars-group-reader.service 2>/dev/null || true
+  systemctl enable --now skycars-group-reader.timer
+  echo "Enabled the hourly 10-minute reader timer."
+else
+  systemctl enable skycars-group-reader.service
+  echo "Enabled the persistent reader service."
+fi
 
 echo "Installed. Complete /etc/skycars-group-reader.env, then run:"
-echo "  systemctl restart skycars-group-reader"
-echo "  journalctl -u skycars-group-reader -f"
+echo "  Persistent: systemctl restart skycars-group-reader"
+echo "  Hourly 10 minutes: sudo HOURLY_READER=1 bash vps/install-ubuntu.sh"
+echo "  Logs: journalctl -u skycars-group-reader -f"

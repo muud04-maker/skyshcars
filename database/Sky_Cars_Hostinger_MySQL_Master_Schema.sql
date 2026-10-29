@@ -187,6 +187,16 @@ CREATE TABLE IF NOT EXISTS social_publish_log (
  INDEX(vehicle_id), INDEX(channel), INDEX(created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS social_publications (
+  vehicle_id BIGINT UNSIGNED NOT NULL,channel VARCHAR(40) NOT NULL,
+  state ENUM('processing','sent','failed','uncertain') NOT NULL DEFAULT 'processing',
+  external_id VARCHAR(191),approved_price_usd DECIMAL(12,2),exact_photo_url TEXT,
+  attempt_count INT UNSIGNED NOT NULL DEFAULT 1,last_attempt_at DATETIME,last_error TEXT,
+  publication_history JSON,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY(vehicle_id,channel),INDEX(state),INDEX(external_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS business_settings (
  setting_key VARCHAR(191) PRIMARY KEY, setting_value JSON NOT NULL,
  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -335,6 +345,92 @@ CREATE TABLE IF NOT EXISTS whatsapp_group_bridge_status (
  bridge_id VARCHAR(80) PRIMARY KEY,status VARCHAR(40) NOT NULL,whatsapp_account VARCHAR(191) NULL,
  visible_groups INT NULL,app_version VARCHAR(40) NULL,details TEXT NULL,last_heartbeat_at DATETIME NOT NULL,
  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- V35 permanent inventory identity, exact source-message dedup and synchronization checkpoints.
+-- These are additive. The app also creates them at runtime, so production data is never replaced.
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vin VARCHAR(32) NULL;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS supplier_reference VARCHAR(191) NULL;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vehicle_condition VARCHAR(80) NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS group_external_id VARCHAR(191) NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS matched_vehicle_id BIGINT UNSIGNED NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS match_status VARCHAR(30) NOT NULL DEFAULT 'new';
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS match_type VARCHAR(80) NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS match_confidence DECIMAL(5,4) NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS extraction_confidence DECIMAL(5,4) NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS evidence_json JSON NULL;
+ALTER TABLE inventory_import_items ADD COLUMN IF NOT EXISTS last_observed_at DATETIME NULL;
+
+CREATE TABLE IF NOT EXISTS vehicle_identity_memory (
+  vehicle_id BIGINT UNSIGNED PRIMARY KEY,stock_no VARCHAR(60),vin VARCHAR(32),supplier_reference VARCHAR(191),
+  source_group_id VARCHAR(191),identity_key CHAR(64),category VARCHAR(30),brand VARCHAR(120),model VARCHAR(160),
+  model_year SMALLINT,mileage_km INT,price_usd DECIMAL(12,2),currency CHAR(3),engine VARCHAR(120),
+  transmission VARCHAR(80),fuel_type VARCHAR(80),vehicle_condition VARCHAR(80),color VARCHAR(80),
+  image_sha256 JSON,perceptual_hashes JSON,publication_history JSON,approved_changes JSON,
+  import_status VARCHAR(40),last_observed_at DATETIME,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX(stock_no),INDEX(vin),INDEX(supplier_reference),INDEX(identity_key),
+  INDEX(brand,model,model_year),INDEX(last_observed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS vehicle_image_fingerprints (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,vehicle_id BIGINT UNSIGNED NOT NULL,
+  import_item_id BIGINT UNSIGNED NULL,source_url TEXT,sha256 CHAR(64) NOT NULL,perceptual_hash CHAR(16),
+  width INT,height INT,verified BOOLEAN NOT NULL DEFAULT FALSE,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_vehicle_image(vehicle_id,sha256),INDEX(import_item_id),INDEX(sha256),INDEX(perceptual_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventory_identity_refs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,vehicle_id BIGINT UNSIGNED NOT NULL,
+  import_item_id BIGINT UNSIGNED NULL,source_group_id VARCHAR(191),source_message_id VARCHAR(191) NOT NULL,
+  supplier_reference VARCHAR(191),observed_at DATETIME NOT NULL,active_source BOOLEAN NOT NULL DEFAULT TRUE,
+  evidence JSON,UNIQUE KEY uq_identity_source(source_group_id,source_message_id),
+  INDEX(vehicle_id),INDEX(import_item_id),INDEX(supplier_reference)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventory_match_candidates (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,import_item_id BIGINT UNSIGNED NOT NULL,
+  vehicle_id BIGINT UNSIGNED NOT NULL,confidence DECIMAL(5,4),reasons JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uq_import_candidate(import_item_id,vehicle_id),
+  INDEX(vehicle_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventory_change_proposals (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,import_item_id BIGINT UNSIGNED NOT NULL,
+  vehicle_id BIGINT UNSIGNED NOT NULL,change_type VARCHAR(40) NOT NULL,field_name VARCHAR(80),
+  old_value TEXT,new_value TEXT,status ENUM('pending','applied','rejected') NOT NULL DEFAULT 'pending',
+  evidence JSON,reviewed_at DATETIME,reviewed_by VARCHAR(191),created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX(import_item_id),INDEX(vehicle_id),INDEX(status,change_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventory_message_ledger (
+  source_message_id VARCHAR(191) PRIMARY KEY,import_item_id BIGINT UNSIGNED NULL,
+  state ENUM('processing','saved','failed') NOT NULL DEFAULT 'processing',error VARCHAR(500),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX(import_item_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS whatsapp_group_checkpoints (
+  bridge_id VARCHAR(80) NOT NULL,group_id VARCHAR(191) NOT NULL,group_name VARCHAR(191),
+  last_message_id VARCHAR(191),last_message_timestamp BIGINT,last_successful_sync_at DATETIME,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY(bridge_id,group_id),INDEX(last_successful_sync_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS whatsapp_sync_runs (
+  run_id VARCHAR(80) PRIMARY KEY,bridge_id VARCHAR(80) NOT NULL,group_id VARCHAR(191),group_name VARCHAR(191),
+  state ENUM('running','succeeded','failed','interrupted') NOT NULL DEFAULT 'running',
+  messages_received INT UNSIGNED NOT NULL DEFAULT 0,media_received INT UNSIGNED NOT NULL DEFAULT 0,
+  website_saved BOOLEAN NOT NULL DEFAULT FALSE,started_at DATETIME NOT NULL,finished_at DATETIME,
+  error VARCHAR(1000),details JSON,INDEX(bridge_id,started_at),INDEX(state,started_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS whatsapp_group_sync_requests (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,request_id VARCHAR(80) NOT NULL UNIQUE,
+  bridge_id VARCHAR(80) NOT NULL,requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  claimed_at DATETIME,completed_at DATETIME,
+  state ENUM('pending','claimed','completed','failed') NOT NULL DEFAULT 'pending',error VARCHAR(1000),
+  INDEX(bridge_id,state,requested_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS automation_campaigns (
