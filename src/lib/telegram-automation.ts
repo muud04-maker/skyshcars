@@ -626,6 +626,11 @@ export async function bootstrapTelegramWebhook() {
       webhook_registered: probe?.webhook?.matches === true,
       bot_is_admin: probe?.bot_is_admin === true,
       group_identified: probe?.group?.id === telegramSourceChatId(),
+      bot_username: probe?.bot?.username || null,
+      group_title: probe?.group?.title || null,
+      group_type: probe?.group?.type || null,
+      webhook_url_matches: probe?.webhook?.matches === true,
+      diagnostic: probe?.error || probe?.webhook?.last_error_message || null,
     };
   } catch (error: any) {
     return { ok: false, state: 'registration_failed', error: safeTelegramError(error) };
