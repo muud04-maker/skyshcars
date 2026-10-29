@@ -580,6 +580,58 @@ export async function registerTelegramWebhook() {
   return { ok: !!result, url, probe: await telegramConnectionProbe() };
 }
 
+/**
+ * Safe production bootstrap: no caller-supplied URL or token, one attempt per minute.
+ * The server-side environment registers only the fixed Sky Cars webhook and returns no secrets.
+ */
+export async function bootstrapTelegramWebhook() {
+  await ensureTelegramSchema();
+  const config = telegramConfigSummary();
+  if (!config.configured) {
+    return {
+      ok: false,
+      state: 'configuration_required',
+      missing: [
+        !config.bot_token_present && 'TELEGRAM_BOT_TOKEN',
+        !config.webhook_secret_present && 'TELEGRAM_WEBHOOK_SECRET',
+        !config.source_chat_id_present && 'TELEGRAM_SOURCE_CHAT_ID',
+      ].filter(Boolean),
+    };
+  }
+  const connection = await db().getConnection();
+  let claimed = false;
+  try {
+    await connection.beginTransaction();
+    await connection.execute(`INSERT IGNORE INTO telegram_connection_state(id,state,checked_at) VALUES(1,'bootstrap_pending',NULL)`);
+    const [rowsFound]: any = await connection.execute('SELECT checked_at FROM telegram_connection_state WHERE id=1 FOR UPDATE');
+    const checkedAt = rowsFound?.[0]?.checked_at ? new Date(rowsFound[0].checked_at).getTime() : 0;
+    if (!checkedAt || Date.now() - checkedAt >= 60000) {
+      await connection.execute("UPDATE telegram_connection_state SET state='bootstrap_pending',checked_at=NOW() WHERE id=1");
+      claimed = true;
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback().catch(() => {});
+    throw error;
+  } finally {
+    connection.release();
+  }
+  if (!claimed) return { ok: true, state: 'recently_checked', webhook_registered: null };
+  try {
+    const registration = await registerTelegramWebhook();
+    const probe: any = registration.probe;
+    return {
+      ok: probe?.ok === true,
+      state: probe?.ok ? 'registered' : 'attention_required',
+      webhook_registered: probe?.webhook?.matches === true,
+      bot_is_admin: probe?.bot_is_admin === true,
+      group_identified: probe?.group?.id === telegramSourceChatId(),
+    };
+  } catch (error: any) {
+    return { ok: false, state: 'registration_failed', error: safeTelegramError(error) };
+  }
+}
+
 export async function testTelegramSampleVehicle(vehicleId: number) {
   if (!vehicleId) throw new Error('Choose an authorized sample vehicle');
   const vehicle: any = await one<any>(`SELECT v.id,v.stock_no,v.brand,v.model,v.status,v.price_usd,

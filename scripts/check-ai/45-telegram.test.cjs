@@ -97,6 +97,16 @@ test('webhook route enforces the Telegram secret and acknowledges through a dura
   assert.doesNotMatch(route, /cron/i);
 });
 
+test('webhook bootstrap accepts no secrets or target URL from the caller', () => {
+  const route = read('src/app/api/integrations/telegram/bootstrap/route.ts');
+  assert.match(route, /bootstrapTelegramWebhook/);
+  assert.doesNotMatch(route, /POST\(req/);
+  const automation = read('src/lib/telegram-automation.ts');
+  assert.match(automation, /one attempt per minute/i);
+  assert.match(automation, /setWebhook/);
+  assert.doesNotMatch(route, /botToken|secret_token|TELEGRAM_BOT_TOKEN/);
+});
+
 test('Telegram storage is idempotent and reuses V35 inventory and publication modules', () => {
   const automation = read('src/lib/telegram-automation.ts');
   const importer = read('src/lib/group-import.ts');
