@@ -146,6 +146,13 @@ test('V38 source association replaces the broad three-minute merge path', () => 
   assert.match(source, /reextractGroupImport/);
 });
 
+test('V38 sanitized production diagnostic extracts source metadata without returning supplier text', () => {
+  const source = read('src/lib/telegram-automation.ts');
+  assert.match(source, /sanitized_text_extraction/);
+  assert.match(source, /extractSupplierVehicles\(text\)/);
+  assert.match(source, /private_content_included: false/);
+});
+
 test('Add Vehicle exposes AI Autofill, source price, drafts and publish validation', () => {
   const ui = read('src/app/admin/vehicles/_components/VehicleForm.tsx');
   const route = read('src/app/api/admin/vehicles/extract/route.ts');

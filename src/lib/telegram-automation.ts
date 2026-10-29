@@ -18,6 +18,7 @@ import {
 } from './telegram-rules';
 import { exactPhotoSql, sellableVehicleSql } from './exact-photos';
 import { facebookPublishPreflight, facebookStatus } from './facebook';
+import { extractSupplierVehicles } from './vehicle-extraction';
 
 const SETTINGS_KEY = 'telegram_automation_v36';
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -1320,8 +1321,31 @@ export async function telegramV38Diagnostic() {
     });
     return grouped;
   };
+  const sourceExtraction = async (row: any) => {
+    const text = String(row.text || row.caption || '').trim();
+    if (!text) return null;
+    try {
+      const draft = (await extractSupplierVehicles(text)).vehicles[0];
+      if (!draft) return null;
+      return {
+        category: draft.category || null,
+        brand: draft.brand || null,
+        model: draft.model || null,
+        model_year: draft.model_year || null,
+        price_value: draft.price_value ?? null,
+        price_currency: draft.price_currency || null,
+      };
+    } catch {
+      return null;
+    }
+  };
   const sourcesByImport = byImport(sourceMessages);
   const mediaByImport = byImport(media);
+  const sourcesWithExtraction = await Promise.all(sourceMessages.map(async (row) => ({
+    ...row,
+    sanitized_text_extraction: await sourceExtraction(row),
+  })));
+  const extractedSourcesByImport = byImport(sourcesWithExtraction);
   return {
     ok: true,
     private_content_included: false,
@@ -1384,12 +1408,13 @@ export async function telegramV38Diagnostic() {
           supplier_currency: item.supplier_currency || null, status: item.vehicle_status,
           ai_enabled: !!Number(item.ai_enabled), source_description_present: !!item.source_description,
         } : null,
-        source_messages: (sourcesByImport.get(Number(item.id)) || []).map((row) => ({
+        source_messages: (extractedSourcesByImport.get(Number(item.id)) || sourcesByImport.get(Number(item.id)) || []).map((row) => ({
           id: Number(row.id), message_id: Number(row.message_id), media_group_id: row.media_group_id,
           reply_to_message_id: row.reply_to_message_id == null ? null : Number(row.reply_to_message_id),
           last_update_id: row.last_update_id == null ? null : Number(row.last_update_id),
           message_kind: row.message_kind, text_length: Number(row.text_length || 0), caption_length: Number(row.caption_length || 0),
           file_unique_id: row.file_unique_id, processing_state: row.processing_state, received_at: row.received_at,
+          sanitized_text_extraction: row.sanitized_text_extraction || null,
         })),
         media: (mediaByImport.get(Number(item.id)) || []).map((row) => ({
           id: Number(row.id), url: row.url, mime_type: row.mime_type, stored_blob: !!row.blob_name,
