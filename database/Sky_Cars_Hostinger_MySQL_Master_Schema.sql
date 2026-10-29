@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE TABLE IF NOT EXISTS inventory_import_items (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- source ENUM('json','csv','whatsapp_group','manual') NOT NULL,
+  source ENUM('json','csv','whatsapp_group','manual','telegram') NOT NULL,
  source_message_id VARCHAR(191), raw_payload JSON,
  proposed_vehicle JSON, review_status ENUM('pending','approved','rejected') DEFAULT 'pending',
  approved_vehicle_id BIGINT UNSIGNED NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -625,3 +625,42 @@ CREATE TABLE IF NOT EXISTS staff_tasks (
 
 -- Who on the team owns a customer (added by the app at runtime as well).
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS assigned_staff VARCHAR(191) NULL;
+
+-- V36 Telegram HTTPS webhook automation. All tables are additive; existing V35 inventory and
+-- media are reused through inventory_import_items, vehicles and vehicle_media.
+CREATE TABLE IF NOT EXISTS telegram_updates (
+  update_id BIGINT PRIMARY KEY,update_type VARCHAR(40),chat_id BIGINT,message_id BIGINT,
+  state ENUM('stored','processing','processed','failed','ignored') NOT NULL DEFAULT 'stored',
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,processed_at DATETIME,error VARCHAR(1000),payload JSON,
+  INDEX(chat_id,message_id),INDEX(state,received_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS telegram_source_messages (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,chat_id BIGINT NOT NULL,message_id BIGINT NOT NULL,
+  media_group_id VARCHAR(191),last_update_id BIGINT,edit_date BIGINT,message_thread_id BIGINT,from_id BIGINT,
+  sender_name VARCHAR(191),chat_title VARCHAR(191),text TEXT,caption TEXT,
+  message_kind VARCHAR(30) NOT NULL DEFAULT 'other',file_id VARCHAR(255),file_unique_id VARCHAR(255),
+  media_width INT,media_height INT,file_size BIGINT,
+  processing_state ENUM('queued','processing','completed','review','failed','ignored') NOT NULL DEFAULT 'queued',
+  retry_count INT UNSIGNED NOT NULL DEFAULT 0,next_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  import_item_id BIGINT UNSIGNED,vehicle_id BIGINT UNSIGNED,prior_import_item_id BIGINT UNSIGNED,
+  prior_vehicle_id BIGINT UNSIGNED,error VARCHAR(1000),payload JSON,
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,processed_at DATETIME,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_telegram_message(chat_id,message_id),INDEX(media_group_id,processing_state),
+  INDEX(processing_state,next_attempt_at),INDEX(import_item_id),INDEX(vehicle_id),INDEX(received_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS telegram_automation_events (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,event_type VARCHAR(80) NOT NULL,status VARCHAR(40) NOT NULL,
+  update_id BIGINT,source_message_id BIGINT UNSIGNED,import_item_id BIGINT UNSIGNED,vehicle_id BIGINT UNSIGNED,
+  details JSON,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX(event_type,status,created_at),INDEX(update_id),INDEX(import_item_id),INDEX(vehicle_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS telegram_connection_state (
+  id TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,state VARCHAR(40) NOT NULL,webhook_url TEXT,
+  group_id VARCHAR(191),group_title VARCHAR(191),bot_id BIGINT,bot_username VARCHAR(191),
+  bot_is_admin BOOLEAN,pending_updates INT,last_error TEXT,details JSON,checked_at DATETIME,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

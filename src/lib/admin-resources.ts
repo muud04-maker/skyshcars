@@ -17,7 +17,7 @@ export const adminResources:Record<string,AdminResource>={
  documents:{table:'shipment_documents',label:'Shipment Documents',id:'id',order:'created_at DESC',list:['id','shipment_id','name','url','is_public','created_at'],fields:[
   {key:'shipment_id',label:'Shipment ID',type:'number',required:true},{key:'name',label:'Document name'},{key:'url',label:'URL',required:true},{key:'is_public',label:'Public to customer',type:'boolean'}]},
  imports:{table:'inventory_import_items',label:'Inventory Imports',id:'id',order:'created_at DESC',list:['id','source','source_message_id','review_status','approved_vehicle_id','created_at','reviewed_at'],fields:[
-  {key:'source',label:'Source',type:'select',options:['json','csv','whatsapp_group','manual']},{key:'source_message_id',label:'Source message ID'},{key:'review_status',label:'Review status',type:'select',options:['pending','approved','rejected']},{key:'approved_vehicle_id',label:'Approved vehicle ID',type:'number'}]},
+  {key:'source',label:'Source',type:'select',options:['json','csv','whatsapp_group','manual','telegram']},{key:'source_message_id',label:'Source message ID'},{key:'review_status',label:'Review status',type:'select',options:['pending','approved','rejected']},{key:'approved_vehicle_id',label:'Approved vehicle ID',type:'number'}]},
  audit:{table:'audit_logs',label:'Audit Logs',id:'id',order:'created_at DESC',list:['id','actor','action','entity_type','entity_id','created_at'],fields:[],readonly:true}
 };
 

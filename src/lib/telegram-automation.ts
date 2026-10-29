@@ -1,0 +1,701 @@
+import axios from 'axios';
+import { db, one, rows } from './db';
+import { createGroupImport, publicDescription, reviewGroupImport } from './group-import';
+import { deliverVehicleToWhatsAppGroup, recentWhatsAppGroupAttempts, whatsappGroupDeliveryStatus } from './whatsapp-group-publish';
+import {
+  decideTelegramAutoPublish,
+  largestTelegramPhoto,
+  telegramAvailability,
+  telegramBotToken,
+  telegramChatAllowed,
+  telegramConfigSummary,
+  telegramMessageKind,
+  telegramSecret,
+  telegramSourceChatId,
+  telegramText,
+} from './telegram-rules';
+import { exactPhotoSql, sellableVehicleSql } from './exact-photos';
+import { facebookStatus } from './facebook';
+
+const SETTINGS_KEY = 'telegram_automation_v36';
+const TELEGRAM_API = 'https://api.telegram.org';
+const MAX_TELEGRAM_FILE_BYTES = 20 * 1024 * 1024;
+const ALBUM_QUIET_SECONDS = 4;
+
+export type TelegramAutomationSettings = {
+  enabled: boolean;
+  auto_publish: boolean;
+  auto_approve_new: boolean;
+  auto_facebook: boolean;
+  auto_whatsapp_group: boolean;
+  min_extraction_confidence: number;
+};
+
+const DEFAULT_SETTINGS: TelegramAutomationSettings = {
+  enabled: true,
+  auto_publish: true,
+  auto_approve_new: true,
+  auto_facebook: true,
+  auto_whatsapp_group: false,
+  min_extraction_confidence: 0.65,
+};
+
+let schemaReady: Promise<void> | null = null;
+
+export function ensureTelegramSchema() {
+  if (!schemaReady) schemaReady = (async () => {
+    await db().execute(`CREATE TABLE IF NOT EXISTS telegram_updates(
+      update_id BIGINT PRIMARY KEY,
+      update_type VARCHAR(40) NULL,
+      chat_id BIGINT NULL,
+      message_id BIGINT NULL,
+      state ENUM('stored','processing','processed','failed','ignored') NOT NULL DEFAULT 'stored',
+      received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      processed_at DATETIME NULL,
+      error VARCHAR(1000) NULL,
+      payload JSON NULL,
+      INDEX(chat_id,message_id), INDEX(state,received_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db().execute(`CREATE TABLE IF NOT EXISTS telegram_source_messages(
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      chat_id BIGINT NOT NULL,
+      message_id BIGINT NOT NULL,
+      media_group_id VARCHAR(191) NULL,
+      last_update_id BIGINT NULL,
+      edit_date BIGINT NULL,
+      message_thread_id BIGINT NULL,
+      from_id BIGINT NULL,
+      sender_name VARCHAR(191) NULL,
+      chat_title VARCHAR(191) NULL,
+      text TEXT NULL,
+      caption TEXT NULL,
+      message_kind VARCHAR(30) NOT NULL DEFAULT 'other',
+      file_id VARCHAR(255) NULL,
+      file_unique_id VARCHAR(255) NULL,
+      media_width INT NULL,
+      media_height INT NULL,
+      file_size BIGINT NULL,
+      processing_state ENUM('queued','processing','completed','review','failed','ignored') NOT NULL DEFAULT 'queued',
+      retry_count INT UNSIGNED NOT NULL DEFAULT 0,
+      next_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      import_item_id BIGINT UNSIGNED NULL,
+      vehicle_id BIGINT UNSIGNED NULL,
+      prior_import_item_id BIGINT UNSIGNED NULL,
+      prior_vehicle_id BIGINT UNSIGNED NULL,
+      error VARCHAR(1000) NULL,
+      payload JSON NULL,
+      received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      processed_at DATETIME NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_telegram_message(chat_id,message_id),
+      INDEX(media_group_id,processing_state), INDEX(processing_state,next_attempt_at),
+      INDEX(import_item_id), INDEX(vehicle_id), INDEX(received_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db().execute(`CREATE TABLE IF NOT EXISTS telegram_automation_events(
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      event_type VARCHAR(80) NOT NULL,
+      status VARCHAR(40) NOT NULL,
+      update_id BIGINT NULL,
+      source_message_id BIGINT UNSIGNED NULL,
+      import_item_id BIGINT UNSIGNED NULL,
+      vehicle_id BIGINT UNSIGNED NULL,
+      details JSON NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX(event_type,status,created_at), INDEX(update_id), INDEX(import_item_id), INDEX(vehicle_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db().execute(`CREATE TABLE IF NOT EXISTS telegram_connection_state(
+      id TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,
+      state VARCHAR(40) NOT NULL,
+      webhook_url TEXT NULL,
+      group_id VARCHAR(191) NULL,
+      group_title VARCHAR(191) NULL,
+      bot_id BIGINT NULL,
+      bot_username VARCHAR(191) NULL,
+      bot_is_admin BOOLEAN NULL,
+      pending_updates INT NULL,
+      last_error TEXT NULL,
+      details JSON NULL,
+      checked_at DATETIME NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  })().catch((error) => { schemaReady = null; throw error; });
+  return schemaReady;
+}
+
+export async function getTelegramSettings(): Promise<TelegramAutomationSettings> {
+  await ensureTelegramSchema();
+  try {
+    const row: any = await one('SELECT setting_value FROM business_settings WHERE setting_key=?', [SETTINGS_KEY]);
+    const value = typeof row?.setting_value === 'string' ? JSON.parse(row.setting_value) : row?.setting_value;
+    return { ...DEFAULT_SETTINGS, ...(value || {}) };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export async function saveTelegramSettings(input: Partial<TelegramAutomationSettings>) {
+  await ensureTelegramSchema();
+  const current = await getTelegramSettings();
+  const next: TelegramAutomationSettings = {
+    ...current,
+    ...input,
+    enabled: input.enabled === undefined ? current.enabled : !!input.enabled,
+    auto_publish: input.auto_publish === undefined ? current.auto_publish : !!input.auto_publish,
+    auto_approve_new: input.auto_approve_new === undefined ? current.auto_approve_new : !!input.auto_approve_new,
+    auto_facebook: input.auto_facebook === undefined ? current.auto_facebook : !!input.auto_facebook,
+    auto_whatsapp_group: false,
+    min_extraction_confidence: Math.max(0.5, Math.min(1, Number(input.min_extraction_confidence ?? current.min_extraction_confidence) || 0.65)),
+  };
+  await db().execute(`INSERT INTO business_settings(setting_key,setting_value) VALUES(?,?)
+    ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_at=CURRENT_TIMESTAMP`, [SETTINGS_KEY, JSON.stringify(next)]);
+  return next;
+}
+
+async function telegramEvent(eventType: string, status: string, details: any = {}, extra: any = {}) {
+  await ensureTelegramSchema();
+  await db().execute(`INSERT INTO telegram_automation_events(
+    event_type,status,update_id,source_message_id,import_item_id,vehicle_id,details
+  ) VALUES(?,?,?,?,?,?,?)`, [
+    eventType, status, extra.updateId ?? null, extra.sourceMessageId ?? null,
+    extra.importItemId ?? null, extra.vehicleId ?? null, JSON.stringify(details || {}),
+  ]).catch(() => {});
+}
+
+function safeTelegramError(error: any) {
+  const description = error?.response?.data?.description;
+  return String(description || error?.message || 'Telegram request failed').slice(0, 1000);
+}
+
+async function telegramApi(method: string, payload: Record<string, any> = {}, timeout = 20000) {
+  const token = telegramBotToken();
+  if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not configured');
+  const response = await axios.post(`${TELEGRAM_API}/bot${token}/${method}`, payload, {
+    timeout,
+    maxBodyLength: 2 * 1024 * 1024,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.data?.ok) throw new Error(String(response.data?.description || 'Telegram API rejected the request'));
+  return response.data.result;
+}
+
+function sourceMessageKey(chatId: string, messageId: number | string) {
+  return `tg:${chatId}:${messageId}`;
+}
+
+function updateType(body: any) {
+  for (const key of ['message', 'edited_message', 'channel_post', 'edited_channel_post']) {
+    if (body?.[key]) return { key, message: body[key], edited: key.startsWith('edited_') };
+  }
+  return null;
+}
+
+/**
+ * Store the update synchronously before returning 200. Telegram update IDs are the exact webhook
+ * idempotency key, while chat/message IDs identify later edits of the same source message.
+ */
+export async function receiveTelegramUpdate(body: any) {
+  await ensureTelegramSchema();
+  const updateId = Number(body?.update_id);
+  if (!Number.isSafeInteger(updateId)) throw new Error('Telegram update_id is missing');
+  const parsed = updateType(body);
+  if (!parsed) {
+    return { accepted: true, stored: false, duplicate: false, state: 'ignored' };
+  }
+  const message = parsed.message;
+  const chat = message?.chat;
+  if (!telegramChatAllowed(chat)) throw Object.assign(new Error('Telegram source chat is not authorized'), { statusCode: 403 });
+
+  const chatId = Number(chat.id);
+  const messageId = Number(message.message_id);
+  if (!Number.isSafeInteger(chatId) || !Number.isSafeInteger(messageId)) throw new Error('Telegram chat/message ID is missing');
+  const photo = largestTelegramPhoto(message);
+  const kind = telegramMessageKind(message);
+  const text = String(message.text || '').trim();
+  const caption = String(message.caption || '').trim();
+  const senderName = [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ').trim() || message.from?.username || null;
+  let sourceId = 0;
+  let duplicate = false;
+  const connection = await db().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [receipt]: any = await connection.execute(`INSERT IGNORE INTO telegram_updates(
+      update_id,update_type,chat_id,message_id,state,payload
+    ) VALUES(?,?,?,?,'stored',?)`, [updateId, parsed.key, chatId, messageId, JSON.stringify(body)]);
+    if (!Number(receipt.affectedRows)) {
+      await connection.rollback();
+      duplicate = true;
+    } else {
+      const [existingRows]: any = await connection.execute('SELECT * FROM telegram_source_messages WHERE chat_id=? AND message_id=? LIMIT 1', [chatId, messageId]);
+      const existing = existingRows?.[0] || null;
+      if (existing?.id && parsed.edited) {
+        await connection.execute(`UPDATE telegram_source_messages SET
+          media_group_id=COALESCE(?,media_group_id),last_update_id=?,edit_date=?,message_thread_id=?,from_id=?,sender_name=?,chat_title=?,
+          text=?,caption=?,message_kind=?,file_id=?,file_unique_id=?,media_width=?,media_height=?,file_size=?,
+          processing_state=IF(?='other','ignored','queued'),retry_count=0,next_attempt_at=NOW(),error=NULL,payload=?,processed_at=NULL,
+          prior_import_item_id=COALESCE(prior_import_item_id,import_item_id),prior_vehicle_id=COALESCE(prior_vehicle_id,vehicle_id),
+          import_item_id=NULL,vehicle_id=NULL
+          WHERE id=?`, [
+          message.media_group_id || null, updateId, Number(message.edit_date || 0) || null, message.message_thread_id || null,
+          message.from?.id || null, senderName, chat.title || chat.username || null, text || null, caption || null, kind,
+          photo?.file_id || null, photo?.file_unique_id || null, photo?.width || null, photo?.height || null, photo?.file_size || null,
+          kind, JSON.stringify(body), existing.id,
+        ]);
+        sourceId = Number(existing.id);
+      } else if (!existing?.id) {
+        const [insert]: any = await connection.execute(`INSERT INTO telegram_source_messages(
+          chat_id,message_id,media_group_id,last_update_id,edit_date,message_thread_id,from_id,sender_name,chat_title,
+          text,caption,message_kind,file_id,file_unique_id,media_width,media_height,file_size,processing_state,payload
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+          chatId, messageId, message.media_group_id || null, updateId, Number(message.edit_date || 0) || null,
+          message.message_thread_id || null, message.from?.id || null, senderName, chat.title || chat.username || null,
+          text || null, caption || null, kind, photo?.file_id || null, photo?.file_unique_id || null,
+          photo?.width || null, photo?.height || null, photo?.file_size || null, kind === 'other' ? 'ignored' : 'queued',
+          JSON.stringify(body),
+        ]);
+        sourceId = Number(insert.insertId);
+      } else {
+        await connection.execute('UPDATE telegram_updates SET state=? WHERE update_id=?', ['ignored', updateId]);
+        duplicate = true;
+      }
+      await connection.commit();
+    }
+  } catch (error) {
+    await connection.rollback().catch(() => {});
+    throw error;
+  } finally {
+    connection.release();
+  }
+
+  if (duplicate) {
+    await telegramEvent('update_duplicate', 'ignored', { update_id: updateId, message_id: messageId }, { updateId });
+    return { accepted: true, stored: false, duplicate: true, state: 'duplicate' };
+  }
+
+  await telegramEvent('message_received', kind === 'other' ? 'ignored' : 'ok', {
+    update_type: parsed.key, message_id: messageId, media_group_id: message.media_group_id || null,
+    has_photo: !!photo, text_length: (text || caption).length, edited: parsed.edited,
+  }, { updateId, sourceMessageId: sourceId || null });
+  return { accepted: true, stored: true, duplicate: false, sourceId, state: kind === 'other' ? 'ignored' : 'queued', edited: parsed.edited };
+}
+
+async function downloadTelegramPhoto(row: any) {
+  if (!row.file_id) throw new Error('Telegram photo file_id is missing');
+  const info = await telegramApi('getFile', { file_id: row.file_id }, 30000);
+  const path = String(info?.file_path || '');
+  const size = Number(info?.file_size || row.file_size || 0);
+  if (!path) throw new Error('Telegram file path is missing');
+  if (size > MAX_TELEGRAM_FILE_BYTES) throw new Error('Telegram photo exceeds the 20 MB limit');
+  const token = telegramBotToken();
+  const response = await axios.get(`${TELEGRAM_API}/file/bot${token}/${path}`, {
+    responseType: 'arraybuffer', timeout: 45000, maxContentLength: MAX_TELEGRAM_FILE_BYTES,
+  });
+  const data = Buffer.from(response.data);
+  if (!data.length || data.length > MAX_TELEGRAM_FILE_BYTES) throw new Error('Telegram photo download was empty or too large');
+  let mimeType = String(response.headers?.['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (!/^image\//.test(mimeType)) {
+    const ext = path.split('.').pop()?.toLowerCase();
+    mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+  }
+  return { data: data.toString('base64'), mimeType, fileId: row.file_id, fileUniqueId: row.file_unique_id };
+}
+
+async function claimTelegramJob() {
+  const candidate: any = await one<any>(`SELECT * FROM telegram_source_messages
+    WHERE processing_state IN ('queued','failed') AND retry_count<6 AND next_attempt_at<=NOW()
+      AND (media_group_id IS NULL OR received_at<=(NOW()-INTERVAL ${ALBUM_QUIET_SECONDS} SECOND))
+    ORDER BY id LIMIT 1`);
+  if (!candidate) return [] as any[];
+  if (candidate.media_group_id) {
+    const latest: any = await one<any>(`SELECT TIMESTAMPDIFF(SECOND,MAX(received_at),NOW()) age FROM telegram_source_messages
+      WHERE chat_id=? AND media_group_id=?`, [candidate.chat_id, candidate.media_group_id]);
+    if (latest?.age == null || Number(latest.age) < ALBUM_QUIET_SECONDS) return [];
+    const groupRows = await rows<any>(`SELECT * FROM telegram_source_messages WHERE chat_id=? AND media_group_id=?
+      AND processing_state IN ('queued','failed') ORDER BY message_id`, [candidate.chat_id, candidate.media_group_id]);
+    if (!groupRows.length) return [];
+    const ids = groupRows.map((row) => Number(row.id));
+    const [claimed]: any = await db().execute(`UPDATE telegram_source_messages SET processing_state='processing',retry_count=retry_count+1,error=NULL
+      WHERE id IN (${ids.map(() => '?').join(',')}) AND processing_state IN ('queued','failed')`, ids);
+    return Number(claimed.affectedRows) ? groupRows : [];
+  }
+  const [claimed]: any = await db().execute(`UPDATE telegram_source_messages SET processing_state='processing',retry_count=retry_count+1,error=NULL
+    WHERE id=? AND processing_state IN ('queued','failed')`, [candidate.id]);
+  return Number(claimed.affectedRows) ? [candidate] : [];
+}
+
+function parseProposed(raw: any) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try { return JSON.parse(raw); } catch { return {}; }
+}
+
+async function maybeAutoPublishTelegram(itemId: number) {
+  const settings = await getTelegramSettings();
+  const item: any = await one<any>('SELECT * FROM inventory_import_items WHERE id=? AND source=? LIMIT 1', [itemId, 'telegram']);
+  if (!item) return { status: 'not-found', reasons: ['Telegram import not found'] };
+  if (!settings.enabled || !settings.auto_publish || !settings.auto_approve_new) {
+    return { status: 'review', reasons: ['Telegram automatic publishing is disabled'] };
+  }
+  if (item.review_status !== 'pending') return { status: item.review_status, reasons: [] };
+  const proposed: any = parseProposed(item.proposed_vehicle);
+  const raw: any = parseProposed(item.raw_payload);
+  const media: any = await one<any>('SELECT COUNT(*) n FROM inventory_import_media WHERE import_item_id=?', [itemId]);
+  const decision = decideTelegramAutoPublish({
+    match_status: item.match_status,
+    review_status: item.review_status,
+    extraction_confidence: item.extraction_confidence,
+    price_value: proposed.price_value,
+    price_usd: proposed.price_usd,
+    price_currency: proposed.price_currency,
+    brand: proposed.brand,
+    model: proposed.model,
+    model_year: proposed.model_year,
+    mileage_km: proposed.mileage_km,
+    mileage_unit: proposed.mileage_unit,
+    category: proposed.category,
+    availability: proposed.availability,
+    text: raw.text || '',
+    photo_count: Number(media?.n || 0),
+  }, settings.min_extraction_confidence);
+  if (!decision.eligible) {
+    await telegramEvent('automatic_review_required', 'review', { reasons: decision.reasons }, {
+      importItemId: itemId, vehicleId: item.vehicle_id,
+    });
+    return { status: 'review', reasons: decision.reasons };
+  }
+  try {
+    const result: any = await reviewGroupImport(Number(itemId), 'approve', {
+      category: proposed.category,
+      brand: proposed.brand,
+      model: proposed.model,
+      trim_name: proposed.trim_name,
+      model_year: proposed.model_year,
+      mileage_km: decision.mileage_km ?? proposed.mileage_km,
+      mileage_unit: 'km',
+      engine: proposed.engine,
+      fuel_type: proposed.fuel_type,
+      transmission: proposed.transmission,
+      steering: proposed.steering,
+      color: proposed.color,
+      condition: proposed.condition,
+      price_usd: decision.price_usd,
+      description: publicDescription(proposed.description || raw.text || ''),
+      ai_enabled: true,
+      reviewer: 'telegram-auto',
+    }, { publishFacebook: settings.auto_facebook });
+    const whatsapp = await deliverVehicleToWhatsAppGroup(Number(result.vehicleId));
+    await telegramEvent('automatic_published', 'ok', {
+      facebook: result.automation?.facebook || null,
+      whatsapp,
+      price_usd: decision.price_usd,
+    }, { importItemId: itemId, vehicleId: result.vehicleId });
+    return {
+      status: 'published',
+      vehicleId: Number(result.vehicleId),
+      facebook: result.automation?.facebook || null,
+      whatsapp,
+    };
+  } catch (error: any) {
+    await telegramEvent('automatic_publish_failed', 'failed', { error: safeTelegramError(error) }, {
+      importItemId: itemId, vehicleId: item.vehicle_id,
+    });
+    return { status: 'pending', reasons: [safeTelegramError(error)] };
+  }
+}
+
+async function processClaimedRows(sourceRows: any[]) {
+  const first = sourceRows[0];
+  const photos = [];
+  const seenFiles = new Set<string>();
+  for (const row of sourceRows) {
+    if (!row.file_id || seenFiles.has(row.file_unique_id || row.file_id)) continue;
+    const media = await downloadTelegramPhoto(row);
+    photos.push(media);
+    seenFiles.add(row.file_unique_id || row.file_id);
+  }
+  const texts = [...new Set(sourceRows.map((row) => String(row.caption || row.text || '').trim()).filter(Boolean))];
+  const combinedText = texts.join('\n').slice(0, 20000);
+  if (!combinedText && !photos.length) {
+    await db().execute(`UPDATE telegram_source_messages SET processing_state='ignored',processed_at=NOW(),error=NULL
+      WHERE id IN (${sourceRows.map(() => '?').join(',')})`, sourceRows.map((row) => row.id));
+    return { state: 'ignored' };
+  }
+  const priorVehicleId = sourceRows.map((row) => Number(row.prior_vehicle_id || 0)).find(Boolean) || null;
+  const priorImportItemId = sourceRows.map((row) => Number(row.prior_import_item_id || 0)).find(Boolean) || null;
+  const edited = sourceRows.some((row) => Number(row.edit_date || 0) > 0);
+  const album = String(first.media_group_id || '');
+  const importMessageId = edited
+    ? `tg-edit:${first.chat_id}:${first.message_id}:${first.last_update_id}`
+    : album ? `tg-album:${first.chat_id}:${album}` : sourceMessageKey(String(first.chat_id), first.message_id);
+  const payload = {
+    source: 'telegram',
+    messageId: importMessageId,
+    messageIds: sourceRows.map((row) => sourceMessageKey(String(row.chat_id), row.message_id)),
+    groupName: first.chat_title || telegramSourceChatId(),
+    groupId: `telegram:${first.chat_id}`,
+    sender: String(first.from_id || ''),
+    senderName: first.sender_name || null,
+    text: combinedText,
+    receivedAt: new Date(String(first.received_at).replace(' ', 'T')).toISOString(),
+    photoCount: photos.length,
+    media: photos.map((photo) => ({ data: photo.data, mimeType: photo.mimeType, telegramFileId: photo.fileId, telegramFileUniqueId: photo.fileUniqueId })),
+    existingVehicleId: priorVehicleId,
+    telegram: {
+      chatId: String(first.chat_id),
+      messageIds: sourceRows.map((row) => Number(row.message_id)),
+      updateIds: sourceRows.map((row) => Number(row.last_update_id)),
+      mediaGroupId: album || null,
+      edited,
+      priorImportItemId,
+    },
+  };
+  const imported: any = await createGroupImport(payload);
+  const itemId = Number(imported.id);
+  if (!itemId) throw new Error('Telegram import did not return an inventory review item');
+  const item: any = await one<any>('SELECT * FROM inventory_import_items WHERE id=? LIMIT 1', [itemId]);
+  const vehicleId = Number(item?.approved_vehicle_id || item?.matched_vehicle_id || item?.vehicle_id || imported.vehicleId || 0) || null;
+  const auto = edited ? { status: 'review', reasons: ['Telegram edits require approval'] } : await maybeAutoPublishTelegram(itemId);
+  const sourceState = ['review','pending','not-found'].includes(String(auto.status)) && item?.review_status === 'pending' ? 'review' : 'completed';
+  const ids = sourceRows.map((row) => Number(row.id));
+  await db().execute(`UPDATE telegram_source_messages SET processing_state=?,import_item_id=?,vehicle_id=?,processed_at=NOW(),error=NULL,
+    prior_import_item_id=NULL,prior_vehicle_id=NULL WHERE id IN (${ids.map(() => '?').join(',')})`,
+  [sourceState, itemId, vehicleId, ...ids]);
+  await db().execute(`UPDATE telegram_source_messages SET processing_state=?,vehicle_id=? WHERE import_item_id=?`,
+    [sourceState, vehicleId, itemId]).catch(() => {});
+  await db().execute(`UPDATE telegram_updates SET state='processed',processed_at=NOW(),error=NULL
+    WHERE update_id IN (${sourceRows.map(() => '?').join(',')})`, sourceRows.map((row) => row.last_update_id));
+  await telegramEvent('message_processed', sourceState, {
+    match_status: item?.match_status || null, auto, photos: photos.length, edited, media_group_id: album || null,
+  }, { sourceMessageId: Number(first.id), importItemId: itemId, vehicleId });
+  return { state: sourceState, itemId, vehicleId, auto, photos: photos.length };
+}
+
+/**
+ * No cron: this is triggered by `after()` in the webhook (and by the admin Retry button).
+ * A crash leaves queued/failed rows in MySQL, so the next Telegram delivery drains them again.
+ */
+export async function processTelegramQueue(maxGroups = 8) {
+  await ensureTelegramSchema();
+  const results = [];
+  for (let index = 0; index < Math.max(1, Math.min(20, Number(maxGroups) || 8)); index++) {
+    const claimed = await claimTelegramJob();
+    if (!claimed.length) break;
+    try {
+      results.push(await processClaimedRows(claimed));
+    } catch (error: any) {
+      const message = safeTelegramError(error);
+      const ids = claimed.map((row) => row.id);
+      await db().execute(`UPDATE telegram_source_messages SET processing_state='failed',error=?,
+        next_attempt_at=(NOW()+INTERVAL LEAST(60,POW(2,retry_count)*10) SECOND)
+        WHERE id IN (${ids.map(() => '?').join(',')})`, [message, ...ids]).catch(() => {});
+      await db().execute(`UPDATE telegram_updates SET state='failed',error=?
+        WHERE update_id IN (${claimed.map(() => '?').join(',')})`, [message, ...claimed.map((row) => row.last_update_id)]).catch(() => {});
+      await telegramEvent('message_failed', 'failed', { error: message }, { sourceMessageId: Number(claimed[0].id) });
+      results.push({ state: 'failed', error: message });
+    }
+  }
+  return results;
+}
+
+export async function retryTelegramFailures() {
+  await ensureTelegramSchema();
+  const [result]: any = await db().execute(`UPDATE telegram_source_messages SET next_attempt_at=NOW(),error=NULL
+    WHERE processing_state='failed' AND retry_count<6`);
+  await telegramEvent('manual_retry', 'ok', { queued: Number(result.affectedRows || 0) });
+  const processed = await processTelegramQueue(12);
+  return { ok: true, queuedForRetry: Number(result.affectedRows || 0), processed };
+}
+
+export async function telegramConnectionProbe() {
+  await ensureTelegramSchema();
+  const config = telegramConfigSummary();
+  if (!config.configured) {
+    const missing = [
+      !config.bot_token_present && 'TELEGRAM_BOT_TOKEN',
+      !config.webhook_secret_present && 'TELEGRAM_WEBHOOK_SECRET',
+      !config.source_chat_id_present && 'TELEGRAM_SOURCE_CHAT_ID',
+    ].filter(Boolean);
+    const result = { ok: false, configured: false, missing, config };
+    await db().execute(`INSERT INTO telegram_connection_state(id,state,last_error,checked_at)
+      VALUES(1,'configuration_required',?,NOW()) ON DUPLICATE KEY UPDATE state='configuration_required',last_error=VALUES(last_error),checked_at=NOW()`,
+    [`Missing ${missing.join(', ')}`]).catch(() => {});
+    return result;
+  }
+  try {
+    const [me, webhook, chat] = await Promise.all([
+      telegramApi('getMe'), telegramApi('getWebhookInfo'), telegramApi('getChat', { chat_id: telegramSourceChatId() }),
+    ]);
+    let member: any = null;
+    try { member = await telegramApi('getChatMember', { chat_id: telegramSourceChatId(), user_id: me.id }); } catch {}
+    const botIsAdmin = ['administrator', 'creator'].includes(String(member?.status || ''));
+    const expectedUrl = String(process.env.TELEGRAM_WEBHOOK_URL || `${String(process.env.NEXT_PUBLIC_SITE_URL || 'https://skyshcars.com').replace(/\/$/, '')}/api/integrations/telegram/webhook`);
+    const result = {
+      ok: !!me?.id && chat?.id != null,
+      configured: true,
+      config,
+      bot: { id: me?.id || null, username: me?.username || null, name: me?.first_name || null },
+      group: { id: String(chat?.id || ''), title: chat?.title || chat?.username || null, type: chat?.type || null },
+      bot_is_admin: botIsAdmin,
+      bot_member_status: member?.status || null,
+      webhook: {
+        url: webhook?.url || null,
+        expected_url: expectedUrl,
+        matches: String(webhook?.url || '') === expectedUrl,
+        pending_update_count: Number(webhook?.pending_update_count || 0),
+        last_error_date: webhook?.last_error_date || null,
+        last_error_message: webhook?.last_error_message || null,
+      },
+    };
+    await db().execute(`INSERT INTO telegram_connection_state(
+      id,state,webhook_url,group_id,group_title,bot_id,bot_username,bot_is_admin,pending_updates,last_error,details,checked_at
+    ) VALUES(1,?,?,?,?,?,?,?,?,?,?,NOW())
+    ON DUPLICATE KEY UPDATE state=VALUES(state),webhook_url=VALUES(webhook_url),group_id=VALUES(group_id),
+      group_title=VALUES(group_title),bot_id=VALUES(bot_id),bot_username=VALUES(bot_username),bot_is_admin=VALUES(bot_is_admin),
+      pending_updates=VALUES(pending_updates),last_error=VALUES(last_error),details=VALUES(details),checked_at=NOW()`, [
+      result.ok && botIsAdmin ? 'connected' : 'attention_required', expectedUrl, result.group.id, result.group.title,
+      result.bot.id, result.bot.username, botIsAdmin ? 1 : 0, result.webhook.pending_update_count,
+      result.webhook.last_error_message || null, JSON.stringify(result),
+    ]).catch(() => {});
+    return result;
+  } catch (error: any) {
+    const message = safeTelegramError(error);
+    await db().execute(`INSERT INTO telegram_connection_state(id,state,last_error,checked_at) VALUES(1,'failed',?,NOW())
+      ON DUPLICATE KEY UPDATE state='failed',last_error=VALUES(last_error),checked_at=NOW()`, [message]).catch(() => {});
+    return { ok: false, configured: true, config, error: message };
+  }
+}
+
+export async function registerTelegramWebhook() {
+  const config = telegramConfigSummary();
+  if (!config.configured) throw new Error('Telegram configuration is incomplete');
+  const url = String(process.env.TELEGRAM_WEBHOOK_URL || `${String(process.env.NEXT_PUBLIC_SITE_URL || 'https://skyshcars.com').replace(/\/$/, '')}/api/integrations/telegram/webhook`);
+  if (!/^https:\/\//i.test(url)) throw new Error('Telegram webhook URL must use HTTPS');
+  const result = await telegramApi('setWebhook', {
+    url,
+    secret_token: telegramSecret(),
+    allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post'],
+    drop_pending_updates: false,
+    max_connections: 20,
+  });
+  await telegramEvent('webhook_registered', 'ok', { url });
+  return { ok: !!result, url, probe: await telegramConnectionProbe() };
+}
+
+export async function testTelegramSampleVehicle(vehicleId: number) {
+  if (!vehicleId) throw new Error('Choose an authorized sample vehicle');
+  const vehicle: any = await one<any>(`SELECT v.id,v.stock_no,v.brand,v.model,v.status,v.price_usd,
+    (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql('m')}) exact_photo_count
+    FROM vehicles v WHERE v.id=? AND ${sellableVehicleSql('v')} LIMIT 1`, [vehicleId]);
+  if (!vehicle) throw new Error('Sample vehicle is not Available');
+  const [connectionResult, facebookResult] = await Promise.all([telegramConnectionProbe(), facebookStatus().catch((error: any) => ({
+    configured: false, connected: false, error: safeTelegramError(error), warnings: [],
+  }))]);
+  const connection: any = connectionResult;
+  const facebook: any = facebookResult;
+  const checks = {
+    telegram_configured: connection.configured,
+    source_group_identified: connection.group?.id === telegramSourceChatId(),
+    bot_is_admin: connection.bot_is_admin === true,
+    webhook_matches: connection.webhook?.matches === true,
+    vehicle_available: vehicle.status === 'available',
+    approved_usd_price: Number(vehicle.price_usd) > 0,
+    original_photo: Number(vehicle.exact_photo_count) > 0,
+    facebook_connected: facebook.connected === true,
+    facebook_posting_permission: facebook.missingScopes ? facebook.missingScopes.length === 0 : facebook.connected === true,
+  };
+  return {
+    ok: Object.values(checks).every(Boolean),
+    check_only: true,
+    published: false,
+    vehicle: { id: Number(vehicle.id), stock_no: vehicle.stock_no, brand: vehicle.brand, model: vehicle.model, price_usd: Number(vehicle.price_usd || 0) },
+    checks,
+    connection,
+    facebook: { configured: facebook.configured, connected: facebook.connected, missing_scopes: facebook.missingScopes || null, error: facebook.error || null, warnings: facebook.warnings || [] },
+    whatsapp_group: whatsappGroupDeliveryStatus(),
+  };
+}
+
+export async function telegramDashboard() {
+  await ensureTelegramSchema();
+  const [settings, connectionRow, lastReceived, counts, sourceMessages, imports, events, publicationLogs, deliveries] = await Promise.all([
+    getTelegramSettings(),
+    one<any>('SELECT * FROM telegram_connection_state WHERE id=1').catch(() => null),
+    one<any>("SELECT MAX(received_at) at FROM telegram_source_messages").catch(() => null),
+    one<any>(`SELECT COUNT(*) updates, SUM(edit_date IS NOT NULL) edits FROM telegram_updates`).catch(() => null),
+    rows<any>(`SELECT id,chat_id,message_id,media_group_id,last_update_id,edit_date,sender_name,chat_title,message_kind,
+      processing_state,retry_count,next_attempt_at,import_item_id,vehicle_id,error,received_at,processed_at
+      FROM telegram_source_messages ORDER BY id DESC LIMIT 80`).catch(() => []),
+    rows<any>(`SELECT i.id,i.source_message_id,i.review_status,i.match_status,i.match_confidence,i.extraction_confidence,
+      i.vehicle_id,i.matched_vehicle_id,i.approved_vehicle_id,i.created_at,v.stock_no,v.brand,v.model,v.model_year,v.status vehicle_status,
+      (SELECT COUNT(*) FROM inventory_import_media m WHERE m.import_item_id=i.id) media_count
+      FROM inventory_import_items i LEFT JOIN vehicles v ON v.id=i.vehicle_id
+      WHERE i.source='telegram' ORDER BY i.id DESC LIMIT 50`).catch(() => []),
+    rows<any>('SELECT * FROM telegram_automation_events ORDER BY id DESC LIMIT 60').catch(() => []),
+    rows<any>(`SELECT l.*,v.stock_no,v.brand,v.model FROM social_publish_log l JOIN vehicles v ON v.id=l.vehicle_id
+      WHERE v.source='telegram' AND l.channel='facebook' ORDER BY l.id DESC LIMIT 30`).catch(() => []),
+    recentWhatsAppGroupAttempts(20),
+  ]);
+  const imported = await one<any>(`SELECT
+    COUNT(*) total,
+    SUM(review_status='approved') approved,
+    SUM(review_status='pending') pending,
+    SUM(match_status='confirmed') confirmed,
+    SUM(match_status='possible') possible
+    FROM inventory_import_items WHERE source='telegram'`).catch(() => null);
+  const photos = await one<any>(`SELECT COUNT(*) total,
+    SUM(processing_state IN ('completed','review')) processed,
+    SUM(processing_state='failed') failed
+    FROM telegram_source_messages WHERE message_kind='photo'`).catch(() => null);
+  const failedJobs = sourceMessages.filter((row) => row.processing_state === 'failed');
+  let connection: any = null;
+  if (connectionRow) {
+    try { connection = typeof connectionRow.details === 'string' ? JSON.parse(connectionRow.details) : connectionRow.details; } catch {}
+  }
+  return {
+    settings,
+    config: telegramConfigSummary(),
+    connection: {
+      state: connectionRow?.state || 'not_checked',
+      checked_at: connectionRow?.checked_at || null,
+      last_error: connectionRow?.last_error || null,
+      details: connection || null,
+    },
+    last_received: lastReceived?.at || null,
+    counts: {
+      updates: Number(counts?.updates || 0),
+      edits: Number(counts?.edits || 0),
+      imported: Number(imported?.total || 0),
+      approved: Number(imported?.approved || 0),
+      pending: Number(imported?.pending || 0),
+      confirmed_duplicates: Number(imported?.confirmed || 0),
+      possible_duplicates: Number(imported?.possible || 0),
+      failed_jobs: failedJobs.length,
+    },
+    photos: {
+      total: Number(photos?.total || 0),
+      processed: Number(photos?.processed || 0),
+      failed: Number(photos?.failed || 0),
+    },
+    source_messages: sourceMessages,
+    imports,
+    events,
+    facebook: publicationLogs,
+    whatsapp_group: { status: whatsappGroupDeliveryStatus(), attempts: deliveries },
+    failed_jobs: failedJobs,
+  };
+}
+
+export async function telegramSampleVehicles() {
+  return rows<any>(`SELECT v.id,v.stock_no,v.brand,v.model,v.model_year,v.price_usd,
+    (SELECT COUNT(*) FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql('m')}) exact_photo_count
+    FROM vehicles v WHERE ${sellableVehicleSql('v')} AND v.price_usd>0 ORDER BY v.created_at DESC,v.id DESC LIMIT 100`).catch(() => []);
+}
+
+export async function recordTelegramAvailabilityProposal(itemId: number, text: string) {
+  const availability = telegramAvailability(text);
+  if (availability === 'unavailable') {
+    await telegramEvent('availability_flagged', 'review', { availability }, { importItemId: itemId });
+  }
+  return availability;
+}
+
+export { largestTelegramPhoto, telegramText };

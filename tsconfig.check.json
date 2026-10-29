@@ -24,6 +24,7 @@
     "src/lib/ai-training.ts",
     "src/lib/bulk-vehicles.ts",
     "src/lib/inventory-identity-rules.ts",
-    "src/lib/image-fingerprints.ts"
+    "src/lib/image-fingerprints.ts",
+    "src/lib/telegram-rules.ts"
   ]
 }

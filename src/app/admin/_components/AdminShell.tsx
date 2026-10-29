@@ -7,7 +7,7 @@ import {
   Activity, BadgeDollarSign, BookOpenCheck, BrainCircuit, CarFront, Code2, ContactRound,
   DatabaseBackup, ExternalLink, FileText, FlaskConical, FolderOpen, Globe2, History,
   ImageIcon, LayoutDashboard, ListChecks, LogOut, Megaphone, Menu, MessagesSquare,
-  PackageSearch, Radio, Rocket, Route, ScrollText, Share2, Ship, ShieldCheck, Store,
+  PackageSearch, Radio, Rocket, Route, ScrollText, Send, Share2, Ship, ShieldCheck, Store,
   Tags, UserCog, Users, X, ChevronDown,
 } from 'lucide-react';
 
@@ -59,6 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/automation', label: 'Automation Center', icon: Radio },
       { href: '/admin/campaigns', label: 'Campaigns', icon: Megaphone },
       { href: '/admin/social', label: 'Social Publishing', icon: Share2 },
+      { href: '/admin/telegram', label: 'Telegram Automation', icon: Send },
       { href: '/admin/group-reader', label: 'Group Reader', icon: Radio },
       { href: '/admin/group', label: 'Group Chat & Members', icon: MessagesSquare },
     ],

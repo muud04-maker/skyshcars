@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 type Item = {
   id: number;
   source_message_id: string;
+  source?: string;
   raw_payload: any;
   proposed_vehicle: any;
   review_status: string;
@@ -179,7 +180,7 @@ export default function V16ImportClient() {
           return <div key={it.id} style={{ border: '1px solid #d8e2ec', borderRadius: 10, padding: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <b>#{it.id} {proposed.category === 'motorcycle' ? 'Motorcycle · ' : ''}{proposed.brand || 'Unknown make'} {proposed.model || 'Unknown model'} {proposed.model_year || ''}</b>
-              <span>{it.review_status.toUpperCase()} · {String(it.match_status || 'new').replaceAll('_', ' ')} {it.stock_no ? `· ${it.stock_no}` : ''}{it.vehicle_status ? ` · ${it.vehicle_status.replaceAll('_', ' ')}` : ''}</span>
+              <span>{it.source === 'telegram' ? 'TELEGRAM · ' : ''}{it.review_status.toUpperCase()} · {String(it.match_status || 'new').replaceAll('_', ' ')} {it.stock_no ? `· ${it.stock_no}` : ''}{it.vehicle_status ? ` · ${it.vehicle_status.replaceAll('_', ' ')}` : ''}</span>
             </div>
             <p style={{ margin: '8px 0', whiteSpace: 'pre-wrap' }}>{raw.text || 'No text (photos only)'}</p>
             {urls.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{urls.slice(0, 12).map((url) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt="" style={{ width: 84, height: 64, objectFit: 'cover', borderRadius: 6, border: '1px solid #d8e2ec' }} /></a>)}</div>}

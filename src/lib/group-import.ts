@@ -43,6 +43,11 @@ let schemaReady:Promise<void>|null=null;
 export function ensureGroupImportSchema(){
   if(!schemaReady)schemaReady=(async()=>{
     await ensureInventoryMemorySchema();
+    const [sourceColumns]:any=await db().execute("SHOW COLUMNS FROM inventory_import_items LIKE 'source'");
+    const sourceType=String(sourceColumns?.[0]?.Type||'');
+    if(!sourceType.includes("'telegram'")){
+      await db().execute("ALTER TABLE inventory_import_items MODIFY source ENUM('json','csv','whatsapp_group','manual','telegram') NOT NULL");
+    }
     await db().execute(`CREATE TABLE IF NOT EXISTS inventory_import_media(
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       import_item_id BIGINT UNSIGNED NOT NULL,
@@ -79,6 +84,7 @@ Schema:
   "engine": string|null, "transmission": string|null, "fuel_type": string|null,
   "drivetrain": string|null, "steering": "LHD|RHD|unknown|null",
   "color": string|null, "condition": string|null,
+  "availability": "available|reserved|sold|unknown|null",
   "price_value": number|null, "price_currency": "USD|CNY|AED|KES|other code|null",
   "price_usd": number|null, "stock_no": string|null, "supplier_reference": string|null,
   "vin": string|null, "location": string|null, "description": string|null,
@@ -118,7 +124,7 @@ export function publicDescription(text:any){
 
 function stockNo(){return 'SKY-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,6).toUpperCase()}
 
-async function saveMedia(itemId:number,vehicleId:number|null,media:any[],startIndex:number,fingerprints:(ImageFingerprint|undefined)[]=[]){
+async function saveMedia(itemId:number,vehicleId:number|null,media:any[],startIndex:number,fingerprints:(ImageFingerprint|undefined)[]=[],mediaSource:'whatsapp_group'|'import'='whatsapp_group'){
   let n=0;
   for(let i=0;i<media.length;i++){
     const m=media[i]||{};
@@ -140,7 +146,7 @@ async function saveMedia(itemId:number,vehicleId:number|null,media:any[],startIn
     if(dup)continue;
     await db().execute('INSERT INTO inventory_import_media(import_item_id,url,mime_type,blob_name) VALUES(?,?,?,?)',[itemId,url,mime,blobName]);
     if(vehicleId){
-      await db().execute(`INSERT INTO vehicle_media(vehicle_id,media_type,url,caption,source,is_cover,sort_order,review_status) VALUES(?,'image',?,NULL,'whatsapp_group',?,?,'pending')`,[vehicleId,url,startIndex+n===0?1:0,startIndex+n]);
+      await db().execute(`INSERT INTO vehicle_media(vehicle_id,media_type,url,caption,source,is_cover,sort_order,review_status) VALUES(?,'image',?,NULL,?,?,?,'pending')`,[vehicleId,url,mediaSource,startIndex+n===0?1:0,startIndex+n]);
       const fp=fingerprints[i];
       if(fp)await addImageFingerprint(vehicleId,itemId,url,fp,false);
     }
@@ -160,6 +166,7 @@ function pendingVehicleFields(p:any){
     fuel_type:str(p.fuel_type,80),steering:['LHD','RHD','unknown'].includes(p.steering)?p.steering:'unknown',color:str(p.color,80),
     vehicle_condition:str(p.condition,80),vin:str(p.vin,32),supplier_reference:str(p.supplier_reference,191),
     price_usd:price.currency==='USD'?price.value:null,price_currency:price.currency,
+    specs:p.specs&&typeof p.specs==='object'?JSON.stringify(p.specs):null,
   };
 }
 
@@ -199,13 +206,15 @@ function normalizeProposal(input:any,motoGroup:boolean){
 
 export async function createGroupImport(payload:any){
   await ensureGroupImportSchema();
+  const importSource: 'telegram'|'whatsapp_group' = payload.source==='telegram'?'telegram':'whatsapp_group';
+  const bridgeSource = importSource === 'telegram';
   const rawMessageId=String(payload.messageId||payload.source_message_id||'').trim();
   const messageId=rawMessageId.length<=190?rawMessageId:'grp-'+createHash('sha256').update(rawMessageId).digest('hex').slice(0,48);
   if(!messageId) throw new Error('messageId is required');
   const existing:any=await one(`SELECT i.id,i.review_status,i.match_status,i.matched_vehicle_id,i.vehicle_id,l.state ledger_state,
     TIMESTAMPDIFF(SECOND,l.updated_at,NOW()) ledger_age
     FROM inventory_import_items i LEFT JOIN inventory_message_ledger l ON l.source_message_id=i.source_message_id
-    WHERE i.source='whatsapp_group' AND i.source_message_id=? LIMIT 1`,[messageId]);
+    WHERE i.source=? AND i.source_message_id=? LIMIT 1`,[importSource,messageId]);
   if(existing&&(!existing.ledger_state||existing.ledger_state==='saved'))return {created:false,deduplicated:true,id:existing.id,status:existing.review_status,matchStatus:existing.match_status,vehicleId:existing.matched_vehicle_id||existing.vehicle_id};
   if(existing?.ledger_state==='processing'&&Number(existing.ledger_age)<300)return {created:false,duplicateInProgress:true};
   if(existing&&(existing.ledger_state==='failed'||existing.ledger_state==='processing')){
@@ -235,17 +244,17 @@ export async function createGroupImport(payload:any){
 
   const recent:any=await one(`SELECT i.id,i.vehicle_id,i.matched_vehicle_id,i.match_status,i.raw_payload,
       (SELECT COUNT(*) FROM inventory_import_media m WHERE m.import_item_id=i.id) media_count
-    FROM inventory_import_items i WHERE i.source='whatsapp_group' AND i.review_status='pending'
+    FROM inventory_import_items i WHERE i.source=? AND i.review_status='pending'
       AND JSON_UNQUOTE(JSON_EXTRACT(i.raw_payload,'$.groupName'))=? AND JSON_UNQUOTE(JSON_EXTRACT(i.raw_payload,'$.sender'))=?
       AND i.created_at >= (NOW() - INTERVAL ${MERGE_WINDOW_MIN} MINUTE)
-    ORDER BY i.id DESC LIMIT 1`,[groupName,sender]);
+    ORDER BY i.id DESC LIMIT 1`,[importSource,groupName,sender]);
   if(recent){
     const prev=parse(recent.raw_payload),prevText=String(prev.text||'').trim();
     const canMerge=!text||!prevText||!media.length||!Number(recent.media_count);
     if(canMerge&&(listing||captionLike)){
       const linkedVehicle=recent.vehicle_id?Number(recent.vehicle_id):null;
       const matchedVehicle=recent.matched_vehicle_id?Number(recent.matched_vehicle_id):null;
-      const added=await saveMedia(Number(recent.id),linkedVehicle,media,Number(recent.media_count||0),fingerprints);
+      const added=await saveMedia(Number(recent.id),linkedVehicle,media,Number(recent.media_count||0),fingerprints,bridgeSource?'import':'whatsapp_group');
       const ids=[...new Set([...(Array.isArray(prev.mergedMessageIds)?prev.mergedMessageIds:[]),messageId])];
       const mergedText=[prevText,text].filter(Boolean).join('\n');
       const mergedEvidence=[...(Array.isArray(prev.evidence?.image_descriptions)?prev.evidence.image_descriptions:[]),...descriptions];
@@ -255,12 +264,13 @@ export async function createGroupImport(payload:any){
         proposed=normalizeProposal(await extractVehicle(mergedText,mergedEvidence),motoGroup);
         proposed.evidence={...(proposed.evidence||{}),image_sha256:fingerprints.filter(Boolean).map((fp:any)=>fp!.sha256)};
       }
+      if(payload.telegram?.edited)proposed.telegram_edited=true;
       await db().execute('UPDATE inventory_import_items SET raw_payload=?,proposed_vehicle=?,extraction_confidence=?,last_observed_at=NOW() WHERE id=?',
         [JSON.stringify(raw),JSON.stringify(proposed),proposed.confidence??null,recent.id]);
       if(linkedVehicle){
         const f=pendingVehicleFields(proposed);
-        await db().execute(`UPDATE vehicles SET category=?,brand=?,model=?,trim_name=?,model_year=?,mileage_km=?,engine=?,transmission=?,fuel_type=?,steering=?,color=?,vehicle_condition=?,vin=?,supplier_reference=? WHERE id=? AND status='pending_verification'`,
-          [f.category,f.brand,f.model,f.trim_name,f.model_year,f.mileage_km,f.engine,f.transmission,f.fuel_type,f.steering,f.color,f.vehicle_condition,f.vin,f.supplier_reference,linkedVehicle]);
+        await db().execute(`UPDATE vehicles SET category=?,brand=?,model=?,trim_name=?,model_year=?,mileage_km=?,engine=?,transmission=?,fuel_type=?,steering=?,color=?,vehicle_condition=?,vin=?,supplier_reference=?,specs=? WHERE id=? AND status='pending_verification'`,
+          [f.category,f.brand,f.model,f.trim_name,f.model_year,f.mileage_km,f.engine,f.transmission,f.fuel_type,f.steering,f.color,f.vehicle_condition,f.vin,f.supplier_reference,f.specs,linkedVehicle]);
         await upsertIdentityMemory(linkedVehicle,groupId,{...proposed,status:'pending_verification'},messageId);
       }
       const urls=(await rows<any>('SELECT url FROM inventory_import_media WHERE import_item_id=? ORDER BY id',[recent.id])).map((x:any)=>String(x.url)).filter(Boolean);
@@ -279,11 +289,12 @@ export async function createGroupImport(payload:any){
         finalMatched=decision.selected_vehicle_id;
         if(linkedVehicle&&linkedVehicle!==decision.selected_vehicle_id){
           await db().execute("UPDATE vehicles SET status='hidden' WHERE id=? AND status='pending_verification'",[linkedVehicle]);
-          await db().execute("UPDATE vehicle_media SET review_status='rejected' WHERE vehicle_id=? AND source='whatsapp_group' AND review_status='pending'",[linkedVehicle]);
+          await db().execute("UPDATE vehicle_media SET review_status='rejected' WHERE vehicle_id=? AND source IN ('whatsapp_group','import') AND review_status='pending'",[linkedVehicle]);
           await db().execute('UPDATE inventory_import_items SET vehicle_id=NULL WHERE id=?',[recent.id]);
           finalVehicle=null;
         }
-        changes=await proposeVehicleChanges(Number(recent.id),decision.selected_vehicle_id,proposed);
+        changes=await proposeVehicleChanges(Number(recent.id),decision.selected_vehicle_id,
+          proposed.telegram_edited?{...proposed,description:publicDescription(proposed.description||mergedText)}:proposed);
         photosProposed=await proposeAdditionalPhotos(Number(recent.id),decision.selected_vehicle_id,urls);
         if(!changes.length&&!photosProposed){
           await db().execute(`UPDATE inventory_import_items SET review_status='approved',approved_vehicle_id=?,reviewed_at=NOW(),
@@ -295,14 +306,14 @@ export async function createGroupImport(payload:any){
       await db().execute(`INSERT INTO inventory_message_ledger(source_message_id,import_item_id,state)
         VALUES(?,?,'saved') ON DUPLICATE KEY UPDATE import_item_id=VALUES(import_item_id),state='saved',error=NULL`,
         [messageId,recent.id]);
-      await markMessages(msgIds,{is_listing:true,import_item_id:Number(recent.id)}).catch(()=>{});
+      if(!bridgeSource)await markMessages(msgIds,{is_listing:true,import_item_id:Number(recent.id)}).catch(()=>{});
       return {created:false,merged:true,listing:true,id:Number(recent.id),vehicleId:finalMatched||finalVehicle,photosAdded:added,
         additionalPhotosProposed:photosProposed,changesProposed:changes.length,
         status:changes.length||photosProposed?'pending':decision.kind==='confirmed'?'approved':'pending',matchStatus:decision.kind};
     }
   }
 
-  if(!listing){await markMessages(msgIds,{is_listing:false}).catch(()=>{});return {created:false,listing:false,logged:true};}
+  if(!listing){if(!bridgeSource)await markMessages(msgIds,{is_listing:false}).catch(()=>{});return {created:false,listing:false,logged:true};}
 
   const [ledger]:any=await db().execute(`INSERT IGNORE INTO inventory_message_ledger(source_message_id,state) VALUES(?,'processing')`,[messageId]);
   if(!Number(ledger.affectedRows)){
@@ -317,6 +328,8 @@ export async function createGroupImport(payload:any){
   try{
     const extracted:any=await extractVehicle(text,descriptions);
     const proposed=normalizeProposal(extracted,motoGroup);
+    if(payload.existingVehicleId)proposed.existing_vehicle_id=Number(payload.existingVehicleId)||null;
+    if(payload.telegram?.edited)proposed.telegram_edited=true;
     proposed.evidence={...(proposed.evidence||{}),image_sha256:fingerprints.filter(Boolean).map((fp:any)=>fp!.sha256)};
     const decision=await matchVehicle({
       category:proposed.category,brand:proposed.brand,model:proposed.model,trim_name:proposed.trim_name,
@@ -330,8 +343,8 @@ export async function createGroupImport(payload:any){
     const [r]:any=await db().execute(`INSERT INTO inventory_import_items(
       source,source_message_id,raw_payload,proposed_vehicle,review_status,group_external_id,matched_vehicle_id,match_status,match_type,
       match_confidence,extraction_confidence,evidence_json,last_observed_at
-    ) VALUES('whatsapp_group',?,?,?,'pending',?,?,?,?,?,?,?,NOW())`,
-    [messageId,JSON.stringify(rawSafe),JSON.stringify(proposed),groupId,decision.selected_vehicle_id,decision.kind,matchType,
+    ) VALUES(?,?,?,?,'pending',?,?,?,?,?,?,?,NOW())`,
+    [importSource,messageId,JSON.stringify(rawSafe),JSON.stringify(proposed),groupId,decision.selected_vehicle_id,decision.kind,matchType,
       decision.confidence,proposed.confidence??null,JSON.stringify({extraction:proposed.evidence,match:{reasons:decision.reasons,candidates:decision.candidates}})]);
     itemId=Number(r.insertId);
     await recordMatchCandidates(itemId,decision);
@@ -339,9 +352,9 @@ export async function createGroupImport(payload:any){
     let vehicleId:number|null=null;
     if(decision.kind!=='confirmed'){
       const f=pendingVehicleFields(proposed);
-      const [vr]:any=await db().execute(`INSERT INTO vehicles(stock_no,category,brand,model,trim_name,model_year,mileage_km,engine,transmission,fuel_type,steering,color,vehicle_condition,vin,supplier_reference,location,status,source)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'China','pending_verification','whatsapp_group')`,
-        [stockNo(),f.category,f.brand,f.model,f.trim_name,f.model_year,f.mileage_km,f.engine,f.transmission,f.fuel_type,f.steering,f.color,f.vehicle_condition,f.vin,f.supplier_reference]);
+      const [vr]:any=await db().execute(`INSERT INTO vehicles(stock_no,category,brand,model,trim_name,model_year,mileage_km,engine,transmission,fuel_type,steering,color,vehicle_condition,vin,supplier_reference,specs,location,status,source)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'China','pending_verification',?)`,
+        [stockNo(),f.category,f.brand,f.model,f.trim_name,f.model_year,f.mileage_km,f.engine,f.transmission,f.fuel_type,f.steering,f.color,f.vehicle_condition,f.vin,f.supplier_reference,f.specs,importSource]);
       vehicleId=Number(vr.insertId);
       await db().execute('UPDATE inventory_import_items SET vehicle_id=? WHERE id=?',[vehicleId,itemId]);
       await upsertIdentityMemory(vehicleId,groupId,{...proposed,status:'pending_verification'},messageId);
@@ -349,10 +362,11 @@ export async function createGroupImport(payload:any){
       await upsertIdentityMemory(decision.selected_vehicle_id,groupId,proposed,messageId);
     }
 
-    const photos=await saveMedia(itemId,vehicleId,media,0,fingerprints);
+    const photos=await saveMedia(itemId,vehicleId,media,0,fingerprints,bridgeSource?'import':'whatsapp_group');
     let changes:any[]=[],photosProposed=0;
     if(decision.kind==='confirmed'&&decision.selected_vehicle_id){
-      changes=await proposeVehicleChanges(itemId,decision.selected_vehicle_id,proposed);
+      changes=await proposeVehicleChanges(itemId,decision.selected_vehicle_id,
+        proposed.telegram_edited?{...proposed,description:publicDescription(proposed.description||text)}:proposed);
       const urls=(await rows<any>('SELECT url FROM inventory_import_media WHERE import_item_id=? ORDER BY id',[itemId])).map((x:any)=>String(x.url)).filter(Boolean);
       photosProposed=await proposeAdditionalPhotos(itemId,decision.selected_vehicle_id,urls);
       if(!changes.length&&!photosProposed){
@@ -361,11 +375,11 @@ export async function createGroupImport(payload:any){
       }
     }
     await db().execute("UPDATE inventory_message_ledger SET import_item_id=?,state='saved',error=NULL WHERE source_message_id=?",[itemId,messageId]);
-    await markMessages(msgIds,{is_listing:true,import_item_id:itemId}).catch(()=>{});
+    if(!bridgeSource)await markMessages(msgIds,{is_listing:true,import_item_id:itemId}).catch(()=>{});
     return {created:true,listing:true,id:itemId,vehicleId:vehicleId||decision.selected_vehicle_id,photos,
       status:changes.length||photosProposed?'pending':decision.kind==='confirmed'?'approved':'pending',
       matchStatus:decision.kind,matchConfidence:decision.confidence,matchReasons:decision.reasons,
-      changesProposed:changes.length,additionalPhotosProposed:photosProposed};
+      changesProposed:changes.length,additionalPhotosProposed:photosProposed,source:importSource};
   }catch(e){
     await db().execute("UPDATE inventory_message_ledger SET state='failed',error=? WHERE source_message_id=?",[String((e as any)?.message||e).slice(0,500),messageId]).catch(()=>{});
     throw e;
@@ -376,7 +390,7 @@ export async function listGroupImports(){
   await ensureGroupImportSchema();
   return rows<any>(`SELECT i.id,i.source_message_id,i.raw_payload,i.proposed_vehicle,i.review_status,i.approved_vehicle_id,i.vehicle_id,
     i.matched_vehicle_id,i.match_status,i.match_type,i.match_confidence,i.extraction_confidence,i.evidence_json,i.group_external_id,
-    i.last_observed_at,i.created_at,i.reviewed_at,v.stock_no,v.brand,v.model,v.model_year,v.status vehicle_status,
+    i.last_observed_at,i.created_at,i.reviewed_at,i.source,v.stock_no,v.brand,v.model,v.model_year,v.status vehicle_status,
     mv.stock_no matched_stock_no,mv.brand matched_brand,mv.model matched_model,mv.model_year matched_model_year,mv.status matched_vehicle_status,
     (SELECT COUNT(*) FROM inventory_import_media m WHERE m.import_item_id=i.id) media_count,
     (SELECT GROUP_CONCAT(m.url ORDER BY m.id SEPARATOR '\n') FROM inventory_import_media m WHERE m.import_item_id=i.id) media_urls,
@@ -387,14 +401,14 @@ export async function listGroupImports(){
       'new_value',cp.new_value,'status',cp.status)) FROM inventory_change_proposals cp WHERE cp.import_item_id=i.id) change_proposals
     FROM inventory_import_items i LEFT JOIN vehicles v ON v.id=i.vehicle_id
     LEFT JOIN vehicles mv ON mv.id=i.matched_vehicle_id
-    WHERE i.source='whatsapp_group' ORDER BY i.id DESC LIMIT 200`);
+    WHERE i.source IN ('whatsapp_group','telegram') ORDER BY i.id DESC LIMIT 200`);
 }
 
 export type ReviewEdits={ai_enabled?:boolean;category?:string;brand?:string;model?:string;trim_name?:string;model_year?:any;price_usd?:any;mileage_km?:any;mileage_unit?:string;engine?:string;fuel_type?:string;transmission?:string;steering?:string;color?:string;condition?:string;description?:string;existing_vehicle_id?:any;apply_changes?:boolean;reviewer?:string};
 
-export async function reviewGroupImport(id:number,action:'approve'|'reject'|'merge'|'apply_changes',edits:ReviewEdits={}){
+export async function reviewGroupImport(id:number,action:'approve'|'reject'|'merge'|'apply_changes',edits:ReviewEdits={},options:{publishFacebook?:boolean}={}){
   await ensureGroupImportSchema();
-  const item:any=await one(`SELECT * FROM inventory_import_items WHERE id=? AND source='whatsapp_group' LIMIT 1`,[id]);
+  const item:any=await one(`SELECT * FROM inventory_import_items WHERE id=? AND source IN ('whatsapp_group','telegram') LIMIT 1`,[id]);
   if(!item) throw new Error('Import item not found');
   if(item.review_status==='approved') return {ok:true,status:'approved',vehicleId:item.approved_vehicle_id||item.vehicle_id,alreadyReviewed:true};
 
@@ -403,7 +417,7 @@ export async function reviewGroupImport(id:number,action:'approve'|'reject'|'mer
     await rejectGroupImportChanges(id,String(edits.reviewer||'admin'));
     if(Number(u.affectedRows)&&item.vehicle_id){
       await db().execute(`UPDATE vehicles SET status='hidden' WHERE id=? AND status='pending_verification'`,[item.vehicle_id]);
-      await db().execute(`UPDATE vehicle_media SET review_status='rejected' WHERE vehicle_id=? AND source='whatsapp_group' AND review_status='pending'`,[item.vehicle_id]);
+      await db().execute(`UPDATE vehicle_media SET review_status='rejected' WHERE vehicle_id=? AND source IN ('whatsapp_group','import') AND review_status='pending'`,[item.vehicle_id]);
     }
     return {ok:true,status:'rejected'};
   }
@@ -421,7 +435,7 @@ export async function reviewGroupImport(id:number,action:'approve'|'reject'|'mer
       [target,target,id]);
     if(item.vehicle_id&&Number(item.vehicle_id)!==target){
       await db().execute(`UPDATE vehicles SET status='hidden' WHERE id=? AND status='pending_verification'`,[item.vehicle_id]);
-      await db().execute(`UPDATE vehicle_media SET review_status='rejected' WHERE vehicle_id=? AND source='whatsapp_group' AND review_status='pending'`,[item.vehicle_id]);
+      await db().execute(`UPDATE vehicle_media SET review_status='rejected' WHERE vehicle_id=? AND source IN ('whatsapp_group','import') AND review_status='pending'`,[item.vehicle_id]);
     }
     const proposed=parse(item.proposed_vehicle);
     await upsertIdentityMemory(target,String(item.group_external_id||''),proposed,String(item.source_message_id||''));
@@ -441,18 +455,19 @@ export async function reviewGroupImport(id:number,action:'approve'|'reject'|'mer
   let vehicleId=item.vehicle_id?Number(item.vehicle_id):0;
   try{
     if(vehicleId){
-      const [u]:any=await db().execute(`UPDATE vehicles SET category=?,brand=?,model=?,trim_name=?,model_year=?,mileage_km=?,engine=?,transmission=?,fuel_type=?,steering=?,color=?,vehicle_condition=?,vin=?,supplier_reference=?,price_usd=?,description=?,status='available',published_at=NOW() WHERE id=?`,
-        [merged.category,merged.brand,merged.model,merged.trim_name,merged.model_year,merged.mileage_km,merged.engine,merged.transmission,merged.fuel_type,merged.steering,merged.color,merged.vehicle_condition,merged.vin,merged.supplier_reference,price,description,vehicleId]);
-      if(Number(u.affectedRows))await db().execute(`UPDATE vehicle_media SET review_status='approved' WHERE vehicle_id=? AND source='whatsapp_group' AND review_status='pending'`,[vehicleId]);
+      const [u]:any=await db().execute(`UPDATE vehicles SET category=?,brand=?,model=?,trim_name=?,model_year=?,mileage_km=?,engine=?,transmission=?,fuel_type=?,steering=?,color=?,vehicle_condition=?,vin=?,supplier_reference=?,specs=?,price_usd=?,description=?,status='available',published_at=NOW() WHERE id=?`,
+        [merged.category,merged.brand,merged.model,merged.trim_name,merged.model_year,merged.mileage_km,merged.engine,merged.transmission,merged.fuel_type,merged.steering,merged.color,merged.vehicle_condition,merged.vin,merged.supplier_reference,merged.specs,price,description,vehicleId]);
+      if(Number(u.affectedRows))await db().execute(`UPDATE vehicle_media SET review_status='approved' WHERE vehicle_id=? AND source IN ('whatsapp_group','import') AND review_status='pending'`,[vehicleId]);
       else vehicleId=0; // pending vehicle was deleted by an admin; recreate it below
     }
     if(!vehicleId){
       // Items imported before pending vehicles existed: create the vehicle once, under the claim above.
-      const [r]:any=await db().execute(`INSERT INTO vehicles(stock_no,category,brand,model,trim_name,model_year,mileage_km,engine,transmission,fuel_type,steering,color,vehicle_condition,vin,supplier_reference,price_usd,location,status,description,source,published_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'China','available',?,'whatsapp_group',NOW())`,[stockNo(),merged.category,merged.brand,merged.model,merged.trim_name,merged.model_year,merged.mileage_km,merged.engine,merged.transmission,merged.fuel_type,merged.steering,merged.color,merged.vehicle_condition,merged.vin,merged.supplier_reference,price,description]);
+      const [r]:any=await db().execute(`INSERT INTO vehicles(stock_no,category,brand,model,trim_name,model_year,mileage_km,engine,transmission,fuel_type,steering,color,vehicle_condition,vin,supplier_reference,specs,price_usd,location,status,description,source,published_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'China','available',?,?,NOW())`,[stockNo(),merged.category,merged.brand,merged.model,merged.trim_name,merged.model_year,merged.mileage_km,merged.engine,merged.transmission,merged.fuel_type,merged.steering,merged.color,merged.vehicle_condition,merged.vin,merged.supplier_reference,merged.specs,price,description,item.source]);
       vehicleId=Number(r.insertId);
       const media=await rows<any>('SELECT url FROM inventory_import_media WHERE import_item_id=? ORDER BY id',[id]);
-      for(let i=0;i<media.length;i++) await db().execute(`INSERT INTO vehicle_media(vehicle_id,media_type,url,source,is_cover,sort_order,review_status) VALUES(?,'image',?,'whatsapp_group',?,?,'approved')`,[vehicleId,media[i].url,i===0?1:0,i]);
+      const mediaSource=item.source==='telegram'?'import':'whatsapp_group';
+      for(let i=0;i<media.length;i++) await db().execute(`INSERT INTO vehicle_media(vehicle_id,media_type,url,source,is_cover,sort_order,review_status) VALUES(?,'image',?,?,?,?,'approved')`,[vehicleId,media[i].url,mediaSource,i===0?1:0,i]);
       await db().execute('UPDATE inventory_import_items SET vehicle_id=? WHERE id=?',[vehicleId,id]);
     }
     await db().execute(`UPDATE inventory_import_items SET approved_vehicle_id=? WHERE id=?`,[vehicleId,id]);
@@ -468,7 +483,9 @@ export async function reviewGroupImport(id:number,action:'approve'|'reject'|'mer
   try{
     // Approval is the publication gate. Approved group vehicles are posted once to the configured
     // Facebook Page (the social publish lock prevents duplicates), while campaign automation remains separate.
-    const facebook=facebookConfigured()
+    const facebook=options.publishFacebook===false
+      ? {ok:false,skipped:'Facebook publication disabled for this Telegram automation'}
+      : facebookConfigured()
       ? await publishVehicleToFacebook(vehicleId,{manual:false})
       : {ok:false,skipped:'Facebook Page is not configured'};
     automation={facebook};

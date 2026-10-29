@@ -82,7 +82,7 @@ test('exact source message dedup and update approval are implemented durably', (
   const source = read('src/lib/group-import.ts');
   const memory = read('src/lib/inventory-memory.ts');
   assert.match(source, /inventory_message_ledger/);
-  assert.match(source, /source='whatsapp_group' AND i\.source_message_id=\?/);
+  assert.match(source, /WHERE i\.source=\? AND i\.source_message_id=\?/);
   assert.match(memory, /inventory_change_proposals/);
   assert.match(source, /action==='apply_changes'/);
   assert.match(source, /proposeVehicleChanges/);

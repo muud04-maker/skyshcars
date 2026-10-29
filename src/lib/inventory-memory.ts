@@ -320,7 +320,7 @@ export async function proposeVehicleChanges(importItemId: number, vehicleId: num
   await ensureInventoryMemorySchema();
   const vehicle: any = await one<any>('SELECT * FROM vehicles WHERE id=? LIMIT 1', [vehicleId]);
   if (!vehicle) return [];
-  const fields = ['price_usd', 'mileage_km', 'engine', 'transmission', 'fuel_type', 'color', 'vehicle_condition', 'model_year'];
+  const fields = ['price_usd', 'mileage_km', 'brand', 'model', 'trim_name', 'model_year', 'engine', 'transmission', 'fuel_type', 'color', 'vehicle_condition', 'description'];
   const changes: any[] = [];
   for (const field of fields) {
     const incoming = field === 'price_usd' ? normalizePrice(proposed.price_usd, proposed.price_currency).value
@@ -354,6 +354,11 @@ export async function proposeAdditionalPhotos(importItemId: number, vehicleId: n
   for (const url of [...new Set(mediaUrls.filter(Boolean))]) {
     const existing: any = await one<any>('SELECT id FROM vehicle_media WHERE vehicle_id=? AND url=? LIMIT 1', [vehicleId, url]);
     if (existing) continue;
+    const fingerprint = await fingerprintStoredMedia(url).catch(() => null);
+    if (fingerprint) {
+      const sameImage: any = await one<any>('SELECT id FROM vehicle_image_fingerprints WHERE vehicle_id=? AND sha256=? LIMIT 1', [vehicleId, fingerprint.sha256]);
+      if (sameImage) continue;
+    }
     const dupe: any = await one<any>("SELECT id FROM inventory_change_proposals WHERE import_item_id=? AND vehicle_id=? AND change_type='additional_photo' AND new_value=? AND status='pending' LIMIT 1", [importItemId, vehicleId, url]);
     if (dupe) continue;
     await db().execute(`INSERT INTO inventory_change_proposals(import_item_id,vehicle_id,change_type,field_name,new_value,evidence)
@@ -374,9 +379,12 @@ export async function applyGroupImportChanges(importItemId: number, reviewer = '
   for (const proposal of proposals) {
     if (proposal.change_type === 'additional_photo') {
       const max: any = await one<any>('SELECT COALESCE(MAX(sort_order),-1)+1 n FROM vehicle_media WHERE vehicle_id=?', [vehicleId]);
+      const mediaSource = item.source === 'telegram' ? 'import' : 'whatsapp_group';
       await db().execute(`INSERT IGNORE INTO vehicle_media(vehicle_id,media_type,url,source,is_cover,sort_order,review_status)
-        VALUES(?,'image',?,'whatsapp_group',0,?,'approved')`,
-        [vehicleId, proposal.new_value, Number(max?.n || 0)]);
+        VALUES(?,'image',?,?,0,?,'approved')`,
+        [vehicleId, proposal.new_value, mediaSource, Number(max?.n || 0)]);
+      const fingerprint = await fingerprintStoredMedia(String(proposal.new_value)).catch(() => null);
+      if (fingerprint) await addImageFingerprint(vehicleId, importItemId, String(proposal.new_value), fingerprint, true);
       applied.push('additional_photo');
     } else {
       const field = CHANGE_FIELDS[proposal.field_name] || CHANGE_FIELDS[proposal.change_type];
