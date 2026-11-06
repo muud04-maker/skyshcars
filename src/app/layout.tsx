@@ -29,13 +29,13 @@ export const metadata:Metadata={
 */
 export default function RootLayout({children}:{children:React.ReactNode}){
   const before=<>
-    <div className="siteTopbar"><div><span>Vehicle marketplace and export support from China</span><div><a href="/shipping">Shipping estimates</a><a href="/tracking">Track shipment</a><a href="/faq">Help</a></div></div></div>
+    <div className="siteTopbar"><div><span>Vehicle Marketplace &amp; Export from China to Africa and Worldwide</span><div><a href="/tracking">Track shipment</a><a href="/shipping">Shipping estimates</a><a href="/faq">Help &amp; FAQ</a></div></div></div>
     <header className="siteHeader">
       <div className="siteHeaderInner">
         <a className="siteLogo" href="/" aria-label="Sky Cars and Motorcycles home"><span className="siteLogoMark" aria-hidden="true">SC</span><span>SKY CARS<em>MOTORCYCLES</em></span></a>
         <form className="siteSearch" action="/vehicles" role="search">
-          <input name="q" placeholder="Search brand, model or stock" aria-label="Search vehicles"/>
-          <button type="submit" aria-label="Search vehicles">Search</button>
+          <input name="q" placeholder="Search by brand, model, year or stock number..." aria-label="Search vehicles"/>
+          <button type="submit" aria-label="Search vehicles">Find a vehicle</button>
         </form>
         <div className="siteTools"><MiniMarketBar/><AuthStatus/><a href={waLink()} target="_blank" rel="noreferrer" className="siteWa">WhatsApp</a></div>
         <details className="mobileMenu">
@@ -64,6 +64,7 @@ export default function RootLayout({children}:{children:React.ReactNode}){
       </div>
       <div className="siteFooterBottom"><span>&copy; {new Date().getFullYear()} Sky Cars &amp; Motorcycles. Vehicle availability and shipping must be confirmed before payment; ranges are estimates, not guaranteed quotations.</span><span><a href={waLink()} target="_blank" rel="noreferrer">WhatsApp sales</a></span></div>
     </footer>
+    <a className="floatingWa" href={waLink('Hello Sky Cars, I would like help choosing a vehicle.')} target="_blank" rel="noreferrer" aria-label="Chat with Sky Cars on WhatsApp">WhatsApp</a>
   </>;
   return <html lang="en" className={`${display.variable} ${body.variable}`}><body><SiteChrome before={before} after={after} banner={<WhatsAppGroupBanner/>}>{children}</SiteChrome></body></html>;
 }

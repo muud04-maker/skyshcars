@@ -6,7 +6,7 @@
    ========================================================================== */
 :root{
   --sc-navy:#091827; --sc-blue:#132d46; --sc-blue-deep:#0d2135; --sc-charcoal:#101820;
-  --sc-gold:#f9bc25; --sc-gold-deep:#e0a600; --sc-silver:#e9eef4; --sc-offwhite:#f8fafc;
+  --sc-gold:#f97316; --sc-gold-deep:#ea580c; --sc-silver:#e9eef4; --sc-offwhite:#f8fafc;
   --sc-green:#16a085; --sc-green-deep:#0f7f6a; --sc-red:#b3261e;
   --sc-ink:#0d1b2a; --sc-ink-soft:#33475b; --sc-muted:#5b6b7c; --sc-line:#dbe4ee;
   --sc-radius:18px; --sc-radius-sm:12px; --sc-radius-lg:26px;
@@ -1078,3 +1078,54 @@ a:hover{text-decoration:none}
   .accountActions .card:hover{transform:none}
   .vehicleCard .vehicleImageWrap{animation:none;background:#e8eef4}
 }
+
+/* Marketplace shell aligned to the November 2026 reference. */
+.siteTopbar{background:#071b2e;color:#dce7f0}
+.siteHeader{background:#fff;color:#0b2135;border-bottom:1px solid #dce4ec;box-shadow:0 5px 20px -16px #0b2135}
+.siteLogo{color:#0b2135}
+.siteLogo em{color:#6b7b8b}
+.siteSearch{background:#f3f6f9;border:1px solid #cfdae4;border-radius:8px;padding:3px}
+.siteSearch input{color:#132d46;padding-left:13px}
+.siteSearch input::placeholder{color:#738291}
+.siteSearch button{border-radius:5px;background:#f97316;color:#fff;padding:10px 18px}
+.siteTools{color:#243b50}
+.siteTools a{color:#243b50}
+.siteTools a:hover{color:#ea580c}
+.siteNav{background:#f97316;border-top:2px solid #ea580c;border-bottom:1px solid #ea580c}
+.siteNav a{color:#fff;font-weight:750;border-bottom-color:transparent}
+.siteNav a:hover,.siteNav a.isActive{color:#071b2e;border-bottom-color:#071b2e}
+.heroSection{background:linear-gradient(105deg,#071b2e 0%,#0b2b46 46%,#123b59 100%)}
+.heroMarketplaceGrid{max-width:1440px;margin:0 auto;padding:22px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}
+.homeCategoryRail{align-self:stretch;background:#fff;color:#132d46;border-radius:10px;padding:10px;display:grid;align-content:start;gap:2px;box-shadow:0 16px 40px -26px #000}
+.homeCategoryRail>b{padding:10px;background:#f97316;color:#fff;border-radius:6px;margin-bottom:5px}
+.homeCategoryRail a{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid #e7edf2;font-size:13px;font-weight:650;color:#31475b}
+.homeCategoryRail a:hover{color:#ea580c;background:#fff7ed}
+.homeCategoryRail a:last-child{border-bottom:0}
+.homeMarketplaceGrid .heroGrid{max-width:none;width:100%;padding:16px 0 16px 8px}
+.heroGrid{grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);padding-top:clamp(38px,5vw,68px);padding-bottom:clamp(38px,5vw,68px)}
+.heroTitle{font-size:clamp(2.35rem,4vw,3.75rem)}
+.heroTitle span{color:#ff9a4d}
+.heroLead{color:#d3dfeb}
+.heroTrust b{color:#fff}
+.heroMedia{min-height:350px;border-radius:16px}
+.heroMedia img{min-height:350px}
+.section--categories{background:#f5f7f9;color:#132d46;border-color:#dce4ec}
+.section--categories .sectionHead h2{color:#132d46}
+.section--categories .sectionHead p{color:#617487}
+.section--categories .sectionHead>a{color:#ea580c}
+.categoryGrid{grid-template-columns:repeat(8,minmax(0,1fr))}
+.categoryTile{min-height:142px;background:#fff;border-color:#dce4ec;color:#132d46}
+.categoryTile b{color:#132d46;margin-top:12px}
+.categoryTile small{color:#66788a}
+.categoryTile:hover{border-color:#f97316;background:#fff}
+.categoryMark{background:#fff1e7;border-color:#ffc69f;color:#ea580c}
+.categoryArrow{color:#91a0ae}
+.brandRowDark a{background:#fff;border-color:#dce4ec;color:#40566b}
+.section--collection{background:#fff;border-color:#e5ebf0}
+.footerBadges span{border-color:rgba(255,255,255,.2)}
+.floatingWa{position:fixed;right:22px;bottom:22px;z-index:80;background:#16a34a;color:#fff;border-radius:999px;padding:12px 17px;font-weight:800;box-shadow:0 12px 30px -10px #0b2135aa}
+.floatingWa:hover{background:#0f7f3b;color:#fff}
+@media (max-width:1200px){.categoryGrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:980px){.heroMarketplaceGrid{grid-template-columns:1fr;padding:14px}.homeCategoryRail{display:none}.homeMarketplaceGrid .heroGrid{padding:0}}
+@media (max-width:820px){.siteHeader{background:#fff}.mobileMenu summary{color:#132d46;border-color:#cbd7e1}.siteTools{color:#132d46}.siteTools a{color:#132d46}.floatingWa{right:14px;bottom:78px}}
+@media (max-width:560px){.categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.heroTitle{font-size:2.2rem}}

@@ -297,12 +297,10 @@ export default function VehicleForm({ mode, initial, onSaved, onCancel }: { mode
 
     <h2>Pricing &amp; location</h2>
     <div className="formGrid">
-      <label>Supplier source price<input type="number" value={f.supplier_price_usd ?? ''} onChange={(e) => set('supplier_price_usd', e.target.value)} /></label>
-      <label>Source currency<input maxLength={3} value={f.supplier_currency || ''} onChange={(e) => set('supplier_currency', e.target.value.toUpperCase())} placeholder="USD" /></label>
-      <label>Selling price USD<input type="number" value={f.price_usd} onChange={(e) => set('price_usd', e.target.value)} />{errors.price_usd ? <small className="error">{errors.price_usd}</small> : null}</label>
+      <label>Final Vehicle Price (USD)<input type="number" min="0" value={f.price_usd} onChange={(e) => set('price_usd', e.target.value)} />{errors.price_usd ? <small className="error">{errors.price_usd}</small> : null}</label>
       <label>Location<input value={f.location} onChange={(e) => set('location', e.target.value)} /></label>
     </div>
-    <p className="muted">Supplier cost and selling price are stored separately. Supplier cost is private and never exposed by the public API. Set the final selling price only under the configured Sky Cars pricing policy.</p>
+    <p className="muted">This is the one customer-facing vehicle price. Any supplier source value filled by AI extraction stays private. Shipping is separate.</p>
 
     <h2>Exact vehicle photos</h2>
     <p className="muted">These photos are what customers and the AI will receive for this stock unit. Only exact stock photos of this vehicle belong here.</p>

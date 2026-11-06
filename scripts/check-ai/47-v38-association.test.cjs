@@ -181,12 +181,12 @@ test('V38 sanitized production diagnostic extracts source metadata without retur
   assert.match(source, /private_content_included: false/);
 });
 
-test('Add Vehicle exposes AI Autofill, source price, drafts and publish validation', () => {
+test('Add Vehicle exposes AI Autofill, one final price, drafts and publish validation', () => {
   const ui = read('src/app/admin/vehicles/_components/VehicleForm.tsx');
   const route = read('src/app/api/admin/vehicles/extract/route.ts');
   assert.match(ui, /Paste supplier vehicle description/);
   assert.match(ui, /AI Extract \/ Autofill/);
-  assert.match(ui, /Supplier source price/);
+  assert.match(ui, /Final Vehicle Price \(USD\)/);
   assert.match(ui, /Save Draft/);
   assert.match(ui, /Publish Now/);
   assert.match(ui, /missing_fields/);

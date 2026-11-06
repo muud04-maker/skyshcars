@@ -9,7 +9,7 @@
     payment     an independent third party agreed by both sides, never a direct payment to Sky Cars.
   Every save is versioned and written to audit_logs (who, when, what changed).
 */
-import { db, one } from './db';
+import { db, dbConfigured, one } from './db';
 
 export type BusinessPolicy = {
   version: number;
@@ -121,6 +121,7 @@ export function policyNote(policy: BusinessPolicy) {
 
 /** Read the current policy (falls back to the defaults if never saved). */
 export async function getBusinessPolicy(): Promise<BusinessPolicy> {
+  if (!dbConfigured()) return { ...DEFAULT_POLICY };
   try {
     const r = await one<any>(`SELECT setting_value FROM business_settings WHERE setting_key='business_policy' LIMIT 1`);
     if (!r?.setting_value) return { ...DEFAULT_POLICY };

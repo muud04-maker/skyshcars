@@ -26,8 +26,8 @@ test('1. the phone layout starts on the conversation list (Screen A)', () => {
 });
 
 test('2/4. tapping a conversation opens that chat (A, then B)', () => {
-  assert.ok(/onClick=\{\(\) => \{ setActiveId\(c\.id\); setMobileChat\(true\); \}\}/.test(desk), 'row tap opens the chat on the phone');
-  assert.ok(desk.includes('setActiveId(c.id)'), 'A then B simply re-select the conversation');
+  assert.ok(desk.includes('onClick={() => selectConversation(c.id)}'), 'row tap opens the chat on the phone');
+  assert.ok(desk.includes('setActiveId(id); setMobileChat(true)'), 'A then B simply re-select the conversation');
 });
 
 test('3. Back returns to the conversation list', () => {
@@ -37,7 +37,8 @@ test('3. Back returns to the conversation list', () => {
 });
 
 test('5. opening B loads ONLY B messages (no stale messages from A)', () => {
-  assert.ok(desk.includes('if (activeId) void loadDetail(activeId); else { setMsgs([]);'), 'changing conversation reloads the thread');
+  assert.ok(desk.includes('if (activeId) void loadDetail(activeId);'), 'changing conversation reloads the thread');
+  assert.ok(desk.includes('if (request !== detailRequest.current || activeRef.current !== id) return;'), 'stale detail responses are discarded');
   assert.ok(desk.includes('if (cr?.messages) {') && desk.includes('setMsgs(cr.messages)'), 'the thread is replaced, never appended across chats');
   // The delta merge itself can never invent a message from another conversation.
   const a = [{ id: 1, sender: 'customer', body: 'A1' }];
@@ -95,7 +96,7 @@ test('11. live polling still runs on the phone', () => {
 });
 
 test('12. polling never touches a draft', () => {
-  const pollBody = desk.slice(desk.indexOf('async function poll()'), desk.indexOf('useEffect(() => { if (activeId) void loadDetail'));
+  const pollBody = desk.slice(desk.indexOf('async function poll()'), desk.indexOf('activeRef.current = activeId'));
   assert.ok(pollBody.length > 100, 'poll() found');
   assert.ok(!pollBody.includes('setText') && !pollBody.includes('setDrafts'), 'the poll cannot erase what staff are typing');
   assert.ok(desk.includes('draftFor(drafts, activeId)'), 'the composer reads the current chat draft');
@@ -127,7 +128,7 @@ test('15. desktop keeps the three-pane inbox', () => {
   assert.ok(css.includes('grid-template-columns: 320px minmax(0, 1fr) 320px'), 'list | chat | drawer');
   assert.ok(css.includes('.inbox.noDrawer { grid-template-columns: 320px minmax(0, 1fr); }'), 'drawer can be hidden');
   assert.ok(globals.includes('.chatList{border-right:1px solid #dce8f2;overflow-y:auto'), 'desktop list scrolls in its pane');
-  assert.ok(desk.includes("className={'inbox' + (showDrawer ? '' : ' noDrawer')"), 'the desktop classes are unchanged');
+  assert.ok(desk.includes("className={'inbox inbox--' + viewMode"), 'the desktop layout classes remain present');
 });
 
 // ---------------------------------------------------------------- the Facebook reply bug

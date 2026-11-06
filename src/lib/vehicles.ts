@@ -119,7 +119,11 @@ function buildWhere(opts: VehicleQuery) {
   const args: any[] = []; let where = `${publicStatusCondition(opts.stockStatus, 'v')} AND ${NOT_PENDING_GROUP}`;
   where += ` AND NOT (v.category='motorcycle' AND (TRIM(COALESCE(v.brand,''))='' OR TRIM(COALESCE(v.model,''))=''))`;
   if (opts.category) { where += ' AND v.category=?'; args.push(opts.category); }
-  if (opts.brand) { where += ' AND LOWER(v.brand)=?'; args.push(String(opts.brand).toLowerCase()); }
+  if (opts.brand) {
+    where += ' AND (LOWER(TRIM(v.brand))=? OR LOWER(TRIM(v.brand)) LIKE ?)';
+    const brand = String(opts.brand).trim().toLowerCase();
+    args.push(brand, `${brand} %`);
+  }
   if (opts.search) {
     where += ` AND (LOWER(v.brand) LIKE ? OR LOWER(v.model) LIKE ? OR LOWER(COALESCE(v.trim_name,'')) LIKE ? OR LOWER(v.stock_no) LIKE ?)`;
     const s = '%' + String(opts.search).toLowerCase() + '%'; args.push(s, s, s, s);

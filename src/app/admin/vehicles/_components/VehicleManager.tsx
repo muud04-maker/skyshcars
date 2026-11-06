@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import VehicleForm from './VehicleForm';
 
 /*
@@ -22,7 +22,13 @@ export default function VehicleManager({ initial }: { initial: any[] }) {
   const [tone, setTone] = useState<'ok' | 'bad' | ''>('');
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState('all');
-  const shown = filter === 'all' ? list : list.filter((v: any) => v.status === filter);
+  const [query, setQuery] = useState('');
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return list.filter((v: any) => (filter === 'all' || v.status === filter) &&
+      (!needle || [v.stock_no, v.brand, v.manufacturer, v.model, v.trim_name, v.model_year, v.category, v.price_usd]
+        .some((part) => String(part || '').toLowerCase().includes(needle))));
+  }, [list, filter, query]);
   const set = (k: string, v: any) => setForm((x: any) => ({ ...x, [k]: v }));
   // Bulk availability (brief section 5): ticks survive filtering, and "all matching" means the
   // currently filtered set. The API re-reads the ids inside a transaction, so the server decides.
@@ -123,6 +129,7 @@ export default function VehicleManager({ initial }: { initial: any[] }) {
       <a className="btn-primary" href="/admin/vehicles/new">+ Add Vehicle</a>
       <a className="btn-info" href="/admin/media">Vehicle Photos</a>
       <a className="btn-neutral" href="/admin/ai-catalog">AI Catalog</a>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search stock, make, model, year or price" aria-label="Search inventory" style={{ minWidth: 260, margin: 0 }} />
       <select value={filter} onChange={(e) => setFilter(e.target.value)} className="statusSelect" style={{ width: 'auto', margin: 0 }}>
         <option value="all">All ({list.length})</option>
         {['available', 'reserved', 'sold', 'pending_verification', 'hidden'].map((k) => <option key={k} value={k}>{k.replace('_', ' ')} ({list.filter((v: any) => v.status === k).length})</option>)}

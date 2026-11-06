@@ -6,6 +6,7 @@
 import { rows, one } from './db';
 import { ensureConversationState } from './conversation-state';
 import type { InboxRow } from './ai-rules/inbox';
+import { redactSensitiveText } from './conversations';
 
 export const INBOX_LIMIT = 300;
 
@@ -41,19 +42,26 @@ const LIST_SELECT = `
   EXISTS(SELECT 1 FROM staff_tasks t WHERE t.conversation_id=co.id AND t.status IN ('pending','in_progress') AND t.request_type='sourcing') task_sourcing,
   EXISTS(SELECT 1 FROM staff_tasks t WHERE t.conversation_id=co.id AND t.status IN ('pending','in_progress') AND t.request_type='follow_up') task_followup`;
 
-export async function listConversations(limit = INBOX_LIMIT, opts: { archived?: boolean } = {}): Promise<InboxRow[]> {
+export async function listConversations(limit = INBOX_LIMIT, opts: { archived?: boolean; query?: string } = {}): Promise<InboxRow[]> {
   await ensureConversationState().catch(() => {});
   // The task flags below need the table; create it on demand (idempotent).
   try { const t = await import('./staff-tasks'); await t.ensureStaffTasksSchema(); } catch { /* filters just won't match */ }
   const cap = Math.max(1, Math.min(1000, Number(limit) || INBOX_LIMIT));
   const arch = opts.archived ? 'co.archived_at IS NOT NULL' : 'co.archived_at IS NULL';
+  const query = String(opts.query || '').trim().toLowerCase();
+  const search = query ? ` AND (
+    LOWER(COALESCE(c.full_name,'')) LIKE ? OR LOWER(COALESCE(c.phone,'')) LIKE ? OR
+    LOWER(COALESCE(co.external_user_id,'')) LIKE ? OR
+    EXISTS(SELECT 1 FROM messages sm WHERE sm.conversation_id=co.id AND LOWER(COALESCE(sm.body,'')) LIKE ?)
+  )` : '';
+  const args = query ? Array(4).fill(`%${query}%`) : [];
   try {
     const list = await rows<any>(`SELECT ${LIST_SELECT}
       FROM conversations co
       LEFT JOIN customers c ON c.id=co.customer_id
       LEFT JOIN conversation_state s ON s.conversation_id=co.id
-      WHERE ${arch}
-      ORDER BY co.last_message_at DESC, co.id DESC LIMIT ${cap}`);
+      WHERE ${arch}${search}
+      ORDER BY co.last_message_at DESC, co.id DESC LIMIT ${cap}`, args);
     return list.map(normRow);
   } catch {
     const list = await rows<any>(`SELECT co.id, co.channel, co.external_user_id, co.mode, co.last_message_at, c.full_name, c.phone,
@@ -64,8 +72,8 @@ export async function listConversations(limit = INBOX_LIMIT, opts: { archived?: 
       (SELECT COALESCE(MAX(m3.id),0) FROM messages m3 WHERE m3.conversation_id=co.id AND m3.sender='customer' AND m3.direction='inbound' AND ${actionableInbound('m3')}) last_inbound_id,
       (SELECT TIMESTAMPDIFF(MINUTE,(SELECT MAX(m4.created_at) FROM messages m4 WHERE m4.conversation_id=co.id AND m4.sender='customer' AND m4.direction='inbound' AND ${actionableInbound('m4')}),NOW())) waiting_minutes
       FROM conversations co LEFT JOIN customers c ON c.id=co.customer_id
-      WHERE ${arch}
-      ORDER BY co.last_message_at DESC, co.id DESC LIMIT ${cap}`);
+      WHERE ${arch}${search}
+      ORDER BY co.last_message_at DESC, co.id DESC LIMIT ${cap}`, args);
     return list.map(normRow);
   }
 }
@@ -73,6 +81,7 @@ export async function listConversations(limit = INBOX_LIMIT, opts: { archived?: 
 function normRow(r: any): InboxRow {
   return {
     ...r,
+    preview: redactSensitiveText(r.preview),
     id: Number(r.id),
     needs_reply: Number(r.needs_reply || 0),
     needs_staff: Number(r.needs_staff || 0),

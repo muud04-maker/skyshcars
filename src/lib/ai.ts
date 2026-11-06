@@ -508,10 +508,16 @@ export async function salesReply(text: string, conversationId?: number, photoPla
   });
   const recent = pack.recent.length ? pack.recent : past.slice(-CONTEXT_LIMIT);
   const transcript = transcriptLines(recent, CONTEXT_LIMIT).join('\n');
+  const contextNote = [
+    String(opts.note || '').trim(),
+    humanRepliesNote(pack.humanReplies).trim(),
+    pack.prefsLine ? `Stored customer preferences (never ask for these again): ${pack.prefsLine}.` : '',
+    lessonsNote(lessons).trim(),
+    sameDayPatternsNote(pack.sameDayPatterns).trim(),
+    pack.dropped ? `${pack.dropped} older message(s) are stored in the database but not repeated here.` : '',
+  ].filter(Boolean).join(' ');
   const messages = [
-    { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + (opts.note ? `
-
-SYSTEM NOTE: ${opts.note}${humanRepliesNote(pack.humanReplies)}${pack.prefsLine ? ` Stored customer preferences (never ask for these again): ${pack.prefsLine}.` : ''}${lessonsNote(lessons)}${sameDayPatternsNote(pack.sameDayPatterns)}${pack.dropped ? ` (${pack.dropped} older message(s) are stored in the database but not repeated here.)` : ''}` : '') + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
+    { role: 'system', content: SYSTEM(facts, customer, knowledge, memory, humanExamples) + (contextNote ? `\n\nAI CONTEXT NOTE: ${contextNote}` : '') + `\n\nREAL STORED CONVERSATION TRANSCRIPT (oldest to newest):\n${transcript || '[No earlier stored messages]'}` },
     ...recent.map(m => ({ role: roleOf(m), content: String(m.body || '') })),
     { role: 'user', content: text },
   ];

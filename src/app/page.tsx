@@ -18,6 +18,8 @@ const CATEGORIES:[string,string,string,string][]=[
   ['Electric','/vehicles?fuel=electric','EV and hybrid inventory','EV'],
   ['SUVs','/vehicles?body=SUV','Space and capability','SUV'],
   ['Pickups','/vehicles?body=pickup','Work-ready vehicles','4X4'],
+  ['Vans & Buses','/vehicles?category=van','Passenger and cargo transport','VAN'],
+  ['Commercial','/vehicles?category=truck','Business and utility vehicles','TRK'],
   ['Sold Vehicles','/sold-vehicles','Previously listed units','SOLD'],
 ];
 const BRANDS=['Toyota','Honda','BYD','Volkswagen','BMW','Hyundai','Kia','Nissan','Geely','Volvo','Suzuki','Yamaha'];
@@ -43,11 +45,18 @@ export default async function Home(){
   const motoRange=shippingEstimateFor(policy,'motorcycle');
   return <>
     <section className="heroSection">
+      <div className="heroMarketplaceGrid">
+      <aside className="homeCategoryRail">
+        <b>All Categories</b>
+        {CATEGORIES.map(([label,href])=><a key={label} href={href}>{label}<span aria-hidden="true">&gt;</span></a>)}
+        <a href="/shipping">Shipping<span aria-hidden="true">&gt;</span></a>
+        <a href="/about">About Us<span aria-hidden="true">&gt;</span></a>
+      </aside>
       <div className="heroGrid">
         <div className="heroCopy">
           <div className="eyebrow">SKY CARS &amp; MOTORCYCLES</div>
-          <h1 className="heroTitle">Your next vehicle.<br/><span>Connected to the world.</span></h1>
-          <p className="heroLead">Explore cars and motorcycles in China, with sourcing assistance and international shipping coordination from Sky Cars.</p>
+          <h1 className="heroTitle">Buy Vehicles from China<br/><span>Cars, Motorcycles &amp; EVs</span></h1>
+          <p className="heroLead">Explore real inventory, compare final vehicle prices and get shipping support to Africa and worldwide.</p>
           <div className="heroActions">
             <a className="btn" href="/vehicles">Explore vehicles</a>
             <a className="btn alt heroAlt" href="/quote">Request a quote</a>
@@ -60,9 +69,9 @@ export default async function Home(){
             <a href="/shipping">Shipping to Africa</a>
           </div>
           <div className="heroTrust">
-            <span><b>Real inventory</b> current listings only</span>
-            <span><b>Verified photos</b> exact units marked</span>
-            <span><b>WhatsApp</b> direct sales support</span>
+            <span><b>Current inventory</b> available listings only</span>
+            <span><b>Photo status</b> exact units clearly marked</span>
+            <span><b>Export support</b> Africa and worldwide</span>
           </div>
         </div>
         <div className="heroMedia">
@@ -71,16 +80,17 @@ export default async function Home(){
             : <div className="heroMediaEmpty"><b>Cars and motorcycles from China</b><span>Browse verified inventory and request exact photos from our team.</span><a className="btn" href="/vehicles">Browse inventory</a></div>}
         </div>
       </div>
+      </div>
     </section>
 
     <section className="section section--categories"><div className="sectionInner">
-      <div className="sectionHead"><div><span className="eyebrow">SHOP BY TYPE</span><h2>Find the right vehicle faster</h2><p className="muted">Start with the body style or category that fits the job.</p></div><a href="/vehicles">See all vehicles</a></div>
+      <div className="sectionHead"><div><span className="eyebrow">SHOP BY CATEGORY</span><h2>Find the right vehicle faster</h2><p className="muted">Start with the body style or category that fits your needs.</p></div><a href="/vehicles">View all vehicles</a></div>
       <div className="categoryGrid">{CATEGORIES.map(([label,href,note,mark])=><a className="categoryTile" href={href} key={label}><span className="categoryMark">{mark}</span><b>{label}</b><small>{note}</small><span className="categoryArrow" aria-hidden="true">→</span></a>)}</div>
       <div className="brandRow brandRowDark">{BRANDS.map(b=><a key={b} href={'/vehicles?brand='+encodeURIComponent(b)}>{b}</a>)}</div>
     </div></section>
 
     <section className="section section--collection"><div className="sectionInner">
-      <div className="sectionHead"><div><span className="eyebrow">CURRENT COLLECTION</span><h2>Explore Our Vehicles</h2><p className="muted">Browse available cars and motorcycles from our current collection.</p></div><a href="/vehicles">View all available vehicles</a></div>
+      <div className="sectionHead"><div><span className="eyebrow">RECOMMENDED FOR YOU</span><h2>Explore Our Vehicles</h2><p className="muted">Browse available cars and motorcycles from our current collection.</p></div><a href="/vehicles">View more vehicles</a></div>
       {featured.length
         ? <VehicleGrid list={featured}/>
         : <div className="emptyState collectionEmpty"><b>No vehicles are currently available.</b><span>Browse the marketplace or ask our team to source a vehicle.</span><a className="btn" href="/vehicles">Browse vehicles</a></div>}

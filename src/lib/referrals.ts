@@ -18,8 +18,9 @@ import { rankReferralCandidates, referralHintFromCandidates, referralLooksMismat
 import { categoryHint, normalize } from './ai-rules/match';
 import { lastHumanVehicleSelection } from './vehicle-events';
 import { patternHintForTokens } from './sales-patterns';
+import { activeAdVehicleForSource } from './ad-campaigns';
 
-export type ReferralMethod = 'correction' | 'social_log' | 'url' | 'conversation' | 'human' | 'headline' | 'pattern' | 'none';
+export type ReferralMethod = 'correction' | 'campaign' | 'social_log' | 'url' | 'conversation' | 'human' | 'headline' | 'pattern' | 'none';
 /** A unit we recognised but may not be allowed to quote: name/stock/year (+ status) only, never price. */
 export type ReferralSummary = VehicleLite & { status?: string | null };
 export type ResolvedReferral = {
@@ -177,6 +178,13 @@ export async function resolveReferral(
         if (ai) return { vehicle: ai, aiEnabled: true, method: 'social_log', ...context };
         const other = await vehicleSummary(Number(p.vehicle_id));
         if (other) return { vehicle: other, aiEnabled: false, method: 'social_log', ...context };
+      }
+      const activeAd = await activeAdVehicleForSource(r.source_id).catch(() => null);
+      if (activeAd?.vehicle_id) {
+        const ai = await aiCarById(Number(activeAd.vehicle_id));
+        if (ai) return { vehicle: ai, aiEnabled: true, method: 'campaign', ...context };
+        const other = await vehicleSummary(Number(activeAd.vehicle_id));
+        if (other) return { vehicle: other, aiEnabled: false, method: 'campaign', ...context };
       }
     }
 

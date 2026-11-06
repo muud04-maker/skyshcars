@@ -24,7 +24,7 @@ test('3/4/5. every section lives on the same page', () => {
   for (const label of ['Basic information', 'Vehicle details', 'Pricing', 'Exact vehicle photos', 'Sales &']) assert.ok(form.includes(label), `section ${label}`);
   for (const field of ['Brand *', 'Model *', 'Year', 'Trim', 'Stock number', 'Category', 'Manufacturing date']) assert.ok(form.includes(field), `basic field ${field}`);
   for (const field of ['Mileage km', 'Engine', 'Fuel', 'Transmission', 'Steering', 'Color', 'Body type', 'Drivetrain']) assert.ok(form.includes(field), `detail field ${field}`);
-  assert.ok(form.includes('Selling price USD') && form.includes('Location'), 'pricing fields');
+  assert.ok(form.includes('Final Vehicle Price (USD)') && form.includes('Location'), 'pricing fields');
   assert.ok(form.includes('Description'), 'description field');
 });
 

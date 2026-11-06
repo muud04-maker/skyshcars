@@ -10,6 +10,7 @@ import { countdownLabel, queueStatusLabel, secondsLeft } from '../../../lib/ai-r
 import { referralLooksMismatched } from '../../../lib/ai-rules/referral-match';
 
 type Mode = 'ai' | 'human' | 'paused' | 'both';
+type ViewMode = 'normal' | 'compact' | 'full';
 const field = (v: any) => (v == null ? '' : String(v));
 const modeChip = (m?: string | null) => String(m || 'ai').toUpperCase();
 
@@ -42,6 +43,9 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const [newBelow, setNewBelow] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [conn, setConn] = useState<'LIVE' | 'RECONNECTING' | 'OFFLINE'>('LIVE');
+  const [viewMode, setViewMode] = useState<ViewMode>('normal');
+  const [minimized, setMinimized] = useState(false);
+  const [vehicleQ, setVehicleQ] = useState('');
   const fails = useRef(0);
   const [lightbox, setLightbox] = useState<string>('');
   // Part 10/11: staff feedback on an AI reply (thumbs down needs a reason) or "use this as correction".
@@ -51,6 +55,8 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const cursor = useRef('');
   const msgCursor = useRef(0);
   const statusCursor = useRef('');
+  const activeRef = useRef<number | null>(activeId);
+  const detailRequest = useRef(0);
   const backoff = useRef(1000);
   const bottom = useRef<HTMLDivElement | null>(null);
   const scrollBox = useRef<HTMLDivElement | null>(null);
@@ -61,11 +67,13 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const allShownSelected = shown.length > 0 && shown.every((c) => selected.includes(c.id));
 
   async function loadDetail(id: number) {
+    const request = ++detailRequest.current;
     const [mr, rr, cr] = await Promise.all([
       fetch(`/api/admin/conversations/${id}/customer`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch(`/api/admin/referrals?conversation=${id}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch(`/api/admin/conversations/${id}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
+    if (request !== detailRequest.current || activeRef.current !== id) return;
     if (mr?.customer) { const c = mr.customer; setMemory({ country: field(c.country), preferred_language: field(c.preferred_language), notes: field(c.notes), memory_summary: field(c.memory_summary) }); }
     if (rr?.referrals) setReferrals(rr.referrals);
     if (cr) setWelcome(cr.welcome || null);
@@ -79,9 +87,11 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   }
 
   async function poll() {
+    const conversationId = activeId;
     try {
       const p = new URLSearchParams({ since: cursor.current, since_messages: statusCursor.current, archived: archived ? '1' : '0' });
-      if (activeId) { p.set('conversation', String(activeId)); p.set('after_message_id', String(msgCursor.current)); }
+      if (q.trim()) p.set('q', q.trim());
+      if (conversationId) { p.set('conversation', String(conversationId)); p.set('after_message_id', String(msgCursor.current)); }
       const r = await fetch(`/api/admin/conversations/inbox?${p}`, { cache: 'no-store' });
       if (!r.ok) throw new Error('poll ' + r.status);
       const j = await r.json();
@@ -93,13 +103,13 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         setList(j.conversations);
         setActiveId((cur) => (cur && j.conversations.some((c: InboxRow) => c.id === cur) ? cur : (j.conversations[0]?.id ?? cur)));
       }
-      if (Array.isArray(j.messages) && j.messages.length) {
+      if (conversationId && activeRef.current === conversationId && Array.isArray(j.messages) && j.messages.length) {
         const added = j.messages.filter((m: InboxMsg) => Number(m.id) > msgCursor.current && String(m.sender) === 'customer').length;
         setMsgs((prev) => mergeMessages(prev, j.messages));
         msgCursor.current = Math.max(msgCursor.current, maxId(j.messages));
         if (added) { setNewBelow((n) => (atBottom ? 0 : n + added)); if (!atBottom) beep(); }
       }
-      if (j.state) setState(j.state);
+      if (conversationId && activeRef.current === conversationId && j.state) setState(j.state);
     } catch {
       backoff.current = Math.min(20000, backoff.current * 2);
       fails.current += 1;
@@ -107,7 +117,13 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     }
   }
 
-  useEffect(() => { if (activeId) void loadDetail(activeId); else { setMsgs([]); setState(null); setReferrals([]); } }, [activeId]);
+  useEffect(() => {
+    activeRef.current = activeId;
+    detailRequest.current++;
+    msgCursor.current = 0;
+    setMsgs([]); setState(null); setReferrals([]); setPickId(''); setVehicleQ('');
+    if (activeId) void loadDetail(activeId);
+  }, [activeId]);
   useEffect(() => { cursor.current = ''; void poll(); }, [archived]);
   useEffect(() => {
     let timer: any;
@@ -118,7 +134,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     };
     tick();
     return () => clearTimeout(timer);
-  }, [activeId, atBottom, archived]);
+  }, [activeId, atBottom, archived, q]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   /*
     Phone layout: land on the conversation list, never with the customer drawer covering the chat.
@@ -243,7 +259,11 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     const r = await fetch('/api/admin/vehicles', { cache: 'no-store' }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
     setVehicles(r?.vehicles || []);
   }
-  const pickList = useMemo(() => vehicles.slice(0, 400), [vehicles]);
+  const pickList = useMemo(() => {
+    const needle = vehicleQ.trim().toLowerCase();
+    return vehicles.filter((v) => !needle || [v.stock_no, v.brand, v.model, v.model_year, v.category, v.price_usd]
+      .some((part) => String(part || '').toLowerCase().includes(needle))).slice(0, 120);
+  }, [vehicles, vehicleQ]);
   const pendingAt = state?.pending_ai_reply_at ? Date.parse(String(state.pending_ai_reply_at).replace(' ', 'T')) : 0;
   const replyLeft = secondsLeft(pendingAt, now);
   // "AI reply in 58s" / "AI reply queued" / "AI sending..." / "AI reply failed - retrying"
@@ -252,6 +272,13 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const text = draftFor(drafts, activeId);
   function setText(v: string) { if (!activeId) return; setDrafts((d) => withDraft(d, activeId, v)); }
   function insert(t: string) { setText(text ? text + ' ' + t : t); setShowQuick(false); }
+  function selectConversation(id: number) {
+    activeRef.current = id;
+    detailRequest.current++;
+    msgCursor.current = 0;
+    setMsgs([]); setState(null); setReferrals([]);
+    setActiveId(id); setMobileChat(true);
+  }
 
   function onScroll() {
     const el = scrollBox.current; if (!el) return;
@@ -260,12 +287,13 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     if (near) setNewBelow(0);
   }
 
-  return <div className={'inbox' + (showDrawer ? '' : ' noDrawer') + (mobileChat ? ' mobileChat' : '')}>
+  return <div className={'inbox inbox--' + viewMode + (showDrawer ? '' : ' noDrawer') + (mobileChat ? ' mobileChat' : '') + (minimized ? ' minimized' : '')}>
     <aside className="chatList">
       <div className="chatListTitle">{archived ? 'Archived' : 'Conversations'} <span>{list.length}</span><span className={'conn conn-' + conn.toLowerCase()} title="Live connection">{conn}</span>
         <small style={{ display: 'block', fontWeight: 700, color: waiting && !archived ? '#9b3d00' : '#39745a', marginTop: 4 }}>{archived ? 'history kept, hidden from inbox' : `${waiting} waiting for a reply`}</small>
         <button type="button" className="miniBtn" style={{ marginTop: 6 }} onClick={() => { setArchived((a) => !a); setSelected([]); }}>{archived ? '← Back to inbox' : 'Archived'}</button>
       </div>
+      {minimized && <div style={{ padding: '0 10px 8px' }}><button type="button" className="miniBtn" onClick={() => setMinimized(false)}>Restore workspace</button></div>}
       <div className="inboxTools">
         <input placeholder="Search name, phone, stock no." value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={filter} onChange={(e) => setFilter(e.target.value as InboxFilter)}>
@@ -294,7 +322,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
         const paused = isPaused(c, now); const locked = isLocked(c, now);
         return <div key={c.id} className={'chatRowWrap' + (activeId === c.id ? ' active' : '')}>
           <input className="chatPick" type="checkbox" checked={selected.includes(c.id)} onChange={() => toggleSelect(c.id)} />
-          <button className="chatRow" onClick={() => { setActiveId(c.id); setMobileChat(true); }}>
+          <button className="chatRow" onClick={() => selectConversation(c.id)}>
             <b>{computeUnread(c) ? <i style={{ color: '#1e88e5', marginRight: 6 }} title="Unread">*</i> : null}<span className={'chan chan-' + String(c.channel || 'whatsapp')} title={c.channel === 'facebook' ? 'Facebook / Messenger' : 'WhatsApp'}>{c.channel === 'facebook' ? 'FB' : 'WA'}</span>{c.full_name || c.phone || c.external_user_id}</b>
             {Number(c.needs_reply) > 0 ? <em style={{ color: '#b3261e', fontStyle: 'normal', fontWeight: 800 }}> NEEDS REPLY</em> : null}
             <small>{modeChip(c.mode)}{paused ? ` | PAUSED ${countdown(pauseSecondsLeft(c, now))}` : ''}{locked ? ' | REPLYING' : ''}{Number(c.needs_staff) ? ' | needs staff' : ''}{c.current_stock_no ? ` | ${c.current_stock_no}` : ''}</small>
@@ -322,6 +350,13 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
             <button type="button" disabled={busy} className={active.mode === 'human' ? 'active' : ''} onClick={() => setMode('human')}>TAKE OVER</button>
             <button type="button" disabled={busy} className={active.mode === 'both' ? 'active' : ''} onClick={() => setMode('both')}>BOTH</button>
           </div>
+          <div className="viewControls" role="group" aria-label="Workspace size">
+            <button type="button" onClick={() => setViewMode('normal')} className={viewMode === 'normal' ? 'on' : ''}>Normal</button>
+            <button type="button" onClick={() => setViewMode('compact')} className={viewMode === 'compact' ? 'on' : ''}>Compact</button>
+            <button type="button" onClick={() => setViewMode('full')} className={viewMode === 'full' ? 'on' : ''}>Full</button>
+            <button type="button" onClick={() => setMinimized((v) => !v)}>{minimized ? 'Restore' : 'Minimize'}</button>
+          </div>
+          <input className="vehicleSearch" value={vehicleQ} onChange={(e) => setVehicleQ(e.target.value)} onFocus={openPicker} placeholder="Search vehicle..." aria-label="Search vehicles to send" />
           <select value="" onChange={(e) => { const v = Number(e.target.value); if (v) sendPhotos(v); }} onFocus={openPicker} style={{ width: 'auto', margin: 0 }} title="Send exact vehicle photos">
             <option value="">Send vehicle...</option>
             {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
@@ -428,6 +463,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
       </div>
       <div className="contextBlock">
         <b>Current car</b>
+        <input value={vehicleQ} onChange={(e) => setVehicleQ(e.target.value)} onFocus={openPicker} placeholder="Search make, model, year, stock or price" aria-label="Search current vehicle" />
         <div className="contextRow" style={{ marginTop: 6 }}>
           <select value={pickId} onChange={(e) => setPickId(e.target.value)} onFocus={openPicker}>
             <option value="">Choose a vehicle...</option>

@@ -110,7 +110,7 @@ test('21/22/23/24. the inbox updates live without breaking the draft or duplicat
   assert.ok(desk.includes('visible ? 2500 : 15000'), '2.5s visible / slow hidden');
   assert.ok(desk.includes("setConn(fails.current >= 3 ? 'OFFLINE' : 'RECONNECTING')"), 'retry + indicator');
   assert.ok(desk.includes("className={'conn conn-' + conn.toLowerCase()}"), 'LIVE / RECONNECTING / OFFLINE badge');
-  const pollBody = desk.slice(desk.indexOf('async function poll()'), desk.indexOf('useEffect(() => { if (activeId) void loadDetail'));
+  const pollBody = desk.slice(desk.indexOf('async function poll()'), desk.indexOf('activeRef.current = activeId'));
   assert.ok(pollBody.length > 100 && !pollBody.includes('setText'), 'polling never touches the staff draft');
   assert.ok(desk.includes('mergeMessages(prev, j.messages)'), 'delta merge by id (no duplicates)');
   assert.ok(desk.includes('if (added) { setNewBelow((n) => (atBottom ? 0 : n + added))'), 'no jump when scrolled up');

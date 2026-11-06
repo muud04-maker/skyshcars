@@ -78,6 +78,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .conn-reconnecting { background: #fff3cd; color: #7a5b00; }
 .conn-offline { background: #ffe5e5; color: #9f1d1d; }
 
+.inbox { height: calc(100vh - 225px); min-height: 620px; resize: vertical; overflow: auto; }
+.inbox--compact { height: 70vh; min-height: 520px; }
+.inbox--full { position: fixed; inset: 0; z-index: 95; height: 100dvh; min-height: 0; background: #fff; border-radius: 0; }
+.inbox.minimized { grid-template-columns: minmax(280px, 520px); height: 68vh; }
+.inbox.minimized .chatDesk, .inbox.minimized .contextDrawer { display: none; }
+.viewControls { display: inline-flex; border: 1px solid #b8cddd; border-radius: 9px; overflow: hidden; background: #fff; }
+.viewControls button { border: 0; border-right: 1px solid #dbe7f1; background: #fff; padding: 8px 9px; font-size: 11px; font-weight: 800; color: #243b50; cursor: pointer; }
+.viewControls button:last-child { border-right: 0; }
+.viewControls button.on { background: #0a3152; color: #fff; }
+.vehicleSearch { width: min(230px, 100%); margin: 0; }
+
 @media (max-width: 1200px) {
   .inbox, .inbox.noDrawer { grid-template-columns: 300px minmax(0, 1fr); }
   .contextDrawer { position: absolute; inset: 0 0 0 auto; width: min(360px, 90vw); z-index: 40; box-shadow: -8px 0 30px #0c33502e; }

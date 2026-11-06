@@ -3,6 +3,14 @@ import { db, one, rows } from './db';
 type Channel = 'whatsapp' | 'facebook';
 type MsgType = 'text' | 'image' | 'video' | 'audio' | 'document' | 'other';
 
+/** Never persist or display bot tokens, bearer tokens or obvious API secrets pasted into chat. */
+export function redactSensitiveText(value: unknown) {
+  return String(value == null ? '' : value)
+    .replace(/\b\d{8,12}:AA[A-Za-z0-9_-]{30,}\b/g, '[credential removed]')
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]{20,}/gi, '$1 [credential removed]')
+    .replace(/\b(sk|pk|ghp|gho|glpat|xox[baprs])[-_][A-Za-z0-9_-]{20,}\b/gi, '[credential removed]');
+}
+
 /** Returns true if we already stored this Meta message (Meta retries webhooks). */
 export async function alreadyProcessed(externalMessageId?: string) {
   if (!externalMessageId) return false;
@@ -30,6 +38,7 @@ export async function inbound(channel: Channel, externalId: string, text: string
   } else {
     await db().execute('UPDATE conversations SET last_message_at=NOW() WHERE id=?', [c.id]);
   }
+  text = redactSensitiveText(text);
   await db().execute(
     'INSERT INTO messages(conversation_id,external_message_id,sender,direction,message_type,body,media_url) VALUES(?,?,?,?,?,?,?)',
     [c.id, externalMessageId || null, 'customer', 'inbound', opts.type || 'text', text, opts.mediaRef || null]);
@@ -37,6 +46,7 @@ export async function inbound(channel: Channel, externalId: string, text: string
 }
 
 export async function outbound(conversationId: number, sender: 'ai' | 'human' | 'system', text: string, model?: string, opts: { externalId?: string | null; status?: string | null; type?: MsgType; mediaUrl?: string | null; error?: string | null } = {}) {
+  text = redactSensitiveText(text);
   await db().execute(
     'INSERT INTO messages(conversation_id,external_message_id,sender,direction,message_type,body,media_url,ai_model,delivery_status,delivery_error) VALUES(?,?,?,?,?,?,?,?,?,?)',
     [conversationId, opts.externalId || null, sender, 'outbound', opts.type || 'text', text, opts.mediaUrl || null, model || null, opts.status || (opts.externalId ? 'sent' : null), opts.error ? String(opts.error).slice(0, 500) : null]);

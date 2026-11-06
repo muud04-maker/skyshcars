@@ -7,15 +7,15 @@ import {useEffect,useState} from 'react';
   section; routes and query behaviour are unchanged.
 */
 export const PUBLIC_LINKS: [string,string][] = [
-  ['/vehicles','All Vehicles'],
   ['/cars','Cars'],
   ['/motorcycles','Motorcycles'],
-  ['/sold-vehicles','Sold Vehicles'],
   ['/vehicles?fuel=electric','Electric'],
+  ['/vehicles?body=SUV','SUVs'],
+  ['/vehicles?body=pickup','Pickups'],
+  ['/vehicles?category=truck','Commercial'],
+  ['/sold-vehicles','Sold Vehicles'],
   ['/shipping','Shipping'],
-  ['/destinations','Destinations'],
-  ['/quote','Get Quote'],
-  ['/account','My Sky Cars'],
+  ['/about','About Us'],
 ];
 
 export default function SiteNav({mobile=false}:{mobile?:boolean}){

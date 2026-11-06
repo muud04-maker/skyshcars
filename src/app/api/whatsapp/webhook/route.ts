@@ -70,10 +70,19 @@ async function updateInboundBody(externalMessageId:string, body:string){
 async function prepareMedia(m:any,d:Described,c:any){
   if(!d.mediaId) return d;
   if(m.type!=='audio' && m.type!=='image') return d;
+  if(!mediaAiConfigured()){
+    const unavailable=m.type==='audio'
+      ? 'VOICE NOTE\nTranscription provider is not configured. Staff review required.'
+      : `${d.storedText}\nAutomatic image analysis is not configured. Staff review required.`;
+    await updateInboundBody(m.id,unavailable).catch(()=>{});
+    await agentEvent(c.id,m.id,m.type==='audio'?'voice_transcription':'image_analysis','configuration_required',{
+      provider_configured:false,
+    }).catch(()=>{});
+    return {...d,storedText:unavailable,aiText:undefined,needsHuman:true};
+  }
   try{
     const media=await downloadWhatsAppMedia(d.mediaId);
     if(m.type==='audio'){
-      if(!mediaAiConfigured()) throw new Error('Media understanding needs setup (see Readiness)');
       const transcript=await transcribeAudio(media.data,media.mimeType);
       if(!transcript) throw new Error('Voice transcription returned empty text');
       const body=`VOICE NOTE\nTranscript: ${transcript}`;
@@ -82,10 +91,6 @@ async function prepareMedia(m:any,d:Described,c:any){
       return {...d,storedText:body,aiText:`Customer sent a voice note. Transcript: ${transcript}`,needsHuman:false};
     }
     if(m.type==='image'){
-      if(!mediaAiConfigured()){
-        if(!d.aiText) throw new Error('Media understanding needs setup (see Readiness)');
-        return d;
-      }
       const visual=await describeImage(media.data,media.mimeType);
       if(!visual) throw new Error('Image analysis returned empty text');
       const caption=String(m.image?.caption||'').trim();

@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { one, rows } from '../../../../../lib/db';
 import { adminDenied } from '../../../../../lib/admin-guard';
 import { INBOX_LIMIT, conversationStateRow, inboxCursor, listConversations } from '../../../../../lib/inbox';
+import { redactSensitiveText } from '../../../../../lib/conversations';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,7 @@ export async function GET(req: Request) {
   const afterMessageId = Number(q.get('after_message_id')) || 0;
   const sinceMessages = String(q.get('since_messages') || '');
   const since = String(q.get('since') || '');
+  const query = String(q.get('q') || '').trim();
 
   const nowRow = await one<any>('SELECT NOW() n').catch(() => null);
   const statusCursor = nowRow?.n ? new Date(nowRow.n).toISOString() : new Date().toISOString();
@@ -29,7 +31,7 @@ export async function GET(req: Request) {
   const archived = String(q.get('archived') || '') === '1';
   // Always return the list: previews, waiting state, unread and the queue countdown must update live.
   // It is capped at 300 rows, so the payload stays small.
-  out.conversations = await listConversations(INBOX_LIMIT, { archived }).catch(() => []);
+  out.conversations = await listConversations(INBOX_LIMIT, { archived, query }).catch(() => []);
 
   if (conversationId) {
     // Newest messages plus any message whose delivery status changed since the last poll.
@@ -37,6 +39,7 @@ export async function GET(req: Request) {
     const args: any[] = sinceMessages ? [conversationId, afterMessageId, sinceMessages] : [conversationId, afterMessageId];
     out.messages = await rows<any>(`SELECT id,sender,direction,message_type,body,media_url,delivery_status,delivery_error,created_at
       FROM messages WHERE conversation_id=? AND (id > ?${withStatus}) ORDER BY id ASC LIMIT 300`, args).catch(() => []);
+    out.messages = out.messages.map((m: any) => ({ ...m, body: redactSensitiveText(m.body) }));
     out.state = await conversationStateRow(conversationId).catch(() => null);
     if (out.messages.length) out.message_cursor = out.messages.reduce((n: number, m: any) => Math.max(n, Number(m.id) || 0), afterMessageId);
   }
