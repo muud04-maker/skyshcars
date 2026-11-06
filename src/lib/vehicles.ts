@@ -203,7 +203,7 @@ export async function getVehicles(q: VehicleQuery | number = {}) {
     await ensureCatalogueReady();
     const { where, args } = buildWhere(opts);
     const offset = Math.max(0, Number(opts.offset) || 0);
-    const list = await rows<any>(`SELECT v.*, ${COVER} FROM vehicles v WHERE ${where} ORDER BY ${orderOf(opts.sort)} LIMIT ${limit} OFFSET ${offset}`, args);
+    const list = await rows<any>(`SELECT v.*, ${COVER}, (SELECT ${PUBLIC_URL} FROM vehicle_media m WHERE m.vehicle_id=v.id AND ${exactPhotoSql("m")} ORDER BY m.is_cover DESC, m.sort_order, m.id LIMIT 1) exact_cover_url FROM vehicles v WHERE ${where} ORDER BY ${orderOf(opts.sort)} LIMIT ${limit} OFFSET ${offset}`, args);
     return list.map(withRepresentative);
   } catch (e) { console.error('GET_VEHICLES_DB_ERROR', e); return []; }
 }

@@ -77,13 +77,20 @@ test('DeepSeek always receives staff replies and stored preferences, even withou
   assert.match(ai, /AI CONTEXT NOTE:/);
 });
 
-test('public marketplace shell uses navy, orange, categories, search and responsive cards', () => {
-  const css = read('src/app/design.css');
+test('public marketplace homepage uses the supplied orange, white and black responsive design', () => {
+  const css = read('src/components/sky-cars-homepage/SkyCarsHomepage.module.css');
   const home = read('src/app/page.tsx');
-  const nav = read('src/components/SiteNav.tsx');
-  assert.match(css, /--sc-gold:#f97316/);
-  assert.match(css, /\.siteNav\{background:#f97316/);
-  assert.match(home, /Buy Vehicles from China/);
-  assert.match(home, /Vans & Buses/);
-  assert.match(nav, /Commercial/);
+  const component = read('src/components/sky-cars-homepage/SkyCarsHomepage.tsx');
+  assert.match(css, /--orange:#f36a08/);
+  assert.match(css, /--dark:#141414/);
+  assert.match(css, /background:#fff/);
+  assert.match(css, /@media\(max-width:600px\)/);
+  assert.match(component, /Buy Vehicles from China/);
+  assert.match(component, /Vans & Buses/);
+  assert.match(component, /What Our Customers Say/);
+  assert.match(home, /getVehicles\(\{ limit: 300, onlyAvailable: true/);
+  assert.match(home, /vehicle\.price_usd/);
+  assert.match(home, /exact_cover_url/);
+  assert.match(home, /href: `\/vehicles\/\$\{vehicle\.id\}`/);
+  assert.match(home, /heroImageUrl/);
 });

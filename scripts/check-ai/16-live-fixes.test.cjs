@@ -252,10 +252,11 @@ test('H11. homepage uses evergreen Available inventory and exposes no arrival da
   assert.ok(v.includes('v.created_at DESC'), 'internal created_at ordering remains available privately');
   assert.ok(v.includes('publicStatusCondition'), 'public status rules remain in place');
   const home = read('src/app/page.tsx');
-  assert.ok(home.includes("getVehicles({limit:12,onlyAvailable:true,sort:'created_desc'})"), 'homepage uses approved available stock');
-  assert.ok(home.includes('Explore Our Vehicles'), 'evergreen heading present');
-  assert.ok(home.includes('Browse available cars and motorcycles from our current collection.'), 'evergreen subtitle present');
+  const component = read('src/components/sky-cars-homepage/SkyCarsHomepage.tsx');
+  assert.ok(home.includes("getVehicles({ limit: 300, onlyAvailable: true, sort: 'created_desc' })"), 'homepage uses approved available stock');
+  assert.ok(component.includes('Recommended for You'), 'evergreen inventory heading present');
+  assert.ok(component.includes('Current inventory, clear vehicle prices and export support'), 'evergreen inventory subtitle present');
   assert.ok(!home.includes('getNewArrivals'), 'homepage does not use the old arrival window');
   assert.ok(!/last 10 days|Recently added|NEW ARRIVALS|created_at/i.test(home), 'no public arrival-date disclosure');
-  assert.ok(home.includes('<VehicleGrid list={featured}/>'), 'available inventory is still rendered');
+  assert.ok(home.includes('<SkyCarsHomepage'), 'available inventory is still rendered');
 });
