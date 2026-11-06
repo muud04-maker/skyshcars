@@ -21,3 +21,4 @@ playwright-report/
 test-results/
 tests/visual/screenshots/
 .visual-audit/
+.env.local

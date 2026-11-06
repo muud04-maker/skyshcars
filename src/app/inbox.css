@@ -491,3 +491,88 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .analyticsDefinitions .analyticsTable{min-width:0!important}
   .analyticsLineWrap svg{max-height:150px}.analyticsLegend>div,.analyticsBarRow,.analyticsStackRow,.analyticsStatusList>div{font-size:7px}
 }
+
+/* =====================================================================
+   Desk v2 (Nov 7): full-screen WhatsApp workspace.
+   - One scrollbar per panel (list / messages / customer panel); the page itself never scrolls.
+   - Chat list and customer panel can each be hidden; the conversation takes the freed space.
+   - Header holds only the essentials; everything else lives in the "..." menu.
+   ===================================================================== */
+@media (min-width: 901px) {
+  .inbox.deskV2 { resize: none; overflow: hidden; max-width: none; height: calc(100dvh - 170px); min-height: 480px;
+    grid-template-columns: 300px minmax(0, 1fr) 360px; grid-template-rows: minmax(0, 1fr); }
+  .inbox.deskV2.noDrawer { grid-template-columns: 300px minmax(0, 1fr); }
+  .inbox.deskV2.noList { grid-template-columns: minmax(0, 1fr) 360px; }
+  .inbox.deskV2.noList.noDrawer { grid-template-columns: minmax(0, 1fr); }
+  .inbox.deskV2.noList .chatList { display: none; }
+  .inbox.deskV2.inbox--full { position: fixed; inset: 0; z-index: 95; height: 100dvh; min-height: 0; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .inbox.deskV2.inbox--compact { height: 70vh; }
+  .inbox.deskV2 .contextDrawer { position: static; width: auto; box-shadow: none; }
+}
+.inbox.deskV2 .chatList, .inbox.deskV2 .contextDrawer { overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+.inbox.deskV2 .chatDesk { display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: hidden; position: relative; }
+.inbox.deskV2 .chatDesk .messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px 20px; }
+.inbox.deskV2 .chatHead { flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 14px; }
+.inbox.deskV2 .chatHead h2 { margin: 0; font-size: 17px; }
+.inbox.deskV2 .chatHead .chatStatus { display: block; font-size: 11px; color: #5c7184; margin-top: 2px; }
+.inbox.deskV2 .modeButtons { align-items: center; gap: 6px; }
+.inbox.deskV2 .modeButtons > button, .inbox.deskV2 .viewControls button { padding: 7px 11px; font-size: 12.5px; }
+.inbox.deskV2 .viewControls { display: inline-flex; border: 1px solid #cbd6e1; border-radius: 9px; overflow: hidden; }
+.inbox.deskV2 .viewControls button { border: 0; border-right: 1px solid #e1e9f0; background: #fff; font-weight: 800; cursor: pointer; }
+.inbox.deskV2 .viewControls button:last-child { border-right: 0; }
+.inbox.deskV2 .viewControls button.on { background: #0b2d46; color: #fff; }
+.inbox.deskV2 .chatHead .quickMenu > div { top: 38px; bottom: auto; right: 0; left: auto; max-height: 70vh; overflow-y: auto; }
+.inbox.deskV2 .replyBox { flex: 0 0 auto; position: static; padding: 10px 14px; }
+.inbox.deskV2 .replyBox textarea { min-height: 52px; max-height: 160px; resize: vertical; }
+.sendVehicleBtn { white-space: nowrap; }
+
+/* Vehicle search panel (slides over the conversation) */
+.vpOverlay { position: fixed; inset: 0; z-index: 130; background: #0b1f3566; display: flex; justify-content: flex-end; }
+.vpPanel { width: min(640px, 100vw); height: 100%; background: #fff; display: flex; flex-direction: column; box-shadow: -10px 0 40px #0b1f3540; }
+.vpHead { display: flex; gap: 8px; padding: 12px; border-bottom: 1px solid #dce8f2; }
+.vpHead input { flex: 1; margin: 0; font-size: 16px; padding: 12px 14px; }
+.vpFilters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eef3f8; }
+.vpChip { border: 1px solid #cbd6e1; background: #fff; border-radius: 999px; padding: 6px 12px; font-weight: 800; font-size: 12.5px; cursor: pointer; }
+.vpChip.on { background: #f47a20; border-color: #f47a20; color: #fff; }
+.vpCheck { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; margin: 0 8px; }
+.vpCheck input { width: auto; margin: 0; }
+.vpList { flex: 1; min-height: 0; overflow-y: auto; }
+.vpRow { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eef3f8; }
+.vpRow.current { background: #fff6ee; }
+.vpThumb { width: 92px; height: 68px; border-radius: 8px; overflow: hidden; background: #eef3f8; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #7b8c9b; }
+.vpThumb img { width: 100%; height: 100%; object-fit: cover; }
+.vpInfo { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.vpInfo b { font-size: 14.5px; }
+.vpInfo small { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vpActions { display: flex; flex-direction: column; gap: 5px; }
+.vpActions button { white-space: nowrap; font-size: 12px; padding: 6px 10px; }
+@media (max-width: 560px) {
+  .vpRow { grid-template-columns: 72px minmax(0, 1fr); }
+  .vpThumb { width: 72px; height: 54px; }
+  .vpActions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+}
+
+/* Customer profile panel */
+.cpHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid #e5eef5; margin-bottom: 6px; }
+.cpHeader b { display: block; font-size: 15px; }
+.cpHeader small { color: #5c7184; }
+.cpPanel { display: flex; flex-direction: column; gap: 6px; }
+.cpSection { border: 1px solid #e1eaf2; border-radius: 10px; background: #fff; }
+.cpToggle { width: 100%; text-align: left; border: 0; background: transparent; padding: 9px 11px; font-weight: 900; font-size: 13px; cursor: pointer; color: #0b2d46; }
+.cpBody { padding: 0 11px 11px; display: flex; flex-direction: column; gap: 6px; }
+.cpBody label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 800; color: #3b5165; margin: 0; }
+.cpBody input, .cpBody textarea, .cpBody select { margin: 0; font-size: 13px; padding: 7px 9px; }
+.cpFact span { display: flex; align-items: center; gap: 6px; }
+.cpSrc { font-style: normal; font-size: 10px; font-weight: 900; border-radius: 5px; padding: 1px 5px; background: #e8f1fb; color: #17509c; }
+.cpSrc-admin, .cpSrc-staff { background: #dff8e9; color: #08733d; }
+.cpSave { display: flex; align-items: center; gap: 8px; padding: 4px 2px; position: sticky; bottom: -12px; background: #fbfdff; padding-bottom: 8px; }
+.cpBody .customerSummary { display: flex; flex-direction: column; gap: 3px; }
+.inbox.deskV2 .chatRow .chan { display: inline-block; width: auto; -webkit-line-clamp: unset; }
+/* Phones: the conversation gets the screen - no big page title, only the buttons that matter. */
+@media (max-width: 900px) {
+  .adminPage:has(.inbox.deskV2) > .adminTitle { display: none; }
+  .inbox.deskV2.mobileChat { height: calc(100dvh - 150px); }
+  .inbox.deskV2 .viewControls button:not(.drawerToggle) { display: none; }
+  .inbox.deskV2 .chatHead { padding: 8px 10px; }
+  .inbox.deskV2 .modeButtons > button, .inbox.deskV2 .modeSeg button { padding: 7px 9px; font-size: 12px; }
+}
