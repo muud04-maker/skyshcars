@@ -161,7 +161,7 @@ test('key screenshots at phone, tablet, desktop and wide desktop',async({page})=
     await page.setViewportSize({width:v.w,height:v.h});
     for(const [path,name] of [['/','home'],['/vehicles','marketplace'],['/sold-vehicles','sold']] as const){
       await page.goto(path,{waitUntil:'domcontentloaded'});
-      await page.waitForTimeout(path==='/vehicles'?3500:900);
+      await page.waitForTimeout(path==='/vehicles'||path==='/'?3500:900);
       await page.screenshot({path:`${SHOTS}/${name}-${v.n}.png`,fullPage:true});
     }
   }

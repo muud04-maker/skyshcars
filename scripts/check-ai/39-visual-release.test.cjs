@@ -90,10 +90,11 @@ test('public pages use the shared display formatter', () => {
 test('homepage uses evergreen approved inventory without public arrival timestamps', () => {
   const page = read('src/app/page.tsx');
   const component = read('src/components/sky-cars-homepage/SkyCarsHomepage.tsx');
-  assert.ok(page.includes("getVehicles({ limit: 300, onlyAvailable: true, sort: 'created_desc' })"));
+  assert.ok(page.includes("category: 'car', limit: 60, onlyAvailable: true"));
+  assert.ok(page.includes("category: 'motorcycle', limit: 60, onlyAvailable: true"));
   assert.ok(page.includes('exactImage(vehicle)'));
-  assert.ok(component.includes('Recommended for You'));
-  assert.ok(component.includes('Current inventory, clear vehicle prices and export support'));
+  assert.ok(component.includes('Featured Vehicles'));
+  assert.ok(component.includes('Buy Cars &amp; Motorcycles'));
   assert.ok(!page.includes('getNewArrivals'));
   assert.ok(!/last 10 days|Recently added|NEW ARRIVALS|created_at/i.test(page));
 });
