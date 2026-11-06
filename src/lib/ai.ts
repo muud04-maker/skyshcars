@@ -175,19 +175,27 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
   if (conversationId) {
     try {
       const past = await history(conversationId, 12);
-      priorCustomer = past.filter(m => m.sender === 'customer').slice(-4, -1).map(m => String(m.body || '')).join(' ');
+      // The latest stored customer message is usually this same text: skip it only when it is.
+      const cust = past.filter(m => m.sender === 'customer').map(m => String(m.body || ''));
+      if (cust.length && cust[cust.length - 1].trim() === String(text || '').trim()) cust.pop();
+      priorCustomer = cust.slice(-3).join(' ');
       // Last few messages from anyone (staff "We have pick-up cars", AI lists...) give the topic of
       // a bare "send me the pictures".
       recentContext = past.slice(-6).map(m => String(m.body || '')).join(' ');
     } catch {}
   }
   let vehicles = await findVehicles(text);
-  // Part 4: "send photos" (no car named) applies to the CURRENT CAR of this chat.
-  if (!vehicles.length && conversationId) {
-    const cur = await currentCarFor(conversationId);
-    if (cur && refersToCurrentCar(text)) vehicles = [cur];
-  }
+  /*
+    Nov 7: the vehicle the customer named in their LAST few messages ("Yamaha Mt09") beats an older
+    stored current car - otherwise "send me the images" sent photos of a car from days ago.
+    The stored current car is used only when the recent messages name nothing.
+  */
   if (!vehicles.length && priorCustomer) vehicles = await findVehicles(priorCustomer);
+  if (conversationId) {
+    const cur = await currentCarFor(conversationId).catch(() => null);
+    if (cur && vehicles.some((v: any) => Number(v.id) === Number(cur.id)) && vehicles.length > 1 && !narrowByYear(vehicles, text, priorCustomer).length) vehicles = [cur];
+    if (!vehicles.length && cur && refersToCurrentCar(text)) vehicles = [cur];
+  }
   /*
     Phase 4 item 9: the customer asked for photos but named no vehicle. Instead of asking "which one?"
     (or offering a unit we cannot show), show a real photo-backed option FROM THE CATALOG - and it must
@@ -453,8 +461,13 @@ function photoLine(plan?:PhotoPlan|null){
   return 'Which vehicle would you like photos of? Send me the model or stock number.';
 }
 
-function deterministicFallback(text:string,facts:any,past:any[],plan?:PhotoPlan|null){
+function deterministicFallback(text:string,facts:any,past:any[],plan?:PhotoPlan|null,staffAnswer?:string){
   const p=photoLine(plan);
+  // Business question (location, payment, process) and the model is unavailable: answer the way our
+  // staff answered the same question in other chats, instead of a generic vehicle list.
+  const vehicleQuestion=!!(facts?.matching_vehicles?.length)&&/\b(price|how much|photo|picture|image|available|stock|car|bike|motorcycle)\b/i.test(text);
+  if(staffAnswer&&!vehicleQuestion&&!plan)return staffAnswer;
+  if(plan?.status==='sending'||plan?.wanted)return p;
   const base=deterministicText(text,facts,past);
   return p?`${p}\n\n${base}`:base;
 }
@@ -488,7 +501,7 @@ What budget and type of car are you looking for?`;
   return `Yes, I can help. Tell me what car you are looking for and your budget, and I’ll check our current stock.`;
 }
 
-export async function salesReply(text: string, conversationId?: number, photoPlan?: PhotoPlan | null, opts: { note?: string } = {}) {
+export async function salesReply(text: string, conversationId?: number, photoPlan?: PhotoPlan | null, opts: { note?: string; staffAnswer?: string } = {}) {
   // AI Catalog empty: never improvise stock. Honest short message, chat flagged for staff (AI stays on).
   try {
     const { aiCount } = await catalogCounts();
@@ -513,10 +526,10 @@ export async function salesReply(text: string, conversationId?: number, photoPla
 
   // Explicit history questions are answered from the real stored transcript, not guessed by the model.
   if (/(chat between us|our chat|previous chat|earlier messages|remember|what did i say|history)/i.test(text) && past.some(m=>m.sender==='customer')) {
-    return deterministicFallback(text,facts,past,photoPlan);
+    return deterministicFallback(text,facts,past,photoPlan,opts.staffAnswer);
   }
 
-  if (!process.env.DEEPSEEK_API_KEY) return deterministicFallback(text,facts,past,photoPlan);
+  if (!process.env.DEEPSEEK_API_KEY) return deterministicFallback(text,facts,past,photoPlan,opts.staffAnswer);
   /*
     Part 13/14: context in a fixed order (latest turn -> referral -> current vehicle -> recent history
     -> memory/preferences -> catalog facts -> knowledge -> shipping -> approved lessons) and SAFE
@@ -560,10 +573,10 @@ export async function salesReply(text: string, conversationId?: number, photoPla
       { headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 25000 });
     const answer = r.data.choices?.[0]?.message?.content?.trim() || null;
     if (conversationId) { try { await refreshCustomerMemory(conversationId); } catch {} }
-    return answer || deterministicFallback(text,facts,past,photoPlan);
+    return answer || deterministicFallback(text,facts,past,photoPlan,opts.staffAnswer);
   }catch(e){
     console.error('DEEPSEEK_REPLY_FAILED_USING_FALLBACK',e);
-    return deterministicFallback(text,facts,past,photoPlan);
+    return deterministicFallback(text,facts,past,photoPlan,opts.staffAnswer);
   }
 }
 

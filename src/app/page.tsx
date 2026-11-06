@@ -67,6 +67,25 @@ export default async function Home() {
     getVehicles({ category: 'motorcycle', limit: 60, onlyAvailable: true, sort: 'created_desc' }).catch(() => [] as any[]),
   ]);
 
+  /*
+    Amazon-style collection cards: each one is a 2x2 grid of REAL photo-backed, priced units from the
+    available inventory, linking to the filtered catalogue. A card is only shown with 2+ real units.
+  */
+  const photoUnits = (list: any[], category: SkyVehicle['category']) => list
+    .map((vehicle: any) => ({ raw: vehicle, card: mapVehicle(vehicle, category) }))
+    .filter((x) => x.card) as { raw: any; card: SkyVehicle }[];
+  const allCars = photoUnits(carRows, 'Cars');
+  const allMotos = photoUnits(motorcycleRows, 'Motorcycles');
+  const electric = allCars.filter((x) => /electric|hybrid|ev\b|phev/i.test(String(x.raw.fuel_type || '')));
+  const budget = [...allCars, ...allMotos].filter((x) => Number(x.raw.price_usd) > 0 && Number(x.raw.price_usd) <= 5000)
+    .sort((a, b) => Number(a.raw.price_usd) - Number(b.raw.price_usd));
+  const collections: NonNullable<SkyCarsHomepageProps['collections']> = [
+    { title: 'Motorcycles', href: '/motorcycles', link: 'See all motorcycles', items: uniqueTitles(allMotos.map((x) => x.card)).slice(0, 4) },
+    { title: 'Cars & SUVs', href: '/cars', link: 'See all cars', items: uniqueTitles(allCars.map((x) => x.card)).slice(0, 4) },
+    { title: 'Electric & hybrid', href: '/vehicles?fuel=electric', link: 'Shop electric', items: uniqueTitles(electric.map((x) => x.card)).slice(0, 4) },
+    { title: 'Under $5,000', href: '/vehicles?maxPrice=5000', link: 'See budget picks', items: uniqueTitles(budget.map((x) => x.card)).slice(0, 4) },
+  ].filter((c) => c.items.length >= 2);
+
   const cars = uniqueTitles(carRows.map((vehicle: any) => mapVehicle(vehicle, 'Cars')).filter(Boolean) as SkyVehicle[]).slice(0, 5);
   const motorcycles = uniqueTitles(motorcycleRows.map((vehicle: any) => mapVehicle(vehicle, 'Motorcycles')).filter(Boolean) as SkyVehicle[]).slice(0, 5);
   const vehicles = [...cars, ...motorcycles];
@@ -86,6 +105,7 @@ export default async function Home() {
 
   return <SkyCarsHomepage
     vehicles={vehicles}
+    collections={collections}
     reviews={[]}
     heroImageUrl={hero?.imageUrl}
     heroVehicleTitle={hero?.title}

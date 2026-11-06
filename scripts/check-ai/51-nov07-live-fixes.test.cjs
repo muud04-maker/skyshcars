@@ -115,3 +115,31 @@ test('photo sender delivers a second unit of the same model with its own caption
   assert.match(src, /plan\.more/);
   assert.match(src, /export async function planPhotosForVehicles/);
 });
+
+test('the vehicle named in the last customer messages beats an older stored current car', () => {
+  const ai = read('src/lib/ai.ts');
+  const a = ai.indexOf('if (!vehicles.length && priorCustomer) vehicles = await findVehicles(priorCustomer);');
+  const b = ai.indexOf('if (!vehicles.length && cur && refersToCurrentCar(text)) vehicles = [cur];');
+  assert.ok(a > 0 && b > a, 'recent messages are checked before the stored current car');
+});
+
+test('offline fallback answers business questions with the closest staff answer', () => {
+  const ai = read('src/lib/ai.ts');
+  assert.match(ai, /if\(staffAnswer&&!vehicleQuestion&&!plan\)return staffAnswer;/);
+  assert.match(read('src/lib/sales-compose.ts'), /staffAnswer: playbook\.refs\[0\]\?\.a/);
+});
+
+test('WhatsApp desk: full-screen, searchable vehicle panel and one editable customer profile', () => {
+  const desk = read('src/app/admin/_components/ConversationDesk.tsx');
+  const panels = read('src/app/admin/_components/DeskPanels.tsx');
+  const css = read('src/app/inbox.css');
+  const route = read('src/app/api/admin/conversations/[id]/customer/route.ts');
+  assert.match(desk, /useState<ViewMode>\('full'\)/);
+  assert.match(desk, /<VehiclePicker/);
+  assert.match(desk, /<CustomerProfile/);
+  assert.match(panels, /export function vehicleMatches/);
+  assert.match(panels, /Send photos/);
+  assert.match(css, /\.inbox\.deskV2 \.chatDesk \.messages \{ flex: 1 1 auto; min-height: 0; overflow-y: auto;/);
+  assert.match(css, /\.inbox\.deskV2\.noList \.chatList \{ display: none; \}/);
+  assert.match(route, /setFact\(Number\(c\.customer_id\),k,value,'staff'\)/);
+});
