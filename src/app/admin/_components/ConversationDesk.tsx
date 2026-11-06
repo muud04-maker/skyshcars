@@ -8,6 +8,8 @@ import {
 import { languageName, preferredToCode, type LangCode } from '../../../lib/ai-rules/language';
 import { countdownLabel, queueStatusLabel, secondsLeft } from '../../../lib/ai-rules/ai-queue';
 import { referralLooksMismatched } from '../../../lib/ai-rules/referral-match';
+import { CustomerProfile, VehiclePicker } from './DeskPanels';
+import { vehicleDisplayTitle } from '../../../lib/display-title';
 
 type Mode = 'ai' | 'human' | 'paused' | 'both';
 type ViewMode = 'normal' | 'compact' | 'full';
@@ -21,7 +23,11 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const [state, setState] = useState<any>(null);
   const [referrals, setReferrals] = useState<any[]>([]);
   const [welcome, setWelcome] = useState<any>(null);
-  const [memory, setMemory] = useState<any>({ country: '', preferred_language: '', notes: '', memory_summary: '' });
+  const [memory, setMemory] = useState<any>({ full_name: '', country: '', preferred_language: '', notes: '', memory_summary: '' });
+  // AI-extracted customer memory (customer_facts), editable by staff in the profile panel.
+  const [facts, setFacts] = useState<Record<string, string>>({});
+  const [factSources, setFactSources] = useState<Record<string, string>>({});
+  const [factsDirty, setFactsDirty] = useState<Record<string, boolean>>({});
   const [memoryMsg, setMemoryMsg] = useState('');
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [pickId, setPickId] = useState('');
@@ -43,7 +49,11 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   const [newBelow, setNewBelow] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [conn, setConn] = useState<'LIVE' | 'RECONNECTING' | 'OFFLINE'>('LIVE');
-  const [viewMode, setViewMode] = useState<ViewMode>('normal');
+  const [viewMode, setViewMode] = useState<ViewMode>('full');
+  // Full-screen workspace: the chat list and the customer panel can each be hidden.
+  const [showList, setShowList] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerLoading, setPickerLoading] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [vehicleQ, setVehicleQ] = useState('');
   const fails = useRef(0);
@@ -74,7 +84,13 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
       fetch(`/api/admin/conversations/${id}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     if (request !== detailRequest.current || activeRef.current !== id) return;
-    if (mr?.customer) { const c = mr.customer; setMemory({ country: field(c.country), preferred_language: field(c.preferred_language), notes: field(c.notes), memory_summary: field(c.memory_summary) }); }
+    if (mr?.customer) {
+      const c = mr.customer;
+      setMemory({ full_name: field(c.full_name), country: field(c.country), preferred_language: field(c.preferred_language), notes: field(c.notes), memory_summary: field(c.memory_summary) });
+      const f: Record<string, string> = {}; const src: Record<string, string> = {};
+      for (const x of (c.facts || [])) { f[String(x.fact_key)] = field(x.fact_value); src[String(x.fact_key)] = field(x.source); }
+      setFacts(f); setFactSources(src); setFactsDirty({});
+    } else { setFacts({}); setFactSources({}); setFactsDirty({}); }
     if (rr?.referrals) setReferrals(rr.referrals);
     if (cr) setWelcome(cr.welcome || null);
     if (cr?.messages) {
@@ -142,7 +158,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   */
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
-    if (window.matchMedia('(max-width: 900px)').matches) { setShowDrawer(false); setMobileChat(false); }
+    if (window.matchMedia('(max-width: 900px)').matches) { setShowDrawer(false); setMobileChat(false); setViewMode('normal'); }
   }, []);
   useEffect(() => {
     if (!activeId) return;
@@ -151,7 +167,6 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   }, [activeId, msgs.length]);
   useEffect(() => { const unread = list.filter((c) => computeUnread(c)).length; document.title = unread ? `(${unread}) Sky Cars Inbox` : 'Sky Cars Inbox'; }, [list]);
   useEffect(() => { fetch('/api/admin/ai-settings', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j?.welcome) setLinks(j.welcome); }).catch(() => {}); }, []);
-  useEffect(() => { if (showDrawer) void openPicker(); }, [showDrawer]);
 
   function beep() { try { const A = (window as any).AudioContext || (window as any).webkitAudioContext; if (!A) return; const ctx = new A(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); g.gain.value = 0.06; o.frequency.value = 880; o.start(); setTimeout(() => { o.stop(); ctx.close(); }, 140); } catch {} }
 
@@ -205,8 +220,11 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
   async function saveMemory() {
     if (!activeId) return;
     setMemoryMsg('Saving...');
-    const r = await fetch(`/api/admin/conversations/${activeId}/customer`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...memory, refresh_memory: true }) });
-    setMemoryMsg(r.ok ? 'Saved.' : 'Could not save');
+    const changedFacts = Object.fromEntries(Object.keys(factsDirty).map((k) => [k, String(facts[k] || '').trim()]));
+    const r = await fetch(`/api/admin/conversations/${activeId}/customer`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...memory, facts: changedFacts, refresh_memory: true }) });
+    const j = await r.json().catch(() => ({}));
+    setMemoryMsg(r.ok ? (j?.errors?.length ? `Saved, but: ${j.errors.join('; ')}` : 'Saved - the AI uses this on its next reply.') : 'Could not save');
+    if (r.ok) { setFactsDirty({}); setFactSources((s) => ({ ...s, ...Object.fromEntries(Object.keys(changedFacts).map((k) => [k, 'admin'])) })); }
   }
 
   /*
@@ -256,9 +274,22 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
 
   async function openPicker() {
     if (vehicles.length) return;
+    setPickerLoading(true);
     const r = await fetch('/api/admin/vehicles', { cache: 'no-store' }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
     setVehicles(r?.vehicles || []);
+    setPickerLoading(false);
   }
+  function openVehiclePanel() { setPickerOpen(true); void openPicker(); }
+  // Remember the workspace layout per browser (convenience only; never required).
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('skycars.desk') || '{}');
+      if (saved.viewMode && !window.matchMedia('(max-width: 900px)').matches) setViewMode(saved.viewMode);
+      if (typeof saved.showList === 'boolean') setShowList(saved.showList);
+      if (typeof saved.showDrawer === 'boolean' && !window.matchMedia('(max-width: 900px)').matches) setShowDrawer(saved.showDrawer);
+    } catch { /* storage unavailable */ }
+  }, []);
+  useEffect(() => { try { localStorage.setItem('skycars.desk', JSON.stringify({ viewMode, showList, showDrawer })); } catch { /* ignore */ } }, [viewMode, showList, showDrawer]);
   const pickList = useMemo(() => {
     const needle = vehicleQ.trim().toLowerCase();
     return vehicles.filter((v) => !needle || [v.stock_no, v.brand, v.model, v.model_year, v.category, v.price_usd]
@@ -287,7 +318,7 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     if (near) setNewBelow(0);
   }
 
-  return <div className={'inbox inbox--' + viewMode + (showDrawer ? '' : ' noDrawer') + (mobileChat ? ' mobileChat' : '') + (minimized ? ' minimized' : '')}>
+  return <div className={'inbox inbox--' + viewMode + ' deskV2' + (showDrawer ? '' : ' noDrawer') + (showList ? '' : ' noList') + (mobileChat ? ' mobileChat' : '') + (minimized ? ' minimized' : '')}>
     <aside className="chatList">
       <div className="chatListTitle">{archived ? 'Archived' : 'Conversations'} <span>{list.length}</span><span className={'conn conn-' + conn.toLowerCase()} title="Live connection">{conn}</span>
         <small style={{ display: 'block', fontWeight: 700, color: waiting && !archived ? '#9b3d00' : '#39745a', marginTop: 4 }}>{archived ? 'history kept, hidden from inbox' : `${waiting} waiting for a reply`}</small>
@@ -350,24 +381,18 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
             <button type="button" disabled={busy} className={active.mode === 'human' ? 'active' : ''} onClick={() => setMode('human')}>TAKE OVER</button>
             <button type="button" disabled={busy} className={active.mode === 'both' ? 'active' : ''} onClick={() => setMode('both')}>BOTH</button>
           </div>
-          <div className="viewControls" role="group" aria-label="Workspace size">
-            <button type="button" onClick={() => setViewMode('normal')} className={viewMode === 'normal' ? 'on' : ''}>Normal</button>
-            <button type="button" onClick={() => setViewMode('compact')} className={viewMode === 'compact' ? 'on' : ''}>Compact</button>
-            <button type="button" onClick={() => setViewMode('full')} className={viewMode === 'full' ? 'on' : ''}>Full</button>
-            <button type="button" onClick={() => setMinimized((v) => !v)}>{minimized ? 'Restore' : 'Minimize'}</button>
-          </div>
-          <input className="vehicleSearch" value={vehicleQ} onChange={(e) => setVehicleQ(e.target.value)} onFocus={openPicker} placeholder="Search vehicle..." aria-label="Search vehicles to send" />
-          <select value="" onChange={(e) => { const v = Number(e.target.value); if (v) sendPhotos(v); }} onFocus={openPicker} style={{ width: 'auto', margin: 0 }} title="Send exact vehicle photos">
-            <option value="">Send vehicle...</option>
-            {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
-          </select>
-          {active.mode !== 'human' ? <button className="btn-success" disabled={busy} onClick={aiNow}>AI Reply Now</button> : null}
-          {active.mode !== 'human' ? <button className="btn-warning" disabled={busy} onClick={() => setMode('human')}>Take Over</button> : <button className="btn-success" disabled={busy} onClick={() => setMode('ai')}>Return to AI</button>}
+          <button type="button" className="btn-info sendVehicleBtn" onClick={openVehiclePanel} title="Search a vehicle and send its exact photos">Send vehicle</button>
+          {active.mode !== 'human' ? <button className="btn-success" disabled={busy} onClick={aiNow}>AI Reply Now</button> : <button className="btn-success" disabled={busy} onClick={() => setMode('ai')}>Return to AI</button>}
           {replyLeft > 0 ? <button className="btn-neutral" disabled={busy} onClick={cancelAiReply}>Cancel AI reply</button> : null}
-          <button type="button" className="drawerToggle" onClick={() => setShowDrawer((s) => !s)}>{showDrawer ? 'Hide details' : 'Details'}</button>
+          <div className="viewControls" role="group" aria-label="Workspace layout">
+            <button type="button" className={showList ? 'on' : ''} onClick={() => setShowList((v) => !v)} title="Show or hide the chat list">Chats</button>
+            <button type="button" className={'drawerToggle' + (showDrawer ? ' on' : '')} onClick={() => setShowDrawer((s) => !s)} title="Customer profile and memory">{showDrawer ? 'Hide details' : 'Details'}</button>
+            <button type="button" onClick={() => setViewMode(viewMode === 'full' ? 'normal' : 'full')} className={viewMode === 'full' ? 'on' : ''} title="Full screen">{viewMode === 'full' ? 'Exit full' : 'Full'}</button>
+          </div>
           <div className="quickMenu">
-            <button type="button" className="btn-neutral" onClick={() => setShowMore((s) => !s)}>...</button>
+            <button type="button" className="btn-neutral" onClick={() => setShowMore((s) => !s)} aria-label="More actions">...</button>
             {showMore ? <div>
+              {active.mode !== 'human' ? <button type="button" className="btn-warning" onClick={() => { setShowMore(false); void setMode('human'); }}>Take Over</button> : null}
               <button type="button" onClick={() => { setShowMore(false); void markRead(); }}>Mark read</button>
               <button type="button" onClick={() => { setShowMore(false); void markUnread(); }}>Mark unread</button>
               <button type="button" onClick={() => { setShowMore(false); void setMode('paused'); }}>Pause AI for 15 min</button>
@@ -376,6 +401,8 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
               <button type="button" onClick={() => { setShowMore(false); void resetWelcome(); }}>Reset welcome</button>
               <button type="button" onClick={() => { setShowMore(false); void quick('sold'); }}>Vehicle sold</button>
               <button type="button" onClick={() => { setShowMore(false); void quick('not_available'); }}>Vehicle not available</button>
+              <button type="button" onClick={() => { setShowMore(false); setViewMode('compact'); }}>Compact size</button>
+              <button type="button" onClick={() => { setShowMore(false); setMinimized((v) => !v); }}>{minimized ? 'Restore workspace' : 'Minimize'}</button>
               <button type="button" onClick={() => { setShowMore(false); void deleteOne(); }}>Delete conversation (owner)</button>
             </div> : null}
           </div>
@@ -450,53 +477,50 @@ export default function ConversationDesk({ initial }: { initial: InboxRow[] }) {
     </>}</section>
 
     {active && showDrawer ? <aside className="contextDrawer">
-      <h3>Customer details</h3>
-      <div className="customerSummary">
-        <b>{active.full_name || active.phone || active.external_user_id}</b>
-        <small>{active.phone || active.external_user_id}</small>
-        <small>{memory.country || 'Country unknown'}{memory.preferred_language ? ` | ${memory.preferred_language}` : ''}</small>
-        <small>Current: {state?.current_stock_no || 'none set'}</small>
-        <small>Status: {modeChip(active.mode)}{isPaused(active, now) ? ` (paused ${countdown(pauseSecondsLeft(active, now))})` : ''}</small>
-        <small>Welcome: {welcome?.sent_at ? new Date(welcome.sent_at).toLocaleDateString() : 'Not sent'}</small>
-        {queueLabel ? <small>AI queue: {queueLabel}{state?.pending_ai_reply_at ? ` (due ${new Date(String(state.pending_ai_reply_at).replace(' ', 'T')).toLocaleTimeString()})` : ''}{Number(state?.pending_attempts) ? ` | attempts ${state.pending_attempts}` : ''}</small> : (state?.pending_last_result ? <small>AI queue: {String(state.pending_last_result).slice(0, 80)}</small> : null)}
-        <small>{preferredToCode(memory.preferred_language) ? `Language: ${languageName(preferredToCode(memory.preferred_language) as LangCode)}` : state?.slots?.detected_language ? `Detected language: ${languageName(state.slots.detected_language as LangCode)}` : 'Language: not detected yet'}</small>
+      <div className="cpHeader">
+        <div><b>{memory.full_name || active.full_name || active.phone || active.external_user_id}</b><small>{active.phone || active.external_user_id}</small></div>
+        <button type="button" className="miniBtn" onClick={() => setShowDrawer(false)} aria-label="Hide customer panel">Hide</button>
       </div>
-      <div className="contextBlock">
-        <b>Current car</b>
-        <input value={vehicleQ} onChange={(e) => setVehicleQ(e.target.value)} onFocus={openPicker} placeholder="Search make, model, year, stock or price" aria-label="Search current vehicle" />
-        <div className="contextRow" style={{ marginTop: 6 }}>
-          <select value={pickId} onChange={(e) => setPickId(e.target.value)} onFocus={openPicker}>
-            <option value="">Choose a vehicle...</option>
-            {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
-          </select>
-          <button type="button" className="miniBtn" disabled={!pickId} onClick={() => setCurrentCar(Number(pickId))}>Use</button>
-          <button type="button" className="miniBtn" disabled={!pickId} onClick={() => sendPhotos(Number(pickId))}>Send exact photos</button>
-          <button type="button" className="miniBtn" onClick={clearCurrentCar}>Clear</button>
+      <CustomerProfile profile={memory} facts={facts} factSources={factSources} saving={memoryMsg}
+        onChange={setMemory} onFactsChange={(f) => { setFactsDirty((d) => ({ ...d, ...Object.fromEntries(Object.keys(f).filter((k) => f[k] !== facts[k]).map((k) => [k, true])) })); setFacts(f); }}
+        onSave={saveMemory}>
+        <div className="customerSummary">
+          <small>Current car: {state?.current_stock_no || 'none set'}</small>
+          <small>Status: {modeChip(active.mode)}{isPaused(active, now) ? ` (paused ${countdown(pauseSecondsLeft(active, now))})` : ''}</small>
+          <small>Welcome: {welcome?.sent_at ? new Date(welcome.sent_at).toLocaleDateString() : 'Not sent'}</small>
+          {queueLabel ? <small>AI queue: {queueLabel}{state?.pending_ai_reply_at ? ` (due ${new Date(String(state.pending_ai_reply_at).replace(' ', 'T')).toLocaleTimeString()})` : ''}{Number(state?.pending_attempts) ? ` | attempts ${state.pending_attempts}` : ''}</small> : (state?.pending_last_result ? <small>AI queue: {String(state.pending_last_result).slice(0, 80)}</small> : null)}
+          <small>{preferredToCode(memory.preferred_language) ? `Language: ${languageName(preferredToCode(memory.preferred_language) as LangCode)}` : state?.slots?.detected_language ? `Detected language: ${languageName(state.slots.detected_language as LangCode)}` : 'Language: not detected yet'}</small>
         </div>
-      </div>
-      {state?.slots && Object.keys(state.slots).length ? <div className="contextBlock"><b>Known answers</b><p className="muted">{Object.entries(state.slots).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' | ')}</p></div> : null}
-      {referrals.length ? <div className="contextBlock"><b>Vehicle context diagnostic</b>{referrals.slice(0, 3).map((r) => {
-        const mismatch = r.matched_vehicle_id ? referralLooksMismatched(`${r.headline || ''} ${r.body || ''}`, { brand: r.resolved_brand, model: r.resolved_model, trim_name: r.resolved_trim }) : false;
-        return <div key={r.id} className={'refCard' + (r.matched_vehicle_id && mismatch ? ' refWarn' : '')}>
-          <small>{r.source_type || 'post'} | {r.match_method || 'unmatched'} | ID {r.source_id || 'not received'} | URL {r.source_url ? 'received' : 'not received'}</small>
-          <p><b>Facebook referral:</b> {r.headline || r.body || r.source_id || '(no headline)'}</p>
-          <p>{r.matched_vehicle_id
-            ? <><b>Resolved vehicle:</b> {r.resolved_vehicle || `#${r.matched_vehicle_id}`}{r.resolved_stock_no ? ` (stock ${r.resolved_stock_no})` : ''}{mismatch ? <em className="refMismatch"> - check this match</em> : null}</>
-            : <em className="refMismatch">No verified stock match. The AI must keep the model/year the ad actually names and request the advertisement link or stock number.</em>}</p>
-          <select defaultValue="" onChange={(e) => { const v = Number(e.target.value); if (v) correctReferral(r, v); }}>
-            <option value="">Correct this referral to...</option>
-            {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {v.model_year || ''} {v.brand || ''} {v.model || ''}</option>)}
-          </select>
-        </div>;
-      })}</div> : null}
-      <div className="contextBlock">
-        <label>Country<input value={memory.country} onChange={(e) => setMemory({ ...memory, country: e.target.value })} /></label>
-        <label>Preferred language<input value={memory.preferred_language} onChange={(e) => setMemory({ ...memory, preferred_language: e.target.value })} /></label>
-        {memory.memory_summary ? <div className="memorySummary"><b>Assistant memory</b><p>{memory.memory_summary}</p></div> : null}
-        <label>Notes<textarea value={memory.notes} onChange={(e) => setMemory({ ...memory, notes: e.target.value })} /></label>
-        <button type="button" className="miniBtn" onClick={saveMemory}>Save notes</button> <span className="muted">{memoryMsg}</span>
-      </div>
+        <div className="contextBlock">
+          <b>Current car</b>
+          <div className="contextRow" style={{ marginTop: 6 }}>
+            <button type="button" className="miniBtn" onClick={openVehiclePanel}>Choose vehicle...</button>
+            <button type="button" className="miniBtn" onClick={clearCurrentCar}>Clear</button>
+          </div>
+        </div>
+        {state?.slots && Object.keys(state.slots).length ? <div className="contextBlock"><b>Known answers</b><p className="muted">{Object.entries(state.slots).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' | ')}</p></div> : null}
+        {referrals.length ? <div className="contextBlock"><b>Vehicle context diagnostic</b>{referrals.slice(0, 3).map((r) => {
+          const mismatch = r.matched_vehicle_id ? referralLooksMismatched(`${r.headline || ''} ${r.body || ''}`, { brand: r.resolved_brand, model: r.resolved_model, trim_name: r.resolved_trim }) : false;
+          return <div key={r.id} className={'refCard' + (r.matched_vehicle_id && mismatch ? ' refWarn' : '')}>
+            <small>{r.source_type || 'post'} | {r.match_method || 'unmatched'} | ID {r.source_id || 'not received'} | URL {r.source_url ? 'received' : 'not received'}</small>
+            <p><b>Facebook referral:</b> {r.headline || r.body || r.source_id || '(no headline)'}</p>
+            <p>{r.matched_vehicle_id
+              ? <><b>Resolved vehicle:</b> {r.resolved_vehicle || `#${r.matched_vehicle_id}`}{r.resolved_stock_no ? ` (stock ${r.resolved_stock_no})` : ''}{mismatch ? <em className="refMismatch"> - check this match</em> : null}</>
+              : <em className="refMismatch">No verified stock match. The AI must keep the model/year the ad actually names and request the advertisement link or stock number.</em>}</p>
+            <select defaultValue="" onChange={(e) => { const v = Number(e.target.value); if (v) correctReferral(r, v); }} onFocus={openPicker}>
+              <option value="">Correct this referral to...</option>
+              {pickList.map((v) => <option key={v.id} value={v.id}>{v.stock_no} {vehicleDisplayTitle(v)}</option>)}
+            </select>
+          </div>;
+        })}</div> : null}
+      </CustomerProfile>
     </aside> : null}
+    <VehiclePicker open={pickerOpen} vehicles={vehicles} loading={pickerLoading} busy={busy}
+      placeholder="Search make, model, year, stock or price" currentId={state?.current_vehicle_id ? Number(state.current_vehicle_id) : null}
+      onClose={() => setPickerOpen(false)}
+      onSendPhotos={(id) => { void sendPhotos(id); setPickerOpen(false); }}
+      onSetCurrent={(id) => { void setCurrentCar(id); }}
+      onInsert={(t) => { insert(t); setPickerOpen(false); }} />
     {lightbox ? <div className="lightbox" onClick={() => setLightbox('')} role="dialog" aria-label="Photo">
       <img src={lightbox} alt="Enlarged photo" />
       <button type="button" className="btn-neutral" style={{ position: 'absolute', top: 18, right: 18 }} onClick={() => setLightbox('')}>Close</button>

@@ -1,4 +1,6 @@
 import {
+  BadgeCheck,
+  Camera,
   ChevronDown,
   FileText,
   Heart,
@@ -32,8 +34,12 @@ export type ApprovedCustomerReview = {
   portraitUrl: string;
 };
 
+export type SkyCollection = { title: string; href: string; link: string; items: SkyVehicle[] };
+
 export type SkyCarsHomepageProps = {
   vehicles: SkyVehicle[];
+  /** Amazon-style cards: 2x2 real photos per collection (built from available inventory only). */
+  collections?: SkyCollection[];
   reviews?: ApprovedCustomerReview[];
   heroImageUrl?: string;
   heroVehicleTitle?: string;
@@ -68,8 +74,31 @@ function VehicleCard({ vehicle }: { vehicle: SkyVehicle }) {
   </article>;
 }
 
+function CollectionCard({ c }: { c: SkyCollection }) {
+  return <article className={styles.collection}>
+    <h3>{c.title}</h3>
+    <div className={styles.collectionGrid}>
+      {c.items.slice(0, 4).map((v) => <a key={v.id} href={v.href} className={styles.collectionItem}>
+        <img src={v.imageUrl} alt={v.title} loading="lazy" decoding="async" />
+        <span>{v.title}</span>
+        <b>{money(v.priceUsd)}</b>
+      </a>)}
+    </div>
+    <a className={styles.collectionLink} href={c.href}>{c.link}</a>
+  </article>;
+}
+
+function VehicleRow({ title, href, items }: { title: string; href: string; items: SkyVehicle[] }) {
+  if (!items.length) return null;
+  return <div className={styles.rowBlock}>
+    <div className={styles.rowHead}><h3>{title}</h3><a href={href}>See all <span aria-hidden="true">&rarr;</span></a></div>
+    <div className={styles.vehicleRow}>{items.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}</div>
+  </div>;
+}
+
 export default function SkyCarsHomepage({
   vehicles,
+  collections = [],
   reviews = [],
   heroImageUrl,
   heroVehicleTitle = 'the current Sky Cars inventory',
@@ -95,7 +124,11 @@ export default function SkyCarsHomepage({
       <header className={styles.header}>
         <a className={styles.homeLogo} href="/" aria-label="Sky Cars Motorcycles home">{logo}</a>
         <form className={styles.search} action={inventoryUrl} role="search">
-          <input name="q" aria-label="Search vehicles" placeholder="Search by brand, model, year or keyword..." />
+          <select name="category" aria-label="Department" defaultValue="car" className={styles.searchDept}>
+            <option value="car">Cars</option>
+            <option value="motorcycle">Motorcycles</option>
+          </select>
+          <input name="q" aria-label="Search vehicles" placeholder="Search brand, model, year or stock number" />
           <button type="submit" aria-label="Search"><Search size={23} strokeWidth={2.2} /></button>
         </form>
         <div className={styles.actions}>
@@ -129,13 +162,27 @@ export default function SkyCarsHomepage({
         </div>
       </section>
 
+      <section className={styles.trust} aria-label="Why buy from Sky Cars">
+        <div><Camera /><span><b>Real photos</b>of the exact unit for sale</span></div>
+        <div><BadgeCheck /><span><b>Clear USD prices</b>shipping quoted separately</span></div>
+        <div><Ship /><span><b>Export to Africa</b>and worldwide ports</span></div>
+        <a href={safeWhatsApp} target="_blank" rel="noopener noreferrer"><MessageCircle /><span><b>Ask on WhatsApp</b>photos, price and shipping</span></a>
+      </section>
+
+      {collections.length ? <section className={styles.collections} aria-label="Browse the inventory">
+        {collections.slice(0, 4).map((c) => <CollectionCard key={c.title} c={c} />)}
+      </section> : null}
+
       <section className={styles.featured}>
         <div className={styles.sectionHeading}>
           <h2>Featured Vehicles</h2>
           <a href={inventoryUrl}>View All Vehicles <span aria-hidden="true">&rarr;</span></a>
         </div>
         {vehicles.length
-          ? <div className={styles.vehicleGrid}>{vehicles.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}</div>
+          ? <>
+            <VehicleRow title="Motorcycles" href="/motorcycles" items={vehicles.filter((v) => v.category === 'Motorcycles')} />
+            <VehicleRow title="Cars" href="/cars" items={vehicles.filter((v) => v.category === 'Cars')} />
+          </>
           : <p className={styles.empty}>No available vehicles with a verified photo and selling price are currently listed.</p>}
       </section>
 

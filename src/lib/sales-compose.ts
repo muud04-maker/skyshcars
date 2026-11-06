@@ -20,6 +20,11 @@ import { flagForStaff } from './conversation-state';
 import { createTask } from './staff-tasks';
 import { DEFAULT_POLICY, getBusinessPolicy, policyNote } from './business-policy';
 import { isGenericOnly, normalize } from './ai-rules/match';
+import { planPhotosForVehicles } from './whatsapp-photos';
+import { narrowByYear, namedSpecificModel, narrowToNamedModel } from './ai-rules/photo-pick';
+import { decideHold } from './ai-rules/answer-guard';
+import { staffReferenceNote } from './staff-playbook';
+import { setCurrentCar } from './conversation-state';
 
 /** Recent customer wording (for language inheritance when the latest message is short/ambiguous). */
 async function recentCustomerText(conversationId?: number) {
@@ -61,6 +66,14 @@ export function welcomeNote(i: { welcomeDue: boolean }) {
     ? 'The system automatically adds our website and WhatsApp group invitation after your answer. Do NOT include any website or group link yourself.'
     : 'The welcome (website + WhatsApp group invitation) was already sent to this customer earlier. Do NOT send our website or group link again unless the customer explicitly asks for it.';
 }
+
+/** Short "here are the exact units, photos coming" lines when a customer names a specific model. */
+const MODEL_PHOTOS = {
+  en: { head: 'Yes, we have it:', tail: 'Sending you the real photos now. Which one do you like?' },
+  so: { head: 'Haa, waan haynaa:', tail: 'Sawirada dhabta ah ayaan hadda kuu soo dirayaa. Midkee ayaad jeceshahay?' },
+  ar: { head: '\u0646\u0639\u0645\u060c \u0645\u062a\u0648\u0641\u0631\u0629:', tail: '\u0623\u0631\u0633\u0644 \u0644\u0643 \u0627\u0644\u0635\u0648\u0631 \u0627\u0644\u062d\u0642\u064a\u0642\u064a\u0629 \u0627\u0644\u0622\u0646. \u0623\u064a\u0647\u0627 \u064a\u0639\u062c\u0628\u0643\u061f' },
+  zh: { head: '\u6709\u7684\uff1a', tail: '\u73b0\u5728\u7ed9\u60a8\u53d1\u5b9e\u62cd\u7167\u7247\uff0c\u60a8\u559c\u6b22\u54ea\u4e00\u53f0\uff1f' },
+};
 
 const money = (n: any) => { const v = Number(n); return Number.isFinite(v) && v > 0 ? '$' + v.toLocaleString('en-US') : ''; };
 
@@ -152,6 +165,23 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
   // An unverified referral already gives us a known model. Never let the photo planner fall back to
   // "Which vehicle?" when the honest next step is the ad link or exact stock number.
   if (referralContext.referral && !i.referralVehicle && photoPlan?.status === 'no_vehicle') photoPlan = null;
+  /*
+    Nov 6 live failure: "Hello do you have pick up" -> "Let me confirm that for you." and later
+    "Send me the pictures" got nothing. When the customer wants photos of a body type we do not stock,
+    say so honestly, offer sourcing and queue a sourcing task for the team.
+  */
+  if (photoPlan?.wanted) {
+    await createTask({ type: 'sourcing', conversationId: Number(i.conversationId) || null, priority: 3, reason: `customer asked for ${photoPlan.wanted} photos - none listed in the AI catalogue` }).catch(() => {});
+    if (isHardcodedLang(lang)) {
+      const ans = inventoryAnswer({ kind: 'category', bodyType: photoPlan.wanted }, [], lang, { totalAi: 1 });
+      return { text: ans.text, lang, model: AI_MODEL, vehicleId: null, photoPlan: null, allowedNames: [], needsStaff: null };
+    }
+  }
+  /*
+    Learn from our staff: the most similar past customer questions (other chats) with the staff answer
+    that followed. Given to the model as references so it answers like the team does.
+  */
+  const playbook = (i.words && !i.dryRun) ? await staffReferenceNote(i.words, i.conversationId).catch(() => ({ note: '', refs: [] as any[] })) : { note: '', refs: [] as any[] };
   // Part 4: media we cannot read never causes silence - ask a short, honest clarification.
   const mediaNote = (!i.words && hasMedia) ? await mediaClarificationNote() : '';
   let vehicleFactNote = '';
@@ -234,7 +264,21 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
       const cars: any[] = await loadAiCars(300);
       const inv = inventoryIntent(i.words, [...new Set(cars.map((c: any) => String(c.brand || '')).filter(Boolean))]);
       if (inv) {
-        const matched = filterInventory(cars as any, inv);
+        let matched = filterInventory(cars as any, inv);
+        /*
+          Nov 7 live failure: "Yamaha Mt09" listed every Yamaha (R1 included) and sent no photos.
+          When the message also names a MODEL, keep only that model (and the year, if given) and send
+          the real photos straight away - the owner's rule is that the AI sends images when we have them.
+        */
+        let modelPhotos: any = null;
+        if (inv.kind === 'brand' && matched.length > 1) {
+          const modelUnits = narrowToNamedModel(matched, i.words);
+          if (namedSpecificModel(matched, modelUnits)) {
+            matched = narrowByYear(modelUnits, i.words, recent);
+            if (matched.length === 1 && i.conversationId) await setCurrentCar(Number(i.conversationId), Number(matched[0].id), 'match').catch(() => {});
+            if (!i.dryRun && i.conversationId) modelPhotos = await planPhotosForVehicles(Number(i.conversationId), matched).catch(() => null);
+          }
+        }
         /*
           Brief items 58/73: a named brand/model we do not stock is a SOURCING request, not an
           availability answer. Queue it once per chat so a human can source it and mark it done.
@@ -242,37 +286,58 @@ export async function composeReply(i: ComposeIn & { dryRun?: boolean }): Promise
         if (!matched.length && inv.kind === 'brand' && inv.brand) {
           await createTask({ type: 'sourcing', conversationId: Number(i.conversationId) || null, priority: 4, reason: `customer asked for ${inv.brand} - not in the current AI catalogue` }).catch(() => {});
         }
-        const names = (matched.length ? matched : cars).slice(0, 8).map((v: any) => [v.model_year, v.brand, v.model].filter(Boolean).join(' '));
+        if (!matched.length && inv.bodyType) {
+          await createTask({ type: 'sourcing', conversationId: Number(i.conversationId) || null, priority: 4, reason: `customer asked for a ${inv.bodyType} - none in the current AI catalogue` }).catch(() => {});
+        }
+        const names = (matched.length ? matched : cars).slice(0, 8).map((v: any) => carTitle(v));
         if (isHardcodedLang(lang)) {
+          if (modelPhotos) {
+            const lines = matched.slice(0, 3).map((v: any) => `- ${carTitle(v)}${money(v.price_usd) ? ` - ${money(v.price_usd)}` : ''}${v.stock_no ? ` (${v.stock_no})` : ''}`);
+            const sending = MODEL_PHOTOS[lang as keyof typeof MODEL_PHOTOS] || MODEL_PHOTOS.en;
+            return { text: `${sending.head}\n${lines.join('\n')}\n${sending.tail}`, lang, model: AI_MODEL, vehicleId: Number(modelPhotos.vehicleId) || null, photoPlan: modelPhotos, allowedNames: names, needsStaff: null };
+          }
           const ans = inventoryAnswer(inv, matched, lang, { totalAi: cars.length });
           return { text: ans.text, lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: ans.needsStaff ? 'No AI inventory enabled' : null };
         }
         // Any other language: let the model phrase the SAME facts in the customer's language.
-        const show = (matched.length ? matched : cars).slice(0, 3).map((v: any) => `${[v.model_year, v.brand, v.model].filter(Boolean).join(' ')}${v.price_usd ? ` - $${Number(v.price_usd).toLocaleString()}` : ''}`);
-        const factNote = ` The customer asked about our inventory. Use ONLY these facts: ${matched.length || cars.length} vehicles match, ${cars.length} vehicles are enabled in total. Options: ${show.join('; ') || 'none'}. Answer in ${languageName(lang)} in 1-2 short sentences and do not invent vehicles, prices or counts.${matched.length ? '' : ' If nothing matches, say so honestly and offer another brand.'}${signalNote ? ` ${signalNote}` : ''} ${policyText}`;
-        const phrased = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(referralContext) + factNote + String(i.testNote || '') + ` Reply in ${languageName(lang)}.` });
-        return { text: String(phrased || ''), lang, model: AI_MODEL, vehicleId: null, photoPlan, allowedNames: names, needsStaff: (!cars.length) ? 'No AI inventory enabled' : null };
+        const show = (matched.length ? matched : cars).slice(0, 3).map((v: any) => `${carTitle(v)}${v.price_usd ? ` - $${Number(v.price_usd).toLocaleString()}` : ''}${v.stock_no ? ` (${v.stock_no})` : ''}`);
+        const factNote = ` The customer asked about our inventory. Use ONLY these facts: ${matched.length || cars.length} vehicles match, ${cars.length} vehicles are enabled in total. Options: ${show.join('; ') || 'none'}.${modelPhotos ? ' The exact photos of these units are being sent right after your text - say so briefly.' : ''}${!matched.length && inv.bodyType ? ` We have NO ${inv.bodyType} listed: say so honestly and offer to source one.` : ''} Answer in ${languageName(lang)} in 1-2 short sentences and do not invent vehicles, prices or counts.${matched.length ? '' : ' If nothing matches, say so honestly and offer another brand.'}${signalNote ? ` ${signalNote}` : ''} ${policyText}`;
+        const phrased = await salesReply(text, i.conversationId, modelPhotos || photoPlan, { note: welcomeNote(i) + referralNote(referralContext) + factNote + playbook.note + String(i.testNote || '') + ` Reply in ${languageName(lang)}.`, staffAnswer: playbook.refs[0]?.a });
+        return { text: String(phrased || ''), lang, model: AI_MODEL, vehicleId: modelPhotos?.vehicleId || null, photoPlan: modelPhotos || photoPlan, allowedNames: names, needsStaff: (!cars.length) ? 'No AI inventory enabled' : null };
       }
     } catch { /* any lookup problem falls through to the normal (or hold) path */ }
   }
-  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(referralContext) + mediaNote + vehicleFactNote + String(i.testNote || '') + (signalNote ? ` ${signalNote}` : '') + ` ${policyText}` + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.` });
+  const reply = await salesReply(text, i.conversationId, photoPlan, { note: welcomeNote(i) + referralNote(referralContext) + mediaNote + vehicleFactNote + playbook.note + String(i.testNote || '') + (signalNote ? ` ${signalNote}` : '') + ` ${policyText}` + ` Reply in ${languageName(lang)}. Always answer in the customer's own language (the language of their latest message); for a very short "ok"/"yes"/emoji message keep the language already used in this conversation. Never translate stock numbers, prices or URLs.`, staffAnswer: playbook.refs[0]?.a });
   // Part 9: the cars this reply is allowed to remember (used by the invented-history guard).
   const referralHintVehicle = referralHint && (referralHint.brand || referralHint.model)
     ? [{ model_year: referralHint.year || null, brand: referralHint.brand || null, model: referralHint.model || null }]
     : [];
   const allowedNames = await allowedVehicleNames(text, i.conversationId, i.referralVehicle ? [i.referralVehicle, ...referralHintVehicle] : referralHintVehicle).catch(() => []);
-  // No verified answer for a real question/request: hold, flag for the owner, and wait instead of guessing.
+  /*
+    Hold ONLY when the composed reply is empty or quotes a money amount that no verified source
+    contains. Before, every question without a matched car name was thrown away and replaced by
+    "Let me confirm that for you." (66 times in the Nov 6 dump, incl. "Where are you located?").
+    The model has the business policy, approved knowledge and staff answers - let it answer, and just
+    flag the chat (without silencing it) when it says the team will confirm.
+  */
   const wantsAnswer = !!i.words && (isQuestion(i.words) || isRequest(i.words));
-  const needsStaff = shouldHold({ grounded: allowedNames.length > 0, question: isQuestion(i.words || ''), request: isRequest(i.words || '') }) && wantsAnswer
-    ? 'No verified answer in the database for this request - confirm before replying'
-    : null;
+  const grounded = allowedNames.length > 0 || !shouldHold({ grounded: false, question: isQuestion(i.words || ''), request: isRequest(i.words || '') });
+  const knowledgeText = await import('./knowledge').then(k => k.activeKnowledge(12, text)).then((xs: any[]) => xs.map(x => x.content).join(' ')).catch(() => '');
+  const facts = await import('./ai').then(a => a.buildFacts(text, '', undefined)).catch(() => ({}));
+  const hold = decideHold({
+    reply: String(reply || ''), wantsAnswer, grounded,
+    verified: [policyText, knowledgeText, vehicleFactNote, JSON.stringify(facts || {}), i.words],
+  });
+  let needsStaff: string | null = null;
+  if (hold.hold) needsStaff = hold.flag;
+  else if (hold.flag && i.conversationId && !i.dryRun) await flagForStaff(Number(i.conversationId), hold.flag).catch(() => {});
   return { text: String(reply || ''), lang, model: AI_MODEL, vehicleId: photoPlan?.vehicleId || null, photoPlan, allowedNames, needsStaff };
 }
 
 /** Part 4: the customer sent a photo/voice note/document we cannot see or hear ourselves. */
 async function mediaClarificationNote() {
   try {
-    const cars = (await loadAiCars(6)).slice(0, 6).map(v => [v.model_year, v.brand, v.model].filter(Boolean).join(' ')).filter(Boolean);
+    const cars = (await loadAiCars(6)).slice(0, 6).map(v => carTitle(v as any)).filter(Boolean);
     return ` The customer sent a photo/voice note/document that you cannot see or hear. Never claim to see it. Reply in one short line asking for the advertisement link or a short text description of the vehicle${cars.length ? ` (if useful, mention real current examples: ${cars.slice(0, 3).join(', ')})` : ''}. A colleague will also take a look. Do not ask "Which vehicle?" when a referral already names a model.`;
   } catch {
     return ' The customer sent a photo/voice note/document that you cannot see or hear. Never claim to see it. Reply in one short line asking for the advertisement link or a short text description, and say a colleague will also take a look. Do not ask "Which vehicle?" when a referral already names a model.';
