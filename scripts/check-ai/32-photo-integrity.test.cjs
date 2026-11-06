@@ -106,7 +106,8 @@ test('PHASE 4 item 9: a photo request for "any vehicle" prefers a unit that real
   assert.ok(src.includes('exact_photo_count'), 'using the real exact-photo count');
   assert.ok(src.includes('whatsappPhotosForVehicle(Number(c.id), 3)'), 'and only its own verified photos');
   // Unrelated photos can never be attached: multiple candidates without a stock number still refuse.
-  assert.ok(src.includes('if (!vehicles.length || (vehicles.length > 1 && !stock.length)) return null'), 'the single-vehicle rule is intact');
+  // Nov 7: two units of the SAME model may both be sent (each captioned); different models still refuse.
+  assert.ok(src.includes('if (vehicles.length > 1 && !stock.length && !sameModel(vehicles)) return null'), 'the single-model rule is intact');
 });
 
 test('PHASE 6: takeover keeps the AI silent and the 60s batching is preserved', () => {

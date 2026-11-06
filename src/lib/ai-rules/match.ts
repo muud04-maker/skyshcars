@@ -32,6 +32,8 @@ const GENERIC_WORDS = new Set([
   'where', 'which', 'why', 'there', 'here', 'if', 'then', 'than', 'so', 'too', 'also', 'just', 'now',
   'still', 'really', 'very', 'sir', 'madam', 'bro', 'brother', 'sister', 'friend', 'get', 'tell', 'know',
   'let', 'see', 'look', 'like', 'help',
+  // "pick up" / "pick-up" is a body type, never a model name; common request words likewise
+  'pick', 'up', 'images', 'image', 'asked', 'ask', 'pictures', 'interested', 'cheaper', 'expensive',
 ]);
 
 export function normalize(s: unknown) {

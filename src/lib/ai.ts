@@ -10,6 +10,8 @@ import { flagForStaff, getState, saveSlots, setCurrentCar } from './conversation
 import { matchVehicles, isGenericOnly } from './ai-rules/match';
 import { refersToCurrentCar } from './ai-rules/vehicle-intent';
 import { carTitle } from './ai-rules/vehicle-answer';
+import { matchesBodyType } from './ai-rules/inventory-intent';
+import { narrowByYear, narrowToNamedModel, sameModel } from './ai-rules/photo-pick';
 import { transcriptLines, CONTEXT_LIMIT, roleOf } from './ai-rules/context';
 import { extractSlots, missingSlots, type Slots } from './ai-rules/slots';
 import { extractFacts, factsForCustomer, saveFacts } from './customer-facts';
@@ -169,10 +171,14 @@ export function wantsPhotos(text: string) { return PHOTO_WORDS.test(text); }
  */
 export async function vehicleMediaForMessage(text: string, conversationId?: number) {
   let priorCustomer = '';
+  let recentContext = '';
   if (conversationId) {
     try {
-      const past = await history(conversationId, 10);
+      const past = await history(conversationId, 12);
       priorCustomer = past.filter(m => m.sender === 'customer').slice(-4, -1).map(m => String(m.body || '')).join(' ');
+      // Last few messages from anyone (staff "We have pick-up cars", AI lists...) give the topic of
+      // a bare "send me the pictures".
+      recentContext = past.slice(-6).map(m => String(m.body || '')).join(' ');
     } catch {}
   }
   let vehicles = await findVehicles(text);
@@ -187,40 +193,55 @@ export async function vehicleMediaForMessage(text: string, conversationId?: numb
     (or offering a unit we cannot show), show a real photo-backed option FROM THE CATALOG - and it must
     respect what this customer already told us (car or motorcycle, budget, body type, steering,
     destination). A "newest item" shortcut is explicitly not acceptable: it would ignore an SUV or
-    motorcycle request and the customer's budget. Evidence: 151 photo requests in the dump, and the
-    owner sent photos by hand 330 times.
+    motorcycle request and the customer's budget.
   */
+  let wanted: string | null = null;
   if (!vehicles.length && wantsPhotos(text) && isGenericOnly(text)) {
-    const photoBacked = await photoBackedMatchFor(text, conversationId).catch(() => null);
-    if (photoBacked) vehicles = [photoBacked];
+    const photoBacked = await photoBackedMatchFor(`${text} ${recentContext}`, conversationId).catch(() => null);
+    if (photoBacked?.none) wanted = photoBacked.none;
+    else if (photoBacked) vehicles = [photoBacked];
   }
-  // Never send photos of an arbitrary car when the request is ambiguous.
   const { stock } = extractTerms(text);
-  if (!vehicles.length || (vehicles.length > 1 && !stock.length)) return null;
-  const v = vehicles[0];
-  // JPEG/PNG only, supplier photos via our own proxy URL (see exact-photos.ts).
-  const images = (await whatsappPhotosForVehicle(Number(v.id), 3)).map(p => p.url);
-  const title = carTitle(v);
-  return {
-    vehicleId: Number(v.id), stockNo: String(v.stock_no || ''), title, images, exact: images.length > 0,
-    caption: `${title}${v.stock_no ? ` | ${v.stock_no}` : ''}${v.price_usd ? ` | $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`
-  };
+  /*
+    Nov 7 live failure (Yamaha MT-09): the customer named "Yamaha Mt09", then "send me the images",
+    then "2016". Two MT-09 units matched, so the old rule returned nothing and no photo was sent.
+    Now: (1) a year in this or the previous messages picks the unit; (2) when the remaining units are
+    the SAME model, send photos of up to two of them, each clearly captioned with stock and price.
+    Different models stay ambiguous - we never send photos of an unrelated vehicle.
+  */
+  if (vehicles.length > 1 && !stock.length) vehicles = narrowByYear(narrowToNamedModel(vehicles, `${text} ${priorCustomer}`), text, priorCustomer);
+  if (!vehicles.length) return wanted ? { none: wanted } as any : null;
+  if (vehicles.length > 1 && !stock.length && !sameModel(vehicles)) return null;
+  const pick = vehicles.slice(0, stock.length ? 1 : 2);
+  const units = [];
+  for (const v of pick) {
+    // JPEG/PNG only, supplier photos via our own proxy URL (see exact-photos.ts).
+    const images = (await whatsappPhotosForVehicle(Number(v.id), 3)).map(p => p.url);
+    const title = carTitle(v);
+    units.push({
+      vehicleId: Number(v.id), stockNo: String(v.stock_no || ''), title, images, exact: images.length > 0,
+      caption: `${title}${v.stock_no ? ` | ${v.stock_no}` : ''}${v.price_usd ? ` | $${Number(v.price_usd).toLocaleString()}` : ''}\nExact photos of this unit\n${SITE}/vehicles/${v.id}`,
+    });
+  }
+  // Prefer a unit that really has photos as the main one.
+  units.sort((a, b) => Number(b.exact) - Number(a.exact));
+  return { ...units[0], others: units.slice(1).filter(u => u.exact) };
 }
 
 /**
  * A catalogue unit that really has approved photos AND matches what the customer asked for.
  * Filters come from the customer's own words in this chat plus their stored memory (category, budget,
- * body type, steering) - never "whatever is newest". Returns null when nothing matches, which the
- * caller turns into an honest "which vehicle?" question instead of sending unrelated photos.
+ * body type, steering) - never "whatever is newest". Returns { none: bodyType } when the customer asked
+ * for a body type we do not stock (so the reply says so honestly), or null when nothing is known.
  */
 async function photoBackedMatchFor(text: string, conversationId?: number): Promise<any | null> {
   try {
     const want: { category?: string | null; maxPrice?: number | null; bodyType?: string | null; steering?: string | null } = {};
     const t = String(text || '').toLowerCase();
+    const body = /\b(suv|sedan|saloon|hatchback|coupe|pick[\s-]?up|van|bus|truck|wagon)\b/.exec(t)?.[1];
+    if (body) want.bodyType = body === 'saloon' ? 'sedan' : /^pick/.test(body) ? 'pickup' : body;
     if (/\b(motorcycles?|motorbikes?|bikes?|scooter|moto)\b/.test(t)) want.category = 'motorcycle';
-    else if (/\b(cars?|suv|sedan|saloon|hatchback|pickup|van|truck)\b/.test(t)) want.category = 'car';
-    const body = /\b(suv|sedan|saloon|hatchback|coupe|pickup|van|bus|truck|wagon)\b/.exec(t)?.[1];
-    if (body) want.bodyType = body === 'saloon' ? 'sedan' : body;
+    else if (body || /\b(cars?)\b/.test(t)) want.category = 'car';
     const steer = /\b(lhd|rhd)\b/.exec(t)?.[1];
     if (steer) want.steering = steer.toUpperCase();
     if (conversationId) {
@@ -233,11 +254,12 @@ async function photoBackedMatchFor(text: string, conversationId?: number): Promi
       const budget = Number(get('budget_max') || 0);
       if (budget > 0) want.maxPrice = budget;
     }
-    const cars = await loadAiCars(120);
+    if (!want.category && !want.bodyType) return null; // nothing to go on: ask which vehicle
+    const cars = await loadAiCars(300);
     const matches = cars.filter((c: any) => {
       if (Number(c.exact_photo_count || 0) <= 0) return false;
-      if (want.category && String(c.category || '') !== want.category) return false;
-      if (want.bodyType && !`${c.trim_name || ''} ${c.model || ''}`.toLowerCase().includes(want.bodyType)) return false;
+      if (want.category && !want.bodyType && String(c.category || '') !== want.category) return false;
+      if (want.bodyType && !matchesBodyType(c, want.bodyType)) return false;
       if (want.steering && String(c.steering || '').toUpperCase() !== want.steering) return false;
       if (want.maxPrice && !(Number(c.price_usd) > 0 && Number(c.price_usd) <= want.maxPrice)) return false;
       return true;
@@ -246,6 +268,7 @@ async function photoBackedMatchFor(text: string, conversationId?: number): Promi
       const photos = await whatsappPhotosForVehicle(Number(c.id), 3);
       if (photos.length) return { ...c, _photos: photos };
     }
+    if (want.bodyType) return { none: want.bodyType };
   } catch { /* no photo-backed match is a normal state: the caller asks which vehicle */ }
   return null;
 }
@@ -259,6 +282,10 @@ async function customerIdFor(conversationId: number): Promise<number> {
 export type PhotoPlan = {
   status: 'sending' | 'no_exact_photos' | 'already_sent' | 'no_vehicle';
   vehicleId?: number; stockNo?: string; title?: string; images: string[]; caption?: string;
+  /** Other units of the same model whose photos are sent right after the main one (max 1). */
+  more?: PhotoPlan[];
+  /** Body type the customer asked photos of that we do not stock right now (e.g. "pickup"). */
+  wanted?: string | null;
 };
 
 export async function buildFacts(text: string, priorCustomerText = '', conversationId?: number) {
@@ -358,7 +385,8 @@ HUMAN SALES BEHAVIOR:
   * status "sending": say briefly that you are sending the photos of that vehicle now (the system sends them right after your text).
   * status "no_exact_photos": say honestly that we do not have exact photos of this specific unit yet and that the team can request real photos from the yard. Never offer model, catalogue, stock or "similar" images as if they were this unit.
   * status "already_sent": say the photos were sent just above in this chat; do not promise to send them again.
-  * status "no_vehicle": ask which vehicle (model or stock number) they want photos of.
+  * status "no_vehicle" with "wanted" (e.g. "pickup"): say honestly we do not have one listed right now and offer to source one (ask budget/destination). Never ask "which vehicle".
+  * status "no_vehicle" without "wanted": ask which vehicle (model or stock number) they want photos of, suggesting 2-3 real options from matching_vehicles/available_inventory_by_brand.
   * If photo_request is absent, do not promise or mention sending photos.
 - Never send a new message without a new customer message or an explicit admin action. The application enforces this too; do not create follow-up messages on your own.
 
@@ -394,7 +422,8 @@ REPLY RULES (Part 5 - follow these exactly):
 - [STAFF] messages are your colleagues and override you: if staff said a car is sold, reserved or unavailable, never claim otherwise.
 - Memory is only a hint. Never say "you were looking at X" unless X appears in this conversation, in a referral, or in current_vehicle.
 - Answer FIRST in 1-2 short sentences (3 only if the customer asks for details). At most ONE question. Never a paragraph, never a spec dump.
-- If the answer is not in DATABASE FACTS, do NOT guess: one short line saying you will confirm it, then the team replies. Never invent a price, a shipping cost or availability.
+- If the answer is not in DATABASE FACTS, use the OWNER-APPROVED BUSINESS INSTRUCTIONS, the business policy and HOW OUR STAFF ANSWERED SIMILAR QUESTIONS (location, process, payment method, shipping procedure). Only when none of these cover it, say in one short line that the team will confirm. Never invent a vehicle price, a shipping cost or availability.
+- Never answer with only "Let me confirm that for you." - always include whatever you CAN answer (for example the options we have, or the next step).
 - Reply in the customer's language.
 - known_slots are already answered - never ask about them again (destination, budget, body type, steering, fuel, transmission).
 - Only talk about current_vehicle and the cars in matching_vehicles (at most 8). Never mention any other vehicle.
@@ -415,9 +444,12 @@ function wantsLink(text:string){
 function photoLine(plan?:PhotoPlan|null){
   if(!plan)return '';
   const name=plan.title?`the ${plan.title}${plan.stockNo?` (${plan.stockNo})`:''}`:'that vehicle';
-  if(plan.status==='sending')return `Sending you the photos of ${name} now.`;
+  if(plan.status==='sending')return plan.more?.length
+    ? `Sending you the photos of ${name} and the ${plan.more.map(m=>`${m.title}${m.stockNo?` (${m.stockNo})`:''}`).join(', ')} now.`
+    : `Sending you the photos of ${name} now.`;
   if(plan.status==='already_sent')return `I sent the photos of ${name} just above.`;
   if(plan.status==='no_exact_photos')return `We don't have exact photos of ${name} yet. Our team can request real photos of this unit for you.`;
+  if(plan.wanted)return `We don't have a ${plan.wanted} listed right now, but our team can source one for you. What budget do you have in mind?`;
   return 'Which vehicle would you like photos of? Send me the model or stock number.';
 }
 
@@ -476,7 +508,8 @@ export async function salesReply(text: string, conversationId?: number, photoPla
   const [facts, customer, knowledge] = await Promise.all([
     buildFacts(text, priorCustomer + ' ' + String(memory?.summary||''), conversationId), customerContext(conversationId), knowledgeContext(text)
   ]);
-  if (photoPlan) (facts as any).photo_request = { status: photoPlan.status, vehicle: photoPlan.title || null, stock_no: photoPlan.stockNo || null, photo_count: photoPlan.images.length };
+  if (photoPlan) (facts as any).photo_request = { status: photoPlan.status, vehicle: photoPlan.title || null, stock_no: photoPlan.stockNo || null, photo_count: photoPlan.images.length,
+    also_sending: (photoPlan.more || []).map(m => ({ vehicle: m.title, stock_no: m.stockNo })), wanted: photoPlan.wanted || undefined };
 
   // Explicit history questions are answered from the real stored transcript, not guessed by the model.
   if (/(chat between us|our chat|previous chat|earlier messages|remember|what did i say|history)/i.test(text) && past.some(m=>m.sender==='customer')) {

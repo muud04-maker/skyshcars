@@ -8,6 +8,8 @@
 */
 
 export type InvKind = 'exists' | 'list' | 'brand' | 'category' | 'budget' | 'filter';
+import { vehicleDisplayTitle } from '../display-title';
+
 export type InventoryIntent = {
   kind: InvKind; brand?: string; category?: string; bodyType?: string;
   maxPrice?: number; transmission?: string; fuel?: string;
@@ -28,7 +30,7 @@ const EXISTENCE = /(?:\b(?:do you (?:have|sell|got)|have you got|any|is there|ar
 const LISTING = /(?:\b(?:what|which|show|list|tell me|maxaad)\b)|(?:\u0645\u0627\u0630\u0627|\u4ec0\u4e48)/i;
 const NOT_INVENTORY = /\b(ship|shipping|deliver|delivery|freight|port|destination|track|tracking|quote|document|invoice|customs)\b/i;
 const BODY_TYPES: [RegExp, string][] = [
-  [/\b(suvs?)\b/i, 'suv'], [/\b(sedans?|saloon)\b/i, 'sedan'], [/\b(pickups?)\b/i, 'pickup'],
+  [/\b(suvs?)\b/i, 'suv'], [/\b(sedans?|saloon)\b/i, 'sedan'], [/\b(pick[\s-]?ups?|bakkie|double cab|single cab)\b/i, 'pickup'],
   [/\b(vans?)\b/i, 'van'], [/\b(buses|bus)\b/i, 'bus'], [/\b(trucks?)\b/i, 'truck'],
 ];
 const TRANSMISSION = /\b(automatic|manual)\b/i;
@@ -76,10 +78,7 @@ export function filterInventory(cars: InvCar[], intent: InventoryIntent): InvCar
   const out = (cars || []).filter((c) => {
     if (intent.brand && !has(c.brand, intent.brand)) return false;
     if (intent.category === 'motorcycle' && String(c.category || '') !== 'motorcycle') return false;
-    if (intent.bodyType) {
-      const hay = `${c.trim_name || ''} ${c.model || ''}`.toLowerCase();
-      if (!hay.includes(intent.bodyType)) return false;
-    }
+    if (intent.bodyType && !matchesBodyType(c, intent.bodyType)) return false;
     if (intent.maxPrice != null && !(Number(c.price_usd) > 0 && Number(c.price_usd) <= intent.maxPrice)) return false;
     if (intent.transmission && !has(c.transmission, intent.transmission)) return false;
     if (intent.fuel && !has(c.fuel_type, intent.fuel)) return false;
@@ -89,8 +88,20 @@ export function filterInventory(cars: InvCar[], intent: InventoryIntent): InvCar
   return out.sort((a, b) => (time(b) - time(a)) || (Number(b.model_year || 0) - Number(a.model_year || 0)));
 }
 
+/** Display title without repeated brand/model ("2018 Yamaha MT-09 Yamaha MT-09" -> "2018 Yamaha MT-09"). */
 export function carTitle(c: InvCar) {
-  return [c.model_year, c.brand, c.model].filter(Boolean).join(' ') || 'Vehicle';
+  return vehicleDisplayTitle(c);
+}
+
+/*
+  Body type from the record. Supplier data rarely has a body-type column, so pickups are also
+  recognised by well-known pickup model names ("Fengjun 7", "Hilux", "Poer"...).
+*/
+const PICKUP_MODELS = /\b(pick[\s-]?ups?|hilux|navara|ranger|d-?max|fengjun|poer|wingle|tunland|t60|yuhu|warrior|triton|l200|amarok|bt-?50|kaicene|landtrek|cannon|frontier|np300|rich\s?6|tacoma|tundra|f-?150)\b/i;
+export function matchesBodyType(c: InvCar, bodyType: string) {
+  const hay = `${c.trim_name || ''} ${c.model || ''} ${c.body_type || ''} ${c.title || ''}`.toLowerCase();
+  if (bodyType === 'pickup') return PICKUP_MODELS.test(hay);
+  return hay.includes(bodyType);
 }
 const money = (v: any) => (v?.price_usd ? '$' + Number(v.price_usd).toLocaleString('en-US') : '');
 
@@ -119,6 +130,12 @@ const T = {
     ar: (brand: string) => `\u0644\u0627 \u064a\u0648\u062c\u062f ${brand} \u062d\u0627\u0644\u064a\u0627\u064b \u0641\u064a \u0645\u062e\u0632\u0648\u0646\u0646\u0627. \u064a\u0645\u0643\u0646\u0646\u064a \u0645\u0633\u0627\u0639\u062f\u062a\u0643 \u0628\u0645\u0627\u0631\u0643\u0629 \u0623\u062e\u0631\u0649.`,
     zh: (brand: string) => `\u76ee\u524d\u9500\u552e\u5e93\u5b58\u91cc\u6ca1\u6709 ${brand}\uff0c\u6211\u53ef\u4ee5\u5e2e\u60a8\u770b\u770b\u5176\u4ed6\u54c1\u724c\u3002`,
   },
+  bodyNo: {
+    en: (body: string) => `We don't have a ${body} listed right now, but our team can source one for you. What budget do you have in mind, and which country should it go to?`,
+    so: (body: string) => `Hadda ${body} lama hayo, laakiin kooxdayada ayaa kuu raadin karta. Miisaaniyaddaadu waa imisa, waddankee ayaa loo dirayaa?`,
+    ar: (body: string) => `\u0644\u0627 \u064a\u0648\u062c\u062f ${body} \u0645\u062a\u0648\u0641\u0631 \u062d\u0627\u0644\u064a\u0627\u064b\u060c \u0644\u0643\u0646 \u064a\u0645\u0643\u0646 \u0644\u0641\u0631\u064a\u0642\u0646\u0627 \u062a\u0648\u0641\u064a\u0631\u0647. \u0645\u0627 \u0647\u064a \u0645\u064a\u0632\u0627\u0646\u064a\u062a\u0643 \u0648\u0625\u0644\u0649 \u0623\u064a \u0628\u0644\u062f\u061f`,
+    zh: (body: string) => `\u76ee\u524d\u6ca1\u6709\u5728\u552e\u7684${body}\uff0c\u4f46\u6211\u4eec\u53ef\u4ee5\u5e2e\u60a8\u5bfb\u627e\u3002\u60a8\u7684\u9884\u7b97\u662f\u591a\u5c11\uff0c\u8fd0\u5230\u54ea\u4e2a\u56fd\u5bb6\uff1f`,
+  },
   matching: {
     en: (n: number, noun: string) => `Yes, we have ${n} matching ${noun}. Here are the newest:`,
     so: (n: number, noun: string) => `Haa, waxaan haynaa ${n} ${noun} oo u dhigma. Kuwa ugu cusub:`,
@@ -146,9 +163,12 @@ export function inventoryAnswer(intent: InventoryIntent, cars: InvCar[], lang: s
   const n = cars.length;
   const noun = intent.category === 'motorcycle' ? 'motorcycles' : 'vehicles';
   if (intent.kind === 'brand' && !n) return { text: T.brandNo[L](String(intent.brand)), needsStaff: false };
+  // A body type we do not stock (e.g. "do you have pick up"): say so honestly and offer sourcing -
+  // never "Let me confirm" and never "Yes, we have N vehicles".
+  if (!n && intent.bodyType) return { text: T.bodyNo[L](intent.bodyType === 'pickup' ? 'pickup' : intent.bodyType.toUpperCase() === 'SUV' ? 'SUV' : intent.bodyType), needsStaff: false };
   if (!n) return { text: T.exists[L](totalAi, 'vehicles'), needsStaff: false }; // can't narrow it: general answer
   if (intent.kind === 'exists' && n === totalAi) return { text: T.exists[L](n, noun), needsStaff: false };
-  const lines = cars.slice(0, 3).map((c) => `- ${carTitle(c)}${money(c) ? ` - ${money(c)}` : ''}`);
+  const lines = cars.slice(0, 3).map((c) => `- ${carTitle(c)}${money(c) ? ` - ${money(c)}` : ''}${c.stock_no ? ` (${c.stock_no})` : ''}`);
   const head = intent.kind === 'brand' ? T.brandYes[L](n, String(intent.brand), noun) : T.matching[L](n, noun);
   return { text: `${head}\n${lines.join('\n')}\n${T.listTail[L]}`, needsStaff: false };
 }
